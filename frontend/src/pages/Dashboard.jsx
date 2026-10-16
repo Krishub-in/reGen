@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useCustomAuth } from '../hooks/useCustomAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, LogOut, Home, Clock, Settings, Bell, Menu } from 'lucide-react';
+import { Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck } from 'lucide-react';
 import UsersModule from '../components/modules/UsersModule';
 import AttendanceModule from '../components/modules/AttendanceModule';
 import SchedulesModule from '../components/modules/SchedulesModule';
@@ -185,6 +185,17 @@ export default function Dashboard({ userProfile }) {
                   )}
                 </div>
               </div>
+            )}
+            {userProfile?.role === 'param' && (
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={() => window.location.href = '/superadmin'}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-sm px-3"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="hidden sm:inline">Super Admin Console</span>
+              </Button>
             )}
             <ModeToggle />
             <Button variant="outline" onClick={handleLogout} className="hidden md:inline-flex">

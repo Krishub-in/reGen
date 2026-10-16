@@ -107,8 +107,12 @@ export const CustomAuthProvider = ({ children }) => {
       // Store JWT token
       if (backendUser?.token) {
         localStorage.setItem('auth_token', backendUser.token);
-        if (backendUser?.role !== 'param') {
+        if (backendUser?.role === 'param') {
+          localStorage.setItem('sa_auth_token', backendUser.token);
+          localStorage.setItem('active_sa_id', backendUser.userId);
+        } else {
           localStorage.removeItem('sa_auth_token');
+          localStorage.removeItem('active_sa_id');
         }
       }
     } catch (e) {

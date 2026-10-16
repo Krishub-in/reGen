@@ -34,7 +34,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const isSuperAdminPath = window.location.pathname === '/superadmin';
+  const isSuperAdminPath = window.location.pathname.startsWith('/superadmin');
 
   const isAuthenticated = !!identity;
   const resetToken = new URLSearchParams(window.location.search).get('resetToken');
@@ -137,6 +137,15 @@ export default function App() {
   }
 
   if (showDashboard) {
+    if (userProfile?.role === 'param' && !window.location.search.includes('view=ems')) {
+      return (
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <SuperAdminDashboard />
+          <Toaster />
+        </ThemeProvider>
+      );
+    }
+
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <Dashboard userProfile={userProfile} />

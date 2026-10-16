@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { Eye, EyeOff } from 'lucide-react';
 import Footer from '../components/Footer';
 
 export default function LoginPage({ resetToken: resetTokenProp }) {
@@ -17,6 +18,7 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
   // Login Form State
   const [loginUserId, setLoginUserId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState('login');
 
   const [resetToken, setResetToken] = useState(resetTokenProp || '');
@@ -36,7 +38,7 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
     try {
-      await login(loginUserId, loginPassword);
+      await login((loginUserId || '').trim(), (loginPassword || '').trim());
     } catch (error) {
       console.error("Login failed", error);
       if (error.message === "The user is not found") {
@@ -127,15 +129,25 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
                 </div>
                 <div className="space-y-2 text-left">
                   <Label htmlFor="loginPassword">Password</Label>
-                  <Input 
-                      id="loginPassword" 
-                      type="password" 
-                      value={loginPassword} 
-                      onChange={(e) => setLoginPassword(e.target.value)} 
-                      required 
-                      placeholder="Enter Password" 
-                      className="h-12"
-                  />
+                  <div className="relative">
+                    <Input 
+                        id="loginPassword" 
+                        type={showPassword ? "text" : "password"} 
+                        value={loginPassword} 
+                        onChange={(e) => setLoginPassword(e.target.value)} 
+                        required 
+                        placeholder="Enter Password" 
+                        className="h-12 pr-10"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword(prev => !prev)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <Button
@@ -159,6 +171,14 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
               <Button variant="outline" className="w-full" onClick={() => setMode('reset')}>
                 Reset Password
               </Button>
+              <div className="pt-2 text-center">
+                <a 
+                  href="/superadmin" 
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-1 font-medium"
+                >
+                  👑 Super Admin Portal →
+                </a>
+              </div>
             </>
           ) : (
             <>

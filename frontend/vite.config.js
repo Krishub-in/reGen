@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',          // ← required to accept requests from Nginx/external
     port: 2000,
-    strictPort: true,
+    strictPort: false,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:5006',  // your backend

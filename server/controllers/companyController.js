@@ -446,7 +446,7 @@ export const restoreCompany = async (req, res) => {
         }
       }
 
-      await Model.insertMany(cleaned, { ordered: false }).catch(() => {});
+      await Model.insertMany(cleaned, { ordered: false }).catch(() => { });
       restoredCounts[entry.path.replace('.json', '')] = docs.length;
     }
 

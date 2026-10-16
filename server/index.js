@@ -68,11 +68,13 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_BASE_URL || 'https://regen.krishub.in',
   'http://localhost:2000',
   'http://127.0.0.1:2000',
+  'http://localhost:2001',
+  'http://127.0.0.1:2001',
 ];
 app.use(cors({
   origin: (origin, cb) => {
     // Allow requests with no origin (server-to-server, curl, mobile apps)
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
     cb(null, false);
   },
   credentials: true,
@@ -158,8 +160,14 @@ async function seedSuperAdmin() {
       });
     } else {
       let changed = false;
-      if (existing.password && !String(existing.password).startsWith('$2')) {
-        existing.password = await bcrypt.hash(String(existing.password), 10);
+      const seedPwd = process.env.SUPER_ADMIN_PASSWORD || 'admin123';
+      const isMatch = await bcrypt.compare(seedPwd, existing.password || '');
+      if (!isMatch) {
+        existing.password = await bcrypt.hash(seedPwd, 10);
+        changed = true;
+      }
+      if (existing.role !== 'param') {
+        existing.role = 'param';
         changed = true;
       }
       if (existing.mustChangePassword !== false) {
@@ -251,7 +259,15 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Identifier and password are required' });
     }
 
-    const user = await User.findOne({ $or: [{ userId: identifier }, { username: identifier }] }).select('+password');
+    const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const idRegex = new RegExp(`^${escaped}$`, 'i');
+    const user = await User.findOne({
+      $or: [
+        { userId: idRegex },
+        { username: idRegex },
+        { email: idRegex }
+      ]
+    }).select('+password');
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     // Maintenance Mode Check
@@ -264,16 +280,19 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     let ok = false;
     if (stored.startsWith('$2')) {
       ok = await bcrypt.compare(password, stored);
+      if (!ok && password.trim() !== password) {
+        ok = await bcrypt.compare(password.trim(), stored);
+      }
     } else {
-      ok = stored === password;
+      ok = (stored === password) || (stored === password.trim());
       if (ok) {
-        user.password = await bcrypt.hash(password, 10);
+        user.password = await bcrypt.hash(password.trim(), 10);
         await user.save();
       }
     }
 
     if (!ok) {
-      pushLog('WARN', `Failed login attempt for identifier: ${identifier}`);
+      pushLog('WARN', `Failed login attempt for identifier: ${identifier}`, `pwdLen=${password?.length}, storedLen=${stored?.length}, startsWith$2=${stored?.startsWith('$2')}`);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
@@ -599,6 +618,8 @@ const verifySuperAdminOtp = (otpCode) => {
   if (!token) {
     return { ok: false, status: 400, message: 'Authenticator code is required' };
   }
+
+  
   const totp = new TOTP({ issuer: 'reGen', label: 'SuperAdmin', secret, algorithm: 'SHA1', digits: 6, period: 30 });
   const delta = totp.validate({ token, window: 1 });
   if (delta === null) {

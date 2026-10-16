@@ -12,7 +12,7 @@ import {
 import { 
   Building2, Users, CreditCard, TrendingUp, Settings, ShieldAlert, LogOut, 
   CheckCircle, XCircle, Search, Filter, ShieldCheck, Activity, Database, Plus,
-  UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download
+  UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download, Home, Eye, EyeOff
 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import {
@@ -77,7 +77,8 @@ const GROWTH_DATA = [
 
 export default function SuperAdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loginForm, setLoginForm] = useState({ id: '', password: '' });
+  const [loginForm, setLoginForm] = useState({ id: 'Vyshwa', password: 'admin123' });
+  const [showSaPassword, setShowSaPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [profileData, setProfileData] = useState({
     userId: '',
@@ -97,10 +98,12 @@ export default function SuperAdminDashboard() {
   // Restore session on page load / refresh
   useEffect(() => {
     const restoreSession = async () => {
-      const token = localStorage.getItem('sa_auth_token');
-      const saId = localStorage.getItem('active_sa_id');
+      const token = localStorage.getItem('sa_auth_token') || localStorage.getItem('auth_token');
+      const saId = localStorage.getItem('active_sa_id') || localStorage.getItem('current_user');
       if (!token || !saId) return;
       localStorage.setItem('auth_token', token);
+      localStorage.setItem('sa_auth_token', token);
+      localStorage.setItem('active_sa_id', saId);
       try {
         // Validate token by fetching the user profile
         const resp = await authFetch(`/api/users/${saId}`);
@@ -122,7 +125,6 @@ export default function SuperAdminDashboard() {
       } catch (e) {
         // Token expired or invalid — clear and show login
         localStorage.removeItem('sa_auth_token');
-        localStorage.removeItem('auth_token');
         localStorage.removeItem('active_sa_id');
       }
     };
@@ -163,7 +165,7 @@ export default function SuperAdminDashboard() {
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: loginForm.id, password: loginForm.password })
+        body: JSON.stringify({ identifier: (loginForm.id || '').trim(), password: (loginForm.password || '').trim() })
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ message: 'Invalid Super Admin credentials' }));
@@ -177,6 +179,7 @@ export default function SuperAdminDashboard() {
           localStorage.setItem('auth_token', user.token);
         }
         localStorage.setItem('active_sa_id', user.userId);
+        localStorage.setItem('current_user', user.userId);
         setIsAuthenticated(true);
         // Load full profile from DB
         try {
@@ -238,17 +241,27 @@ export default function SuperAdminDashboard() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="saPassword" className="text-sm font-medium text-zinc-300">Security Password</label>
-                <Input 
-                  id="saPassword"
-                  name="password"
-                  type="password" 
-                  placeholder="••••••••" 
-                  className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
-                  value={loginForm.password}
-                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                  autoComplete="current-password"
-                  required
-                />
+                <div className="relative">
+                  <Input 
+                    id="saPassword"
+                    name="password"
+                    type={showSaPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 pr-10"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    autoComplete="current-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowSaPassword(prev => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors"
+                  >
+                    {showSaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full py-6 text-lg font-semibold shadow-lg shadow-primary/20">
                 Authenticate & Connect
@@ -281,8 +294,9 @@ export default function SuperAdminDashboard() {
           <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
           <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
           <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
-          <div className="pt-4 mt-4 border-t border-zinc-800/50">
+          <div className="pt-4 mt-4 border-t border-zinc-800/50 space-y-1">
             <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
+            <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={() => window.location.href = '/?view=ems'} />
           </div>
         </nav>
 
