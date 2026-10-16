@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import Company from '../models/Company.js';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -144,6 +145,10 @@ export const createUser = async (req, res) => {
     delete body.skills;
     // Stamp companyId for data isolation
     body.companyId = await resolveCompanyId(req, body);
+    if (body.companyId) {
+      const comp = await Company.findById(body.companyId).select('name').lean();
+      if (comp) body.company = comp.name;
+    }
     if (body.avatar !== undefined) {
       body.avatar = await normalizeAvatarInput(body.avatar, body.userId || body.username || body.name || 'user');
     } else {
@@ -166,8 +171,19 @@ export const getAllUsers = async (req, res) => {
       return res.status(200).json([]);
     }
     const filter = isSuperAdmin ? {} : { companyId: req.companyId };
-    const users = await User.find(filter);
-    res.status(200).json(users.map(sanitizeUser));
+    const users = await User.find(filter).populate('companyId', 'name');
+    const sanitized = users.map(u => {
+      const obj = sanitizeUser(u);
+      if (u.companyId && typeof u.companyId === 'object' && u.companyId.name) {
+        obj.company = u.companyId.name;
+        obj.companyId = u.companyId._id;
+      }
+      if (u.role === 'owner' && obj.company) {
+        obj.name = obj.company;
+      }
+      return obj;
+    });
+    res.status(200).json(sanitized);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -184,9 +200,17 @@ export const getCurrentUser = async (req, res) => {
       filter.companyId = req.companyId;
     }
 
-    const user = await User.findOne(filter);
+    const user = await User.findOne(filter).populate('companyId', 'name');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.status(200).json(sanitizeUser(user));
+    const obj = sanitizeUser(user);
+    if (user.companyId && typeof user.companyId === 'object' && user.companyId.name) {
+      obj.company = user.companyId.name;
+      obj.companyId = user.companyId._id;
+    }
+    if (user.role === 'owner' && obj.company) {
+      obj.name = obj.company;
+    }
+    res.status(200).json(obj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -196,9 +220,17 @@ export const getUser = async (req, res) => {
   try {
     const filter = { userId: req.params.id };
     if (req.companyId) filter.companyId = req.companyId;
-    const user = await User.findOne(filter);
+    const user = await User.findOne(filter).populate('companyId', 'name');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    res.status(200).json(sanitizeUser(user));
+    const obj = sanitizeUser(user);
+    if (user.companyId && typeof user.companyId === 'object' && user.companyId.name) {
+      obj.company = user.companyId.name;
+      obj.companyId = user.companyId._id;
+    }
+    if (user.role === 'owner' && obj.company) {
+      obj.name = obj.company;
+    }
+    res.status(200).json(obj);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -263,8 +295,21 @@ export const updateUser = async (req, res) => {
       body.lastAvatarUpdate = new Date();
     }
 
+    // SuperAdmin can change/assign company for a user
+    if (req.user?.role === 'param' && body.companyId !== undefined) {
+      if (!body.companyId || body.companyId === 'none' || body.companyId === 'null') {
+        body.companyId = null;
+        body.company = '';
+      } else {
+        const comp = await Company.findById(body.companyId).select('name').lean();
+        if (comp) {
+          body.company = comp.name;
+        }
+      }
+    }
+
     const updateFilter = { userId: id };
-    if (req.companyId) updateFilter.companyId = req.companyId;
+    if (req.companyId && req.user?.role !== 'param') updateFilter.companyId = req.companyId;
     const user = await User.findOneAndUpdate(updateFilter, body, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.status(200).json(sanitizeUser(user));
@@ -284,3 +329,54 @@ export const deleteUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const toggleUserStatus = async (req, res) => {
+  try {
+    if (req.user?.role !== 'param') {
+      return res.status(403).json({ message: 'Only Super Admin can suspend or restore users' });
+    }
+    const { id } = req.params;
+    const { action, companyId, company } = req.body; // 'suspend' | 'activate'
+
+    const user = await User.findOne({ userId: id });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (user.role === 'param') {
+      return res.status(400).json({ message: 'Super Admin cannot be suspended' });
+    }
+
+    if (action === 'suspend') {
+      user.status = 'inactive';
+      // Preserve company affiliation on suspension so they can be reinstated with their company intact
+      user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+      await user.save();
+      return res.status(200).json({
+        message: `User ${user.name || user.username} has been suspended`,
+        user: sanitizeUser(user)
+      });
+    } else {
+      user.status = 'active';
+      if (companyId) {
+        if (companyId === 'none') {
+          user.companyId = null;
+          user.company = '';
+        } else {
+          user.companyId = companyId;
+          const comp = await Company.findById(companyId);
+          user.company = comp ? comp.name : (company || user.company || '');
+        }
+      } else if (!user.company && user.companyId) {
+        const comp = await Company.findById(user.companyId);
+        if (comp) user.company = comp.name;
+      }
+      await user.save();
+      return res.status(200).json({
+        message: `User ${user.name || user.username} access has been restored`,
+        user: sanitizeUser(user)
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

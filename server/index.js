@@ -27,6 +27,7 @@ import holidayRoutes from './routes/holidays.js';
 import { runBirthdayReminderJob } from './controllers/notificationController.js';
 import SystemSetting from './models/SystemSetting.js';
 import { maintenanceCheck } from './middleware/maintenanceCheck.js';
+import { isPort3004Reachable } from './utils/portCheck.js';
 import { signToken, verifyToken } from './middleware/authJwt.js';
 import { companyScope } from './middleware/companyScope.js';
 import User from './models/User.js';
@@ -202,6 +203,26 @@ mongoose.connection.once('open', async () => {
   pushLog('INFO', 'MongoDB connection ready', `readyState=${mongoose.connection.readyState}`);
   await seedSuperAdmin();
   await seedMaintenanceMode();
+
+  // Auto-sync company names across all users, and ensure owner name matches company name
+  try {
+    const { default: Company } = await import('./models/Company.js');
+    const companies = await Company.find({});
+    for (const c of companies) {
+      await User.updateMany(
+        { $or: [{ companyId: c._id }, { userId: c.ownerId }] },
+        { $set: { company: c.name } }
+      );
+      // Owner name should be same as company name
+      await User.updateMany(
+        { $or: [{ userId: c.ownerId }, { companyId: c._id, role: 'owner' }] },
+        { $set: { name: c.name } }
+      );
+    }
+  } catch (err) {
+    console.error('Company-user sync error:', err.message);
+  }
+
   try {
     await runBirthdayReminderJob();
     pushLog('CRON', 'Birthday reminder job initialized');
@@ -236,11 +257,38 @@ app.get('/', (req, res) => {
 
 let _maintenanceCache = { value: false, ts: 0 };
 const isMaintenanceMode = async () => {
-  if (Date.now() - _maintenanceCache.ts < 30_000) return _maintenanceCache.value;
+  const is3004Up = await isPort3004Reachable();
+  if (!is3004Up) return true;
+  if (Date.now() - _maintenanceCache.ts < 5_000) return _maintenanceCache.value;
   const setting = await SystemSetting.findOne({ key: 'maintenance_mode' });
   _maintenanceCache = { value: setting?.value === true, ts: Date.now() };
   return _maintenanceCache.value;
 };
+
+// Monitor port 3004 reachability every 2 seconds
+setInterval(() => {
+  isPort3004Reachable(true).catch(() => {});
+}, 2000);
+
+// Maintenance status check endpoint (bypasses auth and maintenance check)
+app.get('/api/system/maintenance', async (req, res) => {
+  try {
+    const status = await isMaintenanceMode();
+    res.json({ maintenance: status });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// Maintenance Mode Middleware — applied BEFORE all API operations (blocks with HTTP 503 if maintenance active)
+app.use((req, res, next) => {
+  const bypass = [
+    '/api/health',
+    '/api/system/maintenance'
+  ];
+  if (bypass.some(p => req.path.startsWith(p))) return next();
+  maintenanceCheck(req, res, next);
+});
 
 // Rate limiter for auth endpoints
 const authLimiter = rateLimit({
@@ -298,6 +346,10 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 
     pushLog('AUTH', `User logged in: ${user.username}`, `role=${user.role}`);
 
+    // Update lastLogin and lastActive timestamps
+    const loginNow = new Date();
+    await User.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
+
     // Resolve companyId if missing (for owner users)
     if (!user.companyId && user.role === 'owner') {
       const comp = await Company.findOne({ ownerId: user.userId });
@@ -305,6 +357,11 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
         user.companyId = comp._id;
         await User.updateOne({ userId: user.userId }, { companyId: comp._id });
       }
+    }
+
+    // Check if user is suspended
+    if (user.role !== 'param' && user.status === 'inactive') {
+      return res.status(403).json({ message: 'Your account has been suspended by the Super Admin. Please contact system administrator.', code: 'USER_SUSPENDED' });
     }
 
     // Check if user's company is blocked (skip for SuperAdmin/param)
@@ -578,16 +635,6 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
   }
 });
 
-// Maintenance Mode Middleware — applied BEFORE all protected API routes
-app.use((req, res, next) => {
-  const bypass = [
-    '/api/health',
-    '/api/system/maintenance'
-  ];
-  if (bypass.some(p => req.path.startsWith(p))) return next();
-  maintenanceCheck(req, res, next);
-});
-
 // Protected API routes (all behind verifyToken + companyScope + maintenanceCheck)
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
@@ -663,15 +710,6 @@ app.post('/api/deploy/rebuild', async (req, res) => {
 });
 
 // === SuperAdmin System Control ===
-app.get('/api/system/maintenance', async (req, res) => {
-  try {
-    const status = await isMaintenanceMode();
-    res.json({ maintenance: status });
-  } catch (e) {
-    res.status(500).json({ message: e.message });
-  }
-});
-
 app.post('/api/system/maintenance/toggle', async (req, res) => {
   if (!isSuperAdmin(req)) return res.status(403).json({ message: 'Forbidden' });
   const otp = verifySuperAdminOtp(req.body?.otpCode);

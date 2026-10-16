@@ -21,18 +21,40 @@ export default function App() {
     const checkMaintenance = async () => {
       try {
         const resp = await fetch('/api/system/maintenance');
-        if (resp.ok) {
-          const data = await resp.json();
-          setIsMaintenance(data.maintenance);
+        const data = await resp.json().catch(() => ({}));
+        if (resp.status === 503 || data.maintenance) {
+          setIsMaintenance(true);
+        } else if (resp.ok) {
+          setIsMaintenance(false);
         }
       } catch (e) {
-        console.error("Maintenance check failed", e);
+        console.warn('Maintenance endpoint unreachable, assuming maintenance mode');
+        setIsMaintenance(true);
       }
     };
     checkMaintenance();
-    const interval = setInterval(checkMaintenance, 5 * 60 * 1000);
+    const interval = setInterval(checkMaintenance, 2000);
     return () => clearInterval(interval);
   }, []);
+
+  if (isMaintenance) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#111',
+        color: '#fff',
+        fontSize: '2rem',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        padding: '2rem',
+      }}>
+        Server Under Maintenance
+      </div>
+    );
+  }
 
   const isSuperAdminPath = window.location.pathname.startsWith('/superadmin');
 
@@ -92,28 +114,9 @@ export default function App() {
 
   // Show login page if not authenticated
   if (!isAuthenticated) {
-    if (isMaintenance && !isSuperAdminPath) {
-      return (
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <MaintenancePage />
-          <Toaster />
-        </ThemeProvider>
-      );
-    }
-
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <LoginPage />
-        <Toaster />
-      </ThemeProvider>
-    );
-  }
-
-  // Maintenance override for logged in users
-  if (isMaintenance && userProfile?.role !== 'param' && !isSuperAdminPath) {
-    return (
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-        <MaintenancePage />
         <Toaster />
       </ThemeProvider>
     );
