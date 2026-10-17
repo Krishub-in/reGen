@@ -13,11 +13,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format } from 'date-fns';
 import { safeRandomUUID } from '@/lib/utils';
 import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline } from '@/lib/taskUtils';
+import { hasUserRole } from '@/lib/utils';
 
 export default function ScrumModule({ userProfile }) {
   const { identity } = useCustomAuth();
-  const isAdmin = userProfile.role.hasOwnProperty('admin') || userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
   const currentUserId = userProfile.userId || userProfile.id || identity?.getPrincipal() || null;
 
@@ -407,7 +408,7 @@ export default function ScrumModule({ userProfile }) {
 
   const staffOptions = useMemo(() => {
     if (!isAdmin) return [];
-    return users.filter(u => u.role && (u.role.hasOwnProperty('staff') || u.role.hasOwnProperty('intern') || u.role.hasOwnProperty('freelancer')));
+    return users.filter(u => hasUserRole(u, 'staff') || hasUserRole(u, 'intern') || hasUserRole(u, 'freelancer'));
   }, [users, isAdmin]);
 
   const handleDelete = async (id) => {

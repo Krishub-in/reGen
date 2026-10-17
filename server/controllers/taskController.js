@@ -37,20 +37,32 @@ export const createTask = async (req, res) => {
 export const isTaskExpired = (task) => {
   if (!task) return false;
   if (task.status === 'done' || task.status === 'completed') return false;
-  if (task.status === 'not_completed') return true;
+  if (task.status === 'not_completed' || task.status === 'notCompleted') return true;
 
   const timeStr = task.dueTime || task.endTime;
   const endDateStr = task.endDate || task.dueDate;
 
+  // 1. Explicit End Date + End Time
   if (endDateStr && timeStr) {
     const [hh, mm] = timeStr.split(':');
-    const d = new Date(endDateStr.includes('T') ? endDateStr.split('T')[0] + 'T00:00:00' : endDateStr + 'T00:00:00');
+    const datePart = endDateStr.includes('T') ? endDateStr.split('T')[0] : endDateStr;
+    const d = new Date(datePart + 'T00:00:00');
     d.setHours(parseInt(hh || 0, 10), parseInt(mm || 0, 10), 0, 0);
     if (!isNaN(d.getTime())) {
       return Date.now() > d.getTime();
     }
   }
 
+  // 2. Duration in minutes
+  if (task.durationUnit === 'minutes' && Number(task.durationValue) > 0) {
+    const base = task.createdAt ? new Date(task.createdAt) : (task.startDate ? new Date(task.startDate) : null);
+    if (base && !isNaN(base.getTime())) {
+      const deadline = new Date(base.getTime() + Number(task.durationValue) * 60 * 1000);
+      return Date.now() > deadline.getTime();
+    }
+  }
+
+  // 3. Duration in hours
   if (task.durationUnit === 'hours' && Number(task.durationValue) > 0) {
     const base = task.createdAt ? new Date(task.createdAt) : (task.startDate ? new Date(task.startDate) : null);
     if (base && !isNaN(base.getTime())) {
@@ -59,10 +71,18 @@ export const isTaskExpired = (task) => {
     }
   }
 
+  // 4. End Date only (default end of day)
   if (endDateStr) {
-    const d = new Date(endDateStr.includes('T') ? endDateStr : endDateStr + 'T23:59:59.999');
-    if (!isNaN(d.getTime())) {
-      return Date.now() > d.getTime();
+    const datePart = endDateStr.includes('T') ? endDateStr.split('T')[0] : endDateStr;
+    const parts = datePart.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day, 23, 59, 59, 999);
+      if (!isNaN(d.getTime())) {
+        return Date.now() > d.getTime();
+      }
     }
   }
 

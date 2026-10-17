@@ -95,8 +95,16 @@ export const CustomAuthProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: username, password })
       });
+      if (response.status === 503) {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+        setIsLoggingIn(false);
+        throw new Error('Server Under Maintenance');
+      }
       if (!response.ok) {
         const err = await response.json().catch(() => ({ message: 'Invalid credentials' }));
+        if (err.maintenance || String(err.message || '').toLowerCase().includes('maintenance')) {
+          if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+        }
         setIsLoggingIn(false);
         throw new Error(err.message || 'Invalid credentials');
       }
@@ -117,6 +125,10 @@ export const CustomAuthProvider = ({ children }) => {
       }
     } catch (e) {
       setIsLoggingIn(false);
+      const msg = String(e?.message || '').toLowerCase();
+      if (msg.includes('maintenance') || msg.includes('failed to fetch') || msg.includes('networkerror')) {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+      }
       throw e;
     }
 

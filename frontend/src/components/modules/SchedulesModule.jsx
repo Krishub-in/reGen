@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { safeRandomUUID } from '@/lib/utils';
+import { safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline } from '@/lib/taskUtils';
 
 export default function SchedulesModule({ userProfile }) {
@@ -42,9 +42,9 @@ export default function SchedulesModule({ userProfile }) {
     dueTime: '',
   });
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
   const canManage = isAdmin || isOwner;
 
   const currentUserId = userProfile.id || null;
@@ -118,10 +118,10 @@ export default function SchedulesModule({ userProfile }) {
   // Filter users for assignee dropdown
   const assigneeOptions = users.filter(user => {
     if (isAdmin) return true;
-    if (isOwner) return user.role.hasOwnProperty('staff') || user.role.hasOwnProperty('intern') || user.role.hasOwnProperty('freelancer') || user.role.hasOwnProperty('admin') || user.role.hasOwnProperty('param');
+    if (isOwner) return hasUserRole(user, 'staff') || hasUserRole(user, 'intern') || hasUserRole(user, 'freelancer') || hasUserRole(user, 'admin') || hasUserRole(user, 'param');
     return false;
   });
-  const supervisorOptions = users.filter(user => user.role && (user.role.hasOwnProperty('admin') || user.role.hasOwnProperty('owner') || user.role.hasOwnProperty('param')));
+  const supervisorOptions = users.filter(user => hasUserRole(user, 'admin') || hasUserRole(user, 'owner') || hasUserRole(user, 'param'));
 
   const [updateForms, setUpdateForms] = useState({});
   const [updateDateFilter, setUpdateDateFilter] = useState(null);
@@ -130,7 +130,7 @@ export default function SchedulesModule({ userProfile }) {
   const todayIso = new Date().toISOString().split('T')[0];
 
   const staffOptions = useMemo(() => {
-    return users.filter(user => user.role && (user.role.hasOwnProperty('staff') || user.role.hasOwnProperty('intern') || user.role.hasOwnProperty('freelancer')));
+    return users.filter(user => hasUserRole(user, 'staff') || hasUserRole(user, 'intern') || hasUserRole(user, 'freelancer'));
   }, [users]);
   const holidaySet = useMemo(() => new Set(holidays.map(h => h.date)), [holidays]);
   const approvedLeaveMap = useMemo(() => {

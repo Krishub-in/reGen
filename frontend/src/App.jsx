@@ -18,40 +18,94 @@ export default function App() {
   useSocket();
 
   useEffect(() => {
+    let active = true;
+
+    const onMaintenanceEvent = () => {
+      if (active) setIsMaintenance(true);
+    };
+    window.addEventListener('server-maintenance', onMaintenanceEvent);
+
     const checkMaintenance = async () => {
       try {
-        const resp = await fetch('/api/system/maintenance');
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const resp = await fetch('/api/system/maintenance', {
+          cache: 'no-store',
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!resp.ok) {
+          // If port/server stops, proxy or server returns non-2xx (500, 502, 503, 504, etc.)
+          if (active) setIsMaintenance(true);
+          return;
+        }
         const data = await resp.json().catch(() => ({}));
-        if (resp.status === 503 || data.maintenance) {
-          setIsMaintenance(true);
-        } else if (resp.ok) {
-          setIsMaintenance(false);
+        if (data && data.maintenance === true) {
+          if (active) setIsMaintenance(true);
+        } else {
+          if (active) setIsMaintenance(false);
         }
       } catch (e) {
-        console.warn('Maintenance endpoint unreachable, assuming maintenance mode');
-        setIsMaintenance(true);
+        // Port stopped, network down, timeout, or connection refused
+        if (active) setIsMaintenance(true);
       }
     };
     checkMaintenance();
-    const interval = setInterval(checkMaintenance, 2000);
-    return () => clearInterval(interval);
+    const interval = setInterval(checkMaintenance, 1500);
+    return () => {
+      active = false;
+      window.removeEventListener('server-maintenance', onMaintenanceEvent);
+      clearInterval(interval);
+    };
   }, []);
 
   if (isMaintenance) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#111',
-        color: '#fff',
-        fontSize: '2rem',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        padding: '2rem',
-      }}>
-        Server Under Maintenance
+      <div
+        id="server-maintenance-screen"
+        style={{
+          minHeight: '100vh',
+          width: '100vw',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#111111',
+          color: '#ffffff',
+          textAlign: 'center',
+          padding: '2rem',
+          boxSizing: 'border-box',
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}
+      >
+        <h1
+          style={{
+            color: '#ffffff',
+            fontSize: '2.5rem',
+            fontWeight: '800',
+            letterSpacing: '-0.025em',
+            margin: '0 0 1rem 0'
+          }}
+        >
+          Server Under Maintenance
+        </h1>
+        <p
+          style={{
+            color: '#ffffff',
+            fontSize: '1.125rem',
+            maxWidth: '520px',
+            lineHeight: 1.6,
+            margin: 0,
+            opacity: 0.9
+          }}
+        >
+          Our services are currently undergoing maintenance. Please check back shortly.
+        </p>
       </div>
     );
   }
@@ -157,23 +211,54 @@ export default function App() {
     );
   }
 
-  // Authenticated but profile failed — offer retry instead of showing login again
+  // Authenticated but profile failed (e.g. port down or maintenance)
   if (isAuthenticated) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <div className="flex h-screen items-center justify-center bg-background">
-          <div className="text-center space-y-4">
-            <p className="text-muted-foreground">Could not load your profile.</p>
-            <button
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
-              onClick={() => window.location.reload()}
-            >
-              Retry
-            </button>
-          </div>
-        </div>
-        <Toaster />
-      </ThemeProvider>
+      <div
+        id="server-maintenance-screen"
+        style={{
+          minHeight: '100vh',
+          width: '100vw',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          zIndex: 99999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#111111',
+          color: '#ffffff',
+          textAlign: 'center',
+          padding: '2rem',
+          boxSizing: 'border-box',
+          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+        }}
+      >
+        <h1
+          style={{
+            color: '#ffffff',
+            fontSize: '2.5rem',
+            fontWeight: '800',
+            letterSpacing: '-0.025em',
+            margin: '0 0 1rem 0'
+          }}
+        >
+          Server Under Maintenance
+        </h1>
+        <p
+          style={{
+            color: '#ffffff',
+            fontSize: '1.125rem',
+            maxWidth: '520px',
+            lineHeight: 1.6,
+            margin: 0,
+            opacity: 0.9
+          }}
+        >
+          Our services are currently undergoing maintenance. Please check back shortly.
+        </p>
+      </div>
     );
   }
 

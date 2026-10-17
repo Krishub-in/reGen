@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useGetAllUsers, useGetUserAttendance, useGetUserLeaveRequests, useGetUserPayments, useGetAllAttendance, useGetAllTasks } from '../../hooks/useQueries';
@@ -6,7 +6,8 @@ import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Users, Clock, Calendar, DollarSign, Building2, UserCheck, Briefcase, FileText, Settings, UserPlus, ListTodo } from 'lucide-react';
 import { useIsMobile } from '../../hooks/use-mobile';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
+import { isTaskExpired } from '@/lib/taskUtils';
 
 export default function DashboardHome({ userProfile, onNavigate }) {
   const { identity } = useCustomAuth();
@@ -20,29 +21,29 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   
   const isMobile = useIsMobile();
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
   // Computed Stats
-  const totalOwners = users.filter(u => u.role.hasOwnProperty('owner')).length;
-  const totalAdmins = users.filter(u => u.role.hasOwnProperty('admin')).length;
-  const totalStaffOnly = users.filter(u => u.role.hasOwnProperty('staff')).length;
-  const totalInterns = users.filter(u => u.role.hasOwnProperty('intern')).length;
-  const totalFreelancers = users.filter(u => u.role.hasOwnProperty('freelancer')).length;
-  const totalStaff = users.filter(u => u.role.hasOwnProperty('staff') || u.role.hasOwnProperty('intern') || u.role.hasOwnProperty('freelancer')).length;
+  const totalOwners = users.filter(u => hasUserRole(u, 'owner')).length;
+  const totalAdmins = users.filter(u => hasUserRole(u, 'admin')).length;
+  const totalStaffOnly = users.filter(u => hasUserRole(u, 'staff')).length;
+  const totalInterns = users.filter(u => hasUserRole(u, 'intern')).length;
+  const totalFreelancers = users.filter(u => hasUserRole(u, 'freelancer')).length;
+  const totalStaff = users.filter(u => hasUserRole(u, 'staff') || hasUserRole(u, 'intern') || hasUserRole(u, 'freelancer')).length;
   const totalDepartments = new Set(users.map(u => u.department).filter(Boolean)).size;
   
   const todayDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
   const todayAttendance = allAttendance.filter(a => a.date === todayDate);
-  const activeUsersToday = new Set(todayAttendance.map(a => a.userId.toText())).size;
+  const activeUsersToday = new Set(todayAttendance.map(a => a.userId?.toText ? a.userId.toText() : String(a.userId || ''))).size;
 
-  // Owner specific stats — all employees in their company (exclude param)
+  // Owner specific stats — only employees added by owner (exclude owner themself and superadmin)
   const myCompanyEmployees = users.filter(u => {
-    const rk = Object.keys(u.role)[0];
-    return rk !== 'param';
+    const rk = getUserRoleKey(u);
+    return rk !== 'owner' && rk !== 'param';
   });
-  // Owners see ALL company employees; staff-level users see only their department
+  // Owners see ALL company employees added by them; staff-level users see only their department
   const myDepartmentStaff = (isOwner || isAdmin)
     ? myCompanyEmployees
     : (userProfile.department 
@@ -51,13 +52,24 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     
   const activeMyStaffToday = new Set(
     todayAttendance.filter(a => {
-      const user = users.find(u => u.id.toText() === a.userId.toText());
+      const user = users.find(u => {
+        const uid = u.id?.toText ? u.id.toText() : String(u.id || u.userId || '');
+        const aid = a.userId?.toText ? a.userId.toText() : String(a.userId || '');
+        return uid === aid;
+      });
       if (!user) return false;
-      const rk = Object.keys(user.role)[0];
-      if (rk === 'param') return false;
+      const rk = getUserRoleKey(user);
+      if (rk === 'param' || rk === 'owner') return false;
       return (isOwner || isAdmin) ? true : (userProfile.department ? user.department === userProfile.department : true);
-    }).map(a => a.userId.toText())
+    }).map(a => (a.userId?.toText ? a.userId.toText() : String(a.userId || '')))
   ).size;
+
+  // Tick every second to ensure interval expiration updates immediately
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Staff specific stats
   const toIdText = (val) => {
@@ -73,6 +85,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       toIdText(userProfile?.id),
       toIdText(userProfile?.StaffId),
       toIdText(userProfile?.username),
+      toIdText(userProfile?.name),
       identity?.getPrincipal()?.toText?.(),
     ].filter(Boolean);
     return new Set(list);
@@ -87,11 +100,20 @@ export default function DashboardHome({ userProfile, onNavigate }) {
 
       const statusKey = typeof t.status === 'string'
         ? t.status
-        : Object.keys(t.status || {})[0];
-      // Assigned and not completed (todo/not started, in_progress, review)
-      return statusKey !== 'done' && statusKey !== 'completed';
+        : Object.keys(t.status || {})[0] || 'todo';
+
+      // If completed or done -> not pending
+      if (statusKey === 'done' || statusKey === 'completed') return false;
+
+      // If marked not_completed -> not pending
+      if (statusKey === 'not_completed' || statusKey === 'notCompleted') return false;
+
+      // If interval/deadline has elapsed -> not pending
+      if (isTaskExpired(t)) return false;
+
+      return true;
     });
-  }, [allTasks, myIdentifiers]);
+  }, [allTasks, myIdentifiers, now]);
 
   const myPendingTasks = myPendingTasksList.length;
 
@@ -203,7 +225,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       icon: ListTodo,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
-      show: isStaff,
+      show: isStaff || myPendingTasks > 0,
     },
     {
       title: 'My Attendance',
@@ -280,12 +302,12 @@ export default function DashboardHome({ userProfile, onNavigate }) {
               {isOwner && (
                 <>
                   <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1 shadow-sm" onClick={() => onNavigate('users')}>
-                    <Users className="h-5 w-5" />
-                    <span className="text-xs">View Staff</span>
+                    <UserPlus className="h-5 w-5 text-primary" />
+                    <span className="text-xs font-semibold">Add Employee</span>
                   </Button>
                   <Button variant="outline" className="h-20 flex flex-col items-center justify-center gap-1 shadow-sm" onClick={() => onNavigate('company')}>
-                    <FileText className="h-5 w-5" />
-                    <span className="text-xs">Department</span>
+                    <Building2 className="h-5 w-5" />
+                    <span className="text-xs">Departments</span>
                   </Button>
                 </>
               )}
@@ -370,12 +392,12 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                  {isOwner && (
                     <>
                      <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary hover:text-primary-foreground transition-all" onClick={() => onNavigate('users')}>
-                       <Users className="h-6 w-6" />
-                       <span>View Staff</span>
+                       <UserPlus className="h-6 w-6 text-primary" />
+                       <span className="font-semibold">Add Employee / Staff</span>
                      </Button>
                      <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2 hover:bg-primary hover:text-primary-foreground transition-all" onClick={() => onNavigate('company')}>
-                       <FileText className="h-6 w-6" />
-                       <span>Department</span>
+                       <Building2 className="h-6 w-6" />
+                       <span>Departments</span>
                      </Button>
                     </>
                  )}
@@ -406,8 +428,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
              </CardContent>
           </Card>
 
-          {/* Notifications for Staff */}
-          {isStaff && (
+          {/* Notifications / Pending Tasks */}
+          {(isStaff || myPendingTasks > 0) && (
             <Card>
               <CardHeader>
                 <CardTitle>Recent Updates</CardTitle>

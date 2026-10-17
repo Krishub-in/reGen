@@ -8,7 +8,8 @@ export const maintenanceCheck = async (req, res, next) => {
     if (!is3004Up) {
       return res.status(503).json({ 
         message: 'Server Under Maintenance',
-        maintenance: true 
+        maintenance: true,
+        portDown: true
       });
     }
 

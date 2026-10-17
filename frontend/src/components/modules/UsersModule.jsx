@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGetAllUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../../hooks/useQueries';
-import { authFetch } from '@/lib/utils';
+import { authFetch, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -57,11 +57,11 @@ export default function UsersModule({ userProfile }) {
     freelancer: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-orange-300 dark:border-orange-700',
   };
   const roleOrder = { param: 0, owner: 1, admin: 2, staff: 3, intern: 4, freelancer: 5 };
-  const getRoleKey = (user) => Object.keys(user.role)[0] || 'staff';
+  const getRoleKey = (user) => getUserRoleKey(user);
   const getRoleBadge = (roleKey) => roleBadgeStyles[roleKey] || roleBadgeStyles.staff;
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val || '')));
   
   // Gender-aware avatar generator (mirrors backend logic)
@@ -94,7 +94,7 @@ export default function UsersModule({ userProfile }) {
   const visibleUsers = users
     .filter(user => {
       if (isAdmin) return true;
-      if (isOwner) return ['staff','intern','freelancer','admin','owner','param'].some(r => user.role.hasOwnProperty(r));
+      if (isOwner) return ['staff','intern','freelancer','admin','owner','param'].some(r => hasUserRole(user, r));
       return false;
     })
     .filter(user => filterRole === 'all' || getRoleKey(user) === filterRole)
@@ -107,7 +107,7 @@ export default function UsersModule({ userProfile }) {
 
   // Count users per role for filter badges
   const roleCounts = users.reduce((acc, user) => {
-    if (isAdmin || (isOwner && ['staff','intern','freelancer','admin','owner','param'].some(r => user.role.hasOwnProperty(r)))) {
+    if (isAdmin || (isOwner && ['staff','intern','freelancer','admin','owner','param'].some(r => hasUserRole(user, r)))) {
       const rk = getRoleKey(user);
       acc[rk] = (acc[rk] || 0) + 1;
       acc.all = (acc.all || 0) + 1;
@@ -349,17 +349,17 @@ export default function UsersModule({ userProfile }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">{isOwner ? 'Staff Management' : 'User Management'}</h2>
+        <h2 className="text-2xl font-bold">{isOwner ? 'Staff & Employee Management' : 'User Management'}</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenDialog()}>
               <Plus className="mr-2 h-4 w-4" />
-              {isOwner ? 'Add User' : 'Add User'}
+              {isOwner ? 'Add Employee' : 'Add User'}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
+              <DialogTitle className="text-base md:text-lg">{editingUser ? (isOwner ? 'Edit Employee' : 'Edit User') : (isOwner ? 'Add New Employee' : 'Add New User')}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex flex-col items-center gap-3">

@@ -23,22 +23,50 @@ export class ErrorBoundary extends Component {
       }
 
       return (
-        <div className="flex h-full min-h-[400px] w-full flex-col items-center justify-center gap-4 rounded-lg border border-dashed p-8 text-center animate-in fade-in-50">
-          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
-            <AlertTriangle className="h-10 w-10 text-red-600 dark:text-red-400" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Something went wrong</h3>
-            <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-              {this.state.error?.message || 'An unexpected error occurred in this component.'}
-            </p>
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={() => this.setState({ hasError: false, error: null })}
+        <div
+          id="server-maintenance-screen"
+          style={{
+            minHeight: '100vh',
+            width: '100vw',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: '#111111',
+            color: '#ffffff',
+            textAlign: 'center',
+            padding: '2rem',
+            boxSizing: 'border-box',
+            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          }}
+        >
+          <h1
+            style={{
+              color: '#ffffff',
+              fontSize: '2.5rem',
+              fontWeight: '800',
+              letterSpacing: '-0.025em',
+              margin: '0 0 1rem 0'
+            }}
           >
-            Try again
-          </Button>
+            Server Under Maintenance
+          </h1>
+          <p
+            style={{
+              color: '#ffffff',
+              fontSize: '1.125rem',
+              maxWidth: '520px',
+              lineHeight: 1.6,
+              margin: 0,
+              opacity: 0.9
+            }}
+          >
+            Our services are currently undergoing maintenance. Please check back shortly.
+          </p>
         </div>
       );
     }

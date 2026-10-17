@@ -43,7 +43,26 @@ export function getTaskDeadline(task) {
     if (!isNaN(d.getTime())) return d;
   }
 
-  // 2. Duration in hours from start time / created time
+  // 2. Duration in minutes from start time / created time
+  if (task.durationUnit === 'minutes' && Number(task.durationValue) > 0) {
+    let baseTime = null;
+    if (task.createdAt) {
+      const c = new Date(task.createdAt);
+      if (!isNaN(c.getTime())) baseTime = c.getTime();
+    }
+    if (!baseTime && (task.rawStartDate || task.startDate)) {
+      const s = parseDateString(task.rawStartDate || task.startDate);
+      if (s) {
+        const sd = new Date(s + 'T00:00:00');
+        if (!isNaN(sd.getTime())) baseTime = sd.getTime();
+      }
+    }
+    if (baseTime) {
+      return new Date(baseTime + Number(task.durationValue) * 60 * 1000);
+    }
+  }
+
+  // 3. Duration in hours from start time / created time
   if (task.durationUnit === 'hours' && Number(task.durationValue) > 0) {
     let baseTime = null;
     if (task.createdAt) {

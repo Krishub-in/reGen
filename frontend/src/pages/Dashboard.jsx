@@ -22,12 +22,14 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
 
+import { hasUserRole } from '../lib/utils';
+
 export default function Dashboard({ userProfile }) {
   const { logout } = useCustomAuth();
   const queryClient = useQueryClient();
   const [activeModule, setActiveModule] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || params.get('module') || 'profile';
+    return params.get('tab') || params.get('module') || 'home';
   });
   const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
@@ -55,9 +57,9 @@ export default function Dashboard({ userProfile }) {
     });
   }, [myNotifications]);
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
   const handleLogout = async () => {
     await logout();
@@ -66,7 +68,7 @@ export default function Dashboard({ userProfile }) {
 
   const menuItems = [
     { id: 'home', label: 'Dashboard', icon: Home, show: true },
-    { id: 'users', label: 'Users', icon: Users, show: isAdmin || isOwner },
+    { id: 'users', label: isOwner ? 'Staff / Employees' : 'Users', icon: Users, show: isAdmin || isOwner },
     { id: 'attendance', label: 'Attendance', icon: Clock, show: true },
     { id: 'schedules', label: 'Schedules', icon: ClipboardList, show: true },
     { id: 'messenger', label: 'Messenger', icon: MessageSquare, show: true },

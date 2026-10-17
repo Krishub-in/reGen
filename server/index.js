@@ -11,7 +11,7 @@ import fs from 'fs';
 import http from 'http';
 import { TOTP } from 'otpauth';
 import rateLimit from 'express-rate-limit';
-import { initSocketIO } from './socket.js';
+import { initSocketIO, emitToCompany } from './socket.js';
 
 import userRoutes from './routes/users.js';
 import taskRoutes from './routes/tasks.js';
@@ -32,6 +32,12 @@ import { signToken, verifyToken } from './middleware/authJwt.js';
 import { companyScope } from './middleware/companyScope.js';
 import User from './models/User.js';
 import Company from './models/Company.js';
+import Task from './models/Task.js';
+import { isTaskExpired } from './controllers/taskController.js';
+import { authenticateUser } from './auth-integration/dualAuthService.js';
+import { isPgConnected } from './auth-integration/pgClient.js';
+import { syncMongoUserToPg } from './auth-integration/pgSyncService.js';
+import { startDeletionSyncWorker } from './auth-integration/pgDeletionSyncService.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 
@@ -248,35 +254,95 @@ mongoose.connection.once('open', async () => {
   };
 
   scheduleDaily();
+
+  isPgConnected().then(connected => {
+    if (connected) {
+      pushLog('INFO', 'PostgreSQL Auth Service connection established');
+      console.log('PostgreSQL Auth Service (auth_service) connected successfully');
+    } else {
+      pushLog('WARN', 'PostgreSQL Auth Service not reachable at startup');
+      console.warn('PostgreSQL Auth Service connection warning: service not reachable');
+    }
+    // Start background PostgreSQL user deletion & reconciliation worker
+    startDeletionSyncWorker();
+  }).catch(() => {});
 });
 
 // Routes
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
+  const is3004Up = await isPort3004Reachable().catch(() => false);
+  const maint = await isMaintenanceMode().catch(() => false);
+  if (!is3004Up || maint) {
+    return res.status(503).send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Server Under Maintenance</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { margin: 0; background: #111111; color: #ffffff; display: flex; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; text-align: center; }
+            h1 { font-size: 2.5rem; font-weight: 800; margin: 0 0 1rem 0; color: #ffffff; }
+            p { font-size: 1.125rem; color: #ffffff; opacity: 0.9; margin: 0; }
+          </style>
+        </head>
+        <body>
+          <div>
+            <h1>Server Under Maintenance</h1>
+            <p>Our services are currently undergoing maintenance. Please check back shortly.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
   res.send('ReGen Backend Running');
 });
 
 let _maintenanceCache = { value: false, ts: 0 };
-const isMaintenanceMode = async () => {
-  const is3004Up = await isPort3004Reachable();
+const isMaintenanceMode = async (force = false) => {
+  const is3004Up = await isPort3004Reachable(force);
   if (!is3004Up) return true;
-  if (Date.now() - _maintenanceCache.ts < 5_000) return _maintenanceCache.value;
+  if (!force && (Date.now() - _maintenanceCache.ts < 2000)) return _maintenanceCache.value;
   const setting = await SystemSetting.findOne({ key: 'maintenance_mode' });
   _maintenanceCache = { value: setting?.value === true, ts: Date.now() };
   return _maintenanceCache.value;
 };
 
-// Monitor port 3004 reachability every 2 seconds
+// Monitor port 3004 reachability regularly
 setInterval(() => {
   isPort3004Reachable(true).catch(() => {});
-}, 2000);
+}, 1500);
+
+// Auto-check and expire incomplete tasks every 3 seconds
+setInterval(async () => {
+  try {
+    const activeTasks = await Task.find({
+      status: { $nin: ['done', 'completed', 'not_completed', 'notCompleted'] }
+    });
+    for (const t of activeTasks) {
+      if (isTaskExpired(t)) {
+        await Task.updateOne({ _id: t._id }, { status: 'not_completed' });
+        emitToCompany('task:change', t.companyId, { action: 'expired', id: t.id });
+      }
+    }
+  } catch (err) {
+    // ignore
+  }
+}, 3000);
 
 // Maintenance status check endpoint (bypasses auth and maintenance check)
 app.get('/api/system/maintenance', async (req, res) => {
   try {
-    const status = await isMaintenanceMode();
-    res.json({ maintenance: status });
+    const is3004Up = await isPort3004Reachable(true);
+    if (!is3004Up) {
+      return res.status(503).json({ maintenance: true, portDown: true, message: 'Server Under Maintenance' });
+    }
+    const status = await isMaintenanceMode(true);
+    if (status) {
+      return res.status(503).json({ maintenance: true, message: 'Server Under Maintenance' });
+    }
+    res.json({ maintenance: false });
   } catch (e) {
-    res.status(500).json({ message: e.message });
+    res.status(503).json({ maintenance: true, message: 'Server Under Maintenance', error: e.message });
   }
 });
 
@@ -307,48 +373,28 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       return res.status(400).json({ message: 'Identifier and password are required' });
     }
 
-    const escaped = identifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const idRegex = new RegExp(`^${escaped}$`, 'i');
-    const user = await User.findOne({
-      $or: [
-        { userId: idRegex },
-        { username: idRegex },
-        { email: idRegex }
-      ]
-    }).select('+password');
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
-
     // Maintenance Mode Check
     const maintenance = await isMaintenanceMode();
+
+    // Authenticate across PostgreSQL (Auth Service) and MongoDB securely
+    const authResult = await authenticateUser({
+      identifier,
+      password,
+      ipAddress: req.ip,
+      deviceName: req.headers['user-agent']
+    });
+
+    const user = authResult.user;
+
+    // Maintenance check: only Super Admin (param) can login during maintenance
     if (maintenance && user.role !== 'param') {
       return res.status(503).json({ message: 'Maintenance Process Ongoing. Only Super Admin can login currently.' });
     }
 
-    const stored = user.password ? String(user.password) : '';
-    let ok = false;
-    if (stored.startsWith('$2')) {
-      ok = await bcrypt.compare(password, stored);
-      if (!ok && password.trim() !== password) {
-        ok = await bcrypt.compare(password.trim(), stored);
-      }
-    } else {
-      ok = (stored === password) || (stored === password.trim());
-      if (ok) {
-        user.password = await bcrypt.hash(password.trim(), 10);
-        await user.save();
-      }
+    // Check if user is suspended
+    if (user.role !== 'param' && user.status === 'inactive') {
+      return res.status(403).json({ message: 'Your account has been suspended by the Super Admin. Please contact system administrator.', code: 'USER_SUSPENDED' });
     }
-
-    if (!ok) {
-      pushLog('WARN', `Failed login attempt for identifier: ${identifier}`, `pwdLen=${password?.length}, storedLen=${stored?.length}, startsWith$2=${stored?.startsWith('$2')}`);
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
-
-    pushLog('AUTH', `User logged in: ${user.username}`, `role=${user.role}`);
-
-    // Update lastLogin and lastActive timestamps
-    const loginNow = new Date();
-    await User.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
 
     // Resolve companyId if missing (for owner users)
     if (!user.companyId && user.role === 'owner') {
@@ -359,11 +405,6 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       }
     }
 
-    // Check if user is suspended
-    if (user.role !== 'param' && user.status === 'inactive') {
-      return res.status(403).json({ message: 'Your account has been suspended by the Super Admin. Please contact system administrator.', code: 'USER_SUSPENDED' });
-    }
-
     // Check if user's company is blocked (skip for SuperAdmin/param)
     if (user.role !== 'param' && user.companyId) {
       const company = await Company.findById(user.companyId).lean();
@@ -372,7 +413,13 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       }
     }
 
-    const token = signToken(user);
+    // Update lastLogin and lastActive timestamps
+    const loginNow = new Date();
+    await User.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
+
+    pushLog('AUTH', `User logged in: ${user.username}`, `role=${user.role}, source=${authResult.authSource}`);
+
+    const token = authResult.token || signToken(user);
     res.status(200).json({
       _id: user._id,
       userId: user.userId,
@@ -383,8 +430,13 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       avatar: user.avatar,
       mustChangePassword: user.mustChangePassword || false,
       token,
+      authSource: authResult.authSource
     });
   } catch (e) {
+    if (e.statusCode) {
+      return res.status(e.statusCode).json({ message: e.message, code: e.code });
+    }
+    pushLog('WARN', 'Login error:', e.message);
     res.status(500).json({ message: e.message });
   }
 });
@@ -418,6 +470,11 @@ app.post('/api/auth/change-password', authLimiter, async (req, res) => {
     user.resetTokenHash = undefined;
     user.resetTokenExpiresAt = undefined;
     await user.save();
+
+    // Synchronize new password to PostgreSQL Auth Service
+    syncMongoUserToPg(user, newPassword).catch(err => {
+      console.warn('[AUTH-INTEGRATION] PG sync on password change failed:', err.message);
+    });
 
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (e) {
@@ -458,6 +515,11 @@ app.post('/api/auth/admin-reset-password', verifyToken, async (req, res) => {
     target.resetTokenHash = undefined;
     target.resetTokenExpiresAt = undefined;
     await target.save();
+
+    // Synchronize new password to PostgreSQL Auth Service
+    syncMongoUserToPg(target, newPassword).catch(err => {
+      console.warn('[AUTH-INTEGRATION] PG sync on admin password reset failed:', err.message);
+    });
 
     res.status(200).json({ message: `Password reset to "${newPassword}" successfully` });
   } catch (e) {

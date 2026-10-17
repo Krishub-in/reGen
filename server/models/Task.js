@@ -10,7 +10,7 @@ const taskSchema = new mongoose.Schema({
   priority: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
   assignorName: { type: String },
   durationValue: { type: Number },
-  durationUnit: { type: String, enum: ['hours', 'days'] },
+  durationUnit: { type: String, enum: ['hours', 'days', 'minutes'] },
   dueDate: { type: String },
   dueTime: { type: String },
   startDate: { type: String },

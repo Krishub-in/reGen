@@ -18,7 +18,24 @@ export function authFetch(url, options = {}) {
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
-    return fetch(url, { ...options, headers });
+    return fetch(url, { ...options, headers })
+      .then((res) => {
+        if (res.status === 503) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('server-maintenance'));
+          }
+        }
+        return res;
+      })
+      .catch((err) => {
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('connection refused')) {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('server-maintenance'));
+          }
+        }
+        throw err;
+      });
 }
 
 export function safeRandomUUID() {
@@ -33,3 +50,47 @@ export function safeRandomUUID() {
         return v.toString(16);
     });
 }
+
+/**
+ * Universal helper to check if a user object or role value matches a given role name.
+ * Robust against strings ('owner') and legacy objects ({ owner: null }).
+ */
+export function hasUserRole(userOrRole, roleName) {
+    if (!userOrRole) return false;
+    const role = (userOrRole && typeof userOrRole === 'object' && userOrRole.role !== undefined)
+        ? userOrRole.role
+        : userOrRole;
+    if (!role) return false;
+    const target = String(roleName || '').toLowerCase().trim();
+    if (typeof role === 'string') {
+        return role.toLowerCase().trim() === target;
+    }
+    if (typeof role === 'object') {
+        return Boolean(
+            role[target] !== undefined ||
+            role[roleName] !== undefined ||
+            Object.prototype.hasOwnProperty.call(role, target) ||
+            Object.prototype.hasOwnProperty.call(role, roleName)
+        );
+    }
+    return false;
+}
+
+/**
+ * Universal helper to extract the primary role string key ('staff', 'owner', 'admin', etc.)
+ * from a user object or role value.
+ */
+export function getUserRoleKey(userOrRole) {
+    if (!userOrRole) return 'staff';
+    const role = (userOrRole && typeof userOrRole === 'object' && userOrRole.role !== undefined)
+        ? userOrRole.role
+        : userOrRole;
+    if (!role) return 'staff';
+    if (typeof role === 'string') return role.toLowerCase().trim();
+    if (typeof role === 'object') {
+        const keys = Object.keys(role);
+        return keys.length > 0 ? keys[0].toLowerCase().trim() : 'staff';
+    }
+    return 'staff';
+}
+

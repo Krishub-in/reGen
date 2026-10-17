@@ -8,13 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn, safeRandomUUID } from '@/lib/utils';
+import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
+import { isTaskExpired } from '@/lib/taskUtils';
 
 export default function AttendanceModule({ userProfile }) {
   const { identity } = useCustomAuth();
-  const isAdmin = userProfile.role.hasOwnProperty('admin') || userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   
   const staffIdObj = userProfile.userId || userProfile.id || identity?.getPrincipal() || null;
   const staffIdStr = typeof staffIdObj === 'string' ? staffIdObj : (staffIdObj?.toText ? staffIdObj.toText() : String(staffIdObj || ''));
@@ -66,12 +67,18 @@ export default function AttendanceModule({ userProfile }) {
   
   const myPendingTasks = useMemo(() => {
     return allTasks.filter(t => {
-      const assigneeStr = typeof t.assignee === 'string' ? t.assignee : (t.assignee?.toText ? t.assignee.toText() : String(t.assignee));
-      const hasStaffId = staffIdStr && assigneeStr === staffIdStr;
-      const isPending = t.status === 'todo' || t.status === 'in_progress' || t.status === 'review' || t.status?.hasOwnProperty('todo') || t.status?.hasOwnProperty('inProgress') || t.status?.hasOwnProperty('review');
-      return hasStaffId && isPending;
+      const a1 = typeof t.assignedTo === 'string' ? t.assignedTo : (t.assignedTo?.toText ? t.assignedTo.toText() : String(t.assignedTo || ''));
+      const a2 = typeof t.assignee === 'string' ? t.assignee : (t.assignee?.toText ? t.assignee.toText() : String(t.assignee || ''));
+      const hasStaffId = staffIdStr && (a1 === staffIdStr || a2 === staffIdStr);
+      if (!hasStaffId) return false;
+
+      const statusKey = typeof t.status === 'string' ? t.status : Object.keys(t.status || {})[0];
+      if (statusKey === 'done' || statusKey === 'completed' || statusKey === 'not_completed' || statusKey === 'notCompleted') return false;
+      if (isTaskExpired(t)) return false;
+
+      return true;
     }).length;
-  }, [allTasks, staffIdStr]);
+  }, [allTasks, staffIdStr, currentTime]);
   
   const { prevMonthName, prevMonthPercentage } = useMemo(() => {
     const now = new Date();

@@ -1,10 +1,13 @@
 import User from '../models/User.js';
 import Company from '../models/Company.js';
+import SyncOutbox from '../models/SyncOutbox.js';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
+import { syncMongoUserToPg, removeReGenAppAccess, REGEN_APP_ID } from '../auth-integration/pgSyncService.js';
+import { query } from '../auth-integration/pgClient.js';
 
 const DEFAULT_PASSWORD = '1234';
 
@@ -157,6 +160,12 @@ export const createUser = async (req, res) => {
     }
     const user = new User(body);
     await user.save();
+
+    // Synchronize to PostgreSQL Auth Service safely and asynchronously
+    syncMongoUserToPg(user, pwd).catch(err => {
+      console.warn('[AUTH-INTEGRATION] PG sync for user failed:', err.message);
+    });
+
     res.status(201).json(sanitizeUser(user));
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -170,7 +179,22 @@ export const getAllUsers = async (req, res) => {
       // Never expose global users to non-superadmin callers
       return res.status(200).json([]);
     }
-    const filter = isSuperAdmin ? {} : { companyId: req.companyId };
+
+    let filter = {};
+    if (isSuperAdmin) {
+      // Super Admin sees all users across the platform (active and suspended/inactive)
+      // so inactive/suspended counts update accurately and Super Admin can manage/re-enable profiles
+      if (req.query.status) {
+        filter.status = req.query.status;
+      }
+    } else {
+      // Company admins and staff only see active users in their own company
+      filter = { companyId: req.companyId, status: { $ne: 'inactive' } };
+      if (req.query.includeInactive === 'true') {
+        delete filter.status;
+      }
+    }
+
     const users = await User.find(filter).populate('companyId', 'name');
     const sanitized = users.map(u => {
       const obj = sanitizeUser(u);
@@ -320,10 +344,62 @@ export const updateUser = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   try {
-    const filter = { userId: req.params.id };
-    if (req.companyId) filter.companyId = req.companyId;
-    const user = await User.findOneAndDelete(filter);
+    const targetId = req.params.id;
+    const filter = { userId: targetId };
+    if (req.companyId && req.user?.role !== 'param') filter.companyId = req.companyId;
+
+    const user = await User.findOne(filter);
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // 1. Protect Super Admin account
+    if (user.role === 'param') {
+      return res.status(403).json({ message: 'Super Admin account cannot be deleted' });
+    }
+
+    // 2. Prevent self-deletion
+    if (req.user?.userId === user.userId) {
+      return res.status(400).json({ message: 'Self-deletion is not permitted. Please contact another administrator.' });
+    }
+
+    // 3. Prevent deletion of company owner until ownership is safely transferred
+    if (user.role === 'owner') {
+      const ownedCompany = await Company.findOne({ ownerId: user.userId, status: 'active' });
+      if (ownedCompany) {
+        return res.status(400).json({
+          message: `Cannot delete company owner of "${ownedCompany.name}". Ownership must be transferred first before deleting this account.`
+        });
+      }
+    }
+
+    // 4. Safely deactivate in MongoDB and bump tokenVersion to invalidate all existing sessions
+    user.status = 'inactive';
+    user.tokenVersion = Number(user.tokenVersion || 0) + 1;
+    await user.save();
+
+    // 5. Remove ReGen-only UserAppAccess in PostgreSQL (never physically delete shared User record)
+    const pgUserId = user.pgUserId;
+    if (pgUserId) {
+      const pgRes = await removeReGenAppAccess(pgUserId);
+      if (!pgRes.success) {
+        // Enqueue durable retry in MongoDB SyncOutbox
+        await SyncOutbox.create({
+          action: 'REMOVE_REGEN_APP_ACCESS',
+          userId: user.userId,
+          pgUserId: pgUserId,
+          status: 'PENDING',
+          lastError: pgRes.error,
+          nextRetryAt: new Date(Date.now() + 5000)
+        });
+      }
+    } else if (user.syncedWithPg) {
+      await SyncOutbox.create({
+        action: 'REMOVE_REGEN_APP_ACCESS',
+        userId: user.userId,
+        status: 'PENDING',
+        nextRetryAt: new Date(Date.now() + 5000)
+      });
+    }
+
     res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -350,6 +426,11 @@ export const toggleUserStatus = async (req, res) => {
       // Preserve company affiliation on suspension so they can be reinstated with their company intact
       user.tokenVersion = Number(user.tokenVersion || 0) + 1;
       await user.save();
+
+      if (user.pgUserId) {
+        query('UPDATE "UserAppAccess" SET "isActive" = false, "updatedAt" = NOW() WHERE "userId" = $1 AND "appId" = $2', [user.pgUserId, REGEN_APP_ID]).catch(() => {});
+      }
+
       return res.status(200).json({
         message: `User ${user.name || user.username} has been suspended`,
         user: sanitizeUser(user)
@@ -370,6 +451,11 @@ export const toggleUserStatus = async (req, res) => {
         if (comp) user.company = comp.name;
       }
       await user.save();
+
+      if (user.pgUserId) {
+        query('UPDATE "UserAppAccess" SET "isActive" = true, "updatedAt" = NOW() WHERE "userId" = $1 AND "appId" = $2', [user.pgUserId, REGEN_APP_ID]).catch(() => {});
+      }
+
       return res.status(200).json({
         message: `User ${user.name || user.username} access has been restored`,
         user: sanitizeUser(user)

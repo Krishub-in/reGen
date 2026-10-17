@@ -28,6 +28,8 @@ const userSchema = new mongoose.Schema({
   lastAvatarUpdate: { type: Date },
   address: { type: String },
   tokenVersion: { type: Number, default: 0 },
+  pgUserId: { type: String, sparse: true, index: true },
+  syncedWithPg: { type: Boolean, default: false },
   lastLogin: { type: Date },
   lastActive: { type: Date }
 }, { timestamps: true });

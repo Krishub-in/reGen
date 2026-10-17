@@ -41,6 +41,11 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
       await login((loginUserId || '').trim(), (loginPassword || '').trim());
     } catch (error) {
       console.error("Login failed", error);
+      const msg = String(error?.message || '').toLowerCase();
+      if (msg.includes('maintenance') || msg.includes('failed to fetch')) {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+        return;
+      }
       if (error.message === "The user is not found") {
         toast.error("The user is not found");
       } else {
