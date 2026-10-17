@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
+import { safeRandomUUID } from '@/lib/utils';
+import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline } from '@/lib/taskUtils';
 
 export default function ScrumModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -187,7 +189,7 @@ export default function ScrumModule({ userProfile }) {
     const timestamp = BigInt(now.getTime() * 1000000);
 
     const baseNote = {
-      id: editingScrum ? editingScrum.id : crypto.randomUUID(),
+      id: editingScrum ? editingScrum.id : safeRandomUUID(),
       userId: editingScrum ? editingScrum.userId : (userProfile.userId || userProfile.id || currentUserId),
       taskDetails: scrumForm.taskDetails.trim(),
       status: scrumForm.status,
@@ -200,6 +202,17 @@ export default function ScrumModule({ userProfile }) {
 
     if (!baseNote.taskDetails) {
       toast.error('Please enter task details');
+      return;
+    }
+
+    const currentId = toIdText(userProfile.userId || userProfile.id || '');
+    const matchedTask = tasks.find(tt => 
+      toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
+      tt.title.trim().toLowerCase() === baseNote.taskDetails.toLowerCase()
+    );
+
+    if (matchedTask && isTaskExpired(matchedTask)) {
+      toast.error('The assigned time for this task has ended. This task is marked as Not Completed and cannot be opened.');
       return;
     }
 
@@ -216,8 +229,7 @@ export default function ScrumModule({ userProfile }) {
         toast.success('Scrum updated');
       } else {
         await addScrumNote.mutateAsync(baseNote);
-        const currentId = toIdText(userProfile.userId || userProfile.id || '');
-        const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === baseNote.taskDetails);
+        const t = matchedTask || tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === baseNote.taskDetails);
         if (t) {
           await updateTask.mutateAsync({
             id: t.id,
@@ -241,14 +253,18 @@ export default function ScrumModule({ userProfile }) {
 
   const handleMarkCompleted = async (note) => {
     try {
+      const currentId = toIdText(userProfile.userId || userProfile.id || '');
+      const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title.trim().toLowerCase() === (note.taskDetails || '').trim().toLowerCase());
+      if (t && isTaskExpired(t)) {
+        toast.error('The assigned time for this task has ended. This task is marked as Not Completed and cannot be completed.');
+        return;
+      }
       setOptimistic(note.id, { status: 'completed', updatedAt: BigInt(Date.now() * 1000000) });
       await updateScrumNote.mutateAsync({
         ...note,
         status: 'completed',
         updatedAt: BigInt(Date.now() * 1000000)
       });
-      const currentId = toIdText(userProfile.userId || userProfile.id || '');
-      const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === note.taskDetails);
       if (t) {
         await updateTask.mutateAsync({
           id: t.id,
@@ -319,6 +335,12 @@ export default function ScrumModule({ userProfile }) {
 
   const handleMarkResume = async (note) => {
     try {
+      const currentId = toIdText(userProfile.userId || userProfile.id || '');
+      const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title.trim().toLowerCase() === (note.taskDetails || '').trim().toLowerCase());
+      if (t && isTaskExpired(t)) {
+        toast.error('The assigned time for this task has ended. This task is marked as Not Completed and cannot be opened or resumed.');
+        return;
+      }
       setOptimistic(note.id, { status: 'in_progress', pausedAt: undefined, timerStartMs: Date.now(), updatedAt: BigInt(Date.now() * 1000000) });
       await updateScrumNote.mutateAsync({
         ...note,
@@ -461,11 +483,19 @@ export default function ScrumModule({ userProfile }) {
                               const isHidden = k === 'in_progress' || k === 'completed' || k === 'done';
                               return taskAssignee === currentId && !isHidden;
                             })
-                            .map(t => (
-                              <SelectItem key={t.id} value={t.title}>
-                                {t.title}
-                              </SelectItem>
-                            ))}
+                            .map(t => {
+                              const expired = isTaskExpired(t);
+                              return (
+                                <SelectItem 
+                                  key={t.id} 
+                                  value={t.title}
+                                  disabled={expired}
+                                  className={expired ? 'text-destructive opacity-75 font-medium' : ''}
+                                >
+                                  {t.title} {expired ? '— [Not Completed: Time Expired]' : ''}
+                                </SelectItem>
+                              );
+                            })}
                         </SelectContent>
                       </Select>
                     </div>
@@ -477,6 +507,21 @@ export default function ScrumModule({ userProfile }) {
                     placeholder="Or type details here"
                     rows={3}
                   />
+                  {(() => {
+                    const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                    const matched = tasks.find(tt => 
+                      toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
+                      tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
+                    );
+                    if (matched && isTaskExpired(matched)) {
+                      return (
+                        <div className="p-3 rounded-md bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 text-xs font-semibold flex items-center gap-2">
+                          <span>⚠️ The assigned time for this task ended ({formatDeadline(matched) || 'Deadline passed'}). This task is marked as <strong>Not Completed</strong> and cannot be opened.</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -513,19 +558,28 @@ export default function ScrumModule({ userProfile }) {
                   </div>
                 )}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <Button
-                    type="submit"
-                    className="w-full md:flex-1"
-                    disabled={addScrumNote.isPending || updateScrumNote.isPending}
-                  >
-                    {editingScrum
-                      ? addScrumNote.isPending || updateScrumNote.isPending
-                        ? 'Saving...'
-                        : 'Update Scrum'
-                      : addScrumNote.isPending
-                      ? 'Saving...'
-                        : 'Start Scrum'}
-                  </Button>
+                  {(() => {
+                    const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                    const matched = tasks.find(tt => 
+                      toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
+                      tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
+                    );
+                    const isTaskBlockedDueToExpiry = matched ? isTaskExpired(matched) : false;
+
+                    return (
+                      <Button
+                        type="submit"
+                        className={`w-full md:flex-1 ${isTaskBlockedDueToExpiry ? 'bg-red-600 hover:bg-red-700 text-white cursor-not-allowed' : ''}`}
+                        disabled={addScrumNote.isPending || updateScrumNote.isPending || isTaskBlockedDueToExpiry}
+                      >
+                        {editingScrum
+                          ? (addScrumNote.isPending || updateScrumNote.isPending ? 'Saving...' : 'Update Scrum')
+                          : isTaskBlockedDueToExpiry
+                          ? 'Task Not Completed (Time Expired — Cannot Open)'
+                          : (addScrumNote.isPending ? 'Saving...' : 'Start Scrum')}
+                      </Button>
+                    );
+                  })()}
                   {editingScrum && (
                     <Button type="button" variant="outline" onClick={resetScrumForm} className="w-full md:w-auto">
                       New Entry
@@ -597,8 +651,19 @@ export default function ScrumModule({ userProfile }) {
                 createdDate && createdDate.toISOString().split('T')[0] === todayIso;
               const canEdit = isSameDay || isAdmin;
 
+              const sid = toIdText(applied.userId);
+              const matchedTask = tasks.find(tt => 
+                toIdText(tt.assignedTo || tt.assignee || '') === sid && 
+                tt.title.trim().toLowerCase() === (applied.taskDetails || '').trim().toLowerCase()
+              );
+              const isExpired = matchedTask ? isTaskExpired(matchedTask) : false;
+              const isTaskNotCompleted = applied.status !== 'completed' && isExpired;
+
               return (
-                <Card key={note.id}>
+                <Card 
+                  key={note.id}
+                  className={isTaskNotCompleted ? 'border-red-400 bg-red-50/20 dark:bg-red-950/20' : ''}
+                >
                   <CardHeader className="flex flex-row items-start justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -606,8 +671,16 @@ export default function ScrumModule({ userProfile }) {
                         <span>{formatScrumDateTime(applied.createdAt)}</span>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="px-2 py-0.5 rounded-full bg-muted">
-                          {applied.status === 'in_progress'
+                        <span className={`px-2 py-0.5 rounded-full ${
+                          isTaskNotCompleted
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200 border border-red-300 dark:border-red-800 font-semibold'
+                            : applied.status === 'completed'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200 font-medium border border-green-300 dark:border-green-800'
+                            : 'bg-muted'
+                        }`}>
+                          {isTaskNotCompleted
+                            ? 'Not Completed'
+                            : applied.status === 'in_progress'
                             ? 'In Progress'
                             : applied.status === 'paused'
                             ? 'Paused'
@@ -620,6 +693,12 @@ export default function ScrumModule({ userProfile }) {
                             Priority: {applied.priority.charAt(0).toUpperCase() + applied.priority.slice(1)}
                           </span>
                         )}
+                        {matchedTask && (
+                          <span className={`text-[11px] ${isExpired ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-muted-foreground'}`}>
+                            {formatDeadline(matchedTask) ? `Deadline: ${formatDeadline(matchedTask)}` : ''}
+                            {isExpired && !applied.status?.includes('completed') ? ' — Expired' : ''}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
@@ -627,63 +706,74 @@ export default function ScrumModule({ userProfile }) {
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
                           <ChevronDown className="h-3 w-3" />
                           {(() => {
-                            const sid = toIdText(applied.userId);
                             const staff = users.find(u => toIdText(u.userId || u.id) === sid);
                             return staff ? formatUserLabelSafe(staff) : 'You';
                           })()}
                         </span>
                       )}
                       {applied.status !== 'completed' && (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => handleMarkCompleted(applied)}
-                            disabled={updateScrumNote.isPending}
-                          >
-                            Mark Completed
-                          </Button>
-                          {applied.status === 'paused' ? (
+                        isTaskNotCompleted ? (
+                          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-semibold py-1 px-2.5 rounded bg-red-100/60 dark:bg-red-950/50 border border-red-300 dark:border-red-800">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                            <span>Task Not Completed &bull; Expired</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs"
-                              onClick={() => handleMarkResume(applied)}
+                              onClick={() => handleMarkCompleted(applied)}
                               disabled={updateScrumNote.isPending}
                             >
-                              Resume
+                              Mark Completed
                             </Button>
-                          ) : (
+                            {applied.status === 'paused' ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => handleMarkResume(applied)}
+                                disabled={updateScrumNote.isPending}
+                              >
+                                Resume
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => handleMarkPaused(applied)}
+                                disabled={updateScrumNote.isPending}
+                              >
+                                Pause
+                              </Button>
+                            )}
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-7 text-xs"
-                              onClick={() => handleMarkPaused(applied)}
+                              onClick={() => handleMarkBlocked(applied)}
                               disabled={updateScrumNote.isPending}
                             >
-                              Pause
+                              Block
                             </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            onClick={() => handleMarkBlocked(applied)}
-                            disabled={updateScrumNote.isPending}
-                          >
-                            Block
-                          </Button>
-                        </div>
+                          </div>
+                        )
                       )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <p className="text-sm whitespace-pre-wrap">{applied.taskDetails}</p>
-                    {applied.status === 'in_progress' && (
+                    {isTaskNotCompleted && (
+                      <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+                        This task was not completed within the assigned time. It cannot be opened or worked on.
+                      </p>
+                    )}
+                    {applied.status === 'in_progress' && !isTaskNotCompleted && (
                       <p className="text-xs text-muted-foreground">Timer: {formatRunningDuration(applied)}</p>
                     )}
-                    {applied.status === 'paused' && (
+                    {applied.status === 'paused' && !isTaskNotCompleted && (
                       <p className="text-xs font-bold">Timer: {formatPausedDuration(applied)}</p>
                     )}
                     {applied.status === 'completed' && (

@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { safeRandomUUID } from '@/lib/utils';
+import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline } from '@/lib/taskUtils';
 
 export default function SchedulesModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -37,6 +39,7 @@ export default function SchedulesModule({ userProfile }) {
     durationUnit: 'days',
     startDate: '',
     endDate: '',
+    dueTime: '',
   });
 
   const isAdmin = userProfile.role.hasOwnProperty('admin');
@@ -59,17 +62,46 @@ export default function SchedulesModule({ userProfile }) {
   };
   const isAssignedToMe = (task) => toIdText(task.assignee) === toIdText(userProfile.id);
 
-  const toUiStatus = (s) => {
+  const toUiStatus = (s, task) => {
+    if (task) return getTaskUiStatus(task);
     const key = typeof s === 'string' ? s : Object.keys(s || {})[0];
     if (key === 'in_progress') return 'inProgress';
     if (key === 'done' || key === 'completed') return 'completed';
+    if (key === 'not_completed' || key === 'notCompleted') return 'not_completed';
     return 'todo';
   };
 
-  const formatStatusLabel = (ui) => {
+  const formatStatusLabel = (ui, task) => {
+    if (task) return getTaskStatusLabel(task);
     if (ui === 'inProgress') return 'In Progress';
     if (ui === 'completed') return 'Completed';
+    if (ui === 'not_completed') return 'Not Completed';
     return 'To Do';
+  };
+
+  const getStatusColor = (status, task) => {
+    if (task) return getTaskStatusBadgeClass(task);
+    const ui = typeof status === 'string' ? status : toUiStatus(status);
+    if (ui === 'completed') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300';
+    if (ui === 'not_completed') return 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200 border-red-400 font-semibold';
+    if (ui === 'inProgress') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300';
+    return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300';
+  };
+
+  const formatDisplayDate = (d) => {
+    if (!d) return '--';
+    if (typeof d === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}/.test(d)) return d.split('T')[0];
+      const parsed = new Date(d);
+      if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString();
+    }
+    if (typeof d === 'bigint' || typeof d === 'number') {
+      const num = Number(d);
+      const ms = num > 1e12 ? num / 1000000 : num;
+      const parsed = new Date(ms);
+      if (!isNaN(parsed.getTime())) return parsed.toLocaleDateString();
+    }
+    return String(d);
   };
 
   // Filter tasks based on role
@@ -300,7 +332,7 @@ export default function SchedulesModule({ userProfile }) {
     const timestamp = BigInt(now.getTime() * 1000000);
 
     const update = {
-      id: crypto.randomUUID(),
+      id: safeRandomUUID(),
       taskId: task.id,
       staffId: currentUserId,
       details: trimmed,
@@ -323,6 +355,10 @@ export default function SchedulesModule({ userProfile }) {
     return d.toLocaleString();
   };
   const handleMarkCompleted = async (task) => {
+    if (isTaskExpired(task)) {
+      toast.error('The assigned time for this task has ended. This task is marked as Not Completed and cannot be completed.');
+      return;
+    }
     try {
       const updated = {
         id: task.id,
@@ -331,7 +367,9 @@ export default function SchedulesModule({ userProfile }) {
         assignee: task.assignee,
         status: { completed: null },
         startDate: task.startDate,
-        endDate: task.endDate
+        endDate: task.endDate,
+        dueTime: task.dueTime || task.endTime || '',
+        endTime: task.endTime || task.dueTime || '',
       };
       await updateTask.mutateAsync(updated);
       toast.success('Task marked as completed');
@@ -374,8 +412,9 @@ export default function SchedulesModule({ userProfile }) {
         priority: task.priority || 'medium',
         durationValue: task.durationValue ?? '',
         durationUnit: task.durationUnit || 'days',
-        startDate: parseDate(task.startDate),
-        endDate: parseDate(task.endDate),
+        startDate: parseDate(task.rawStartDate || task.startDate),
+        endDate: parseDate(task.rawEndDate || task.endDate),
+        dueTime: task.dueTime || task.endTime || '',
       });
     } else {
       setEditingTask(null);
@@ -388,6 +427,7 @@ export default function SchedulesModule({ userProfile }) {
         durationUnit: 'days',
         startDate: new Date().toISOString().split('T')[0],
         endDate: '',
+        dueTime: '',
       });
     }
     setIsDialogOpen(true);
@@ -423,7 +463,7 @@ export default function SchedulesModule({ userProfile }) {
 
     try {
       const task = {
-        id: editingTask ? editingTask.id : crypto.randomUUID(),
+        id: editingTask ? editingTask.id : safeRandomUUID(),
         title: formData.title,
         description: formData.description,
         assignee: formData.assignee,
@@ -431,9 +471,11 @@ export default function SchedulesModule({ userProfile }) {
         priority: formData.priority,
         durationValue: !isNaN(durVal) && durVal > 0 ? durVal : undefined,
         durationUnit: !isNaN(durVal) && durVal > 0 ? formData.durationUnit : undefined,
-        status: { todo: null },
+        status: editingTask ? editingTask.status : { todo: null },
         startDate: formData.startDate,
         endDate: formData.endDate,
+        dueTime: formData.dueTime || '',
+        endTime: formData.dueTime || '',
       };
 
       if (editingTask) {
@@ -471,13 +513,6 @@ export default function SchedulesModule({ userProfile }) {
         console.error(error);
       }
     }
-  };
-
-  const getStatusColor = (status) => {
-    const ui = typeof status === 'string' ? status : toUiStatus(status);
-    if (ui === 'completed') return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-    if (ui === 'inProgress') return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-    return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
   };
 
   return (
@@ -572,7 +607,7 @@ export default function SchedulesModule({ userProfile }) {
                     <p className="text-xs text-muted-foreground">End Date auto-calculates</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date *</Label>
                     <Input
@@ -592,6 +627,16 @@ export default function SchedulesModule({ userProfile }) {
                       onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                       required
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="dueTime">End Time / Deadline</Label>
+                    <Input
+                      id="dueTime"
+                      type="time"
+                      value={formData.dueTime}
+                      onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })}
+                    />
+                    <p className="text-[11px] text-muted-foreground">Optional cutoff time</p>
                   </div>
                 </div>
                 <Button type="submit" className="w-full" disabled={createTask.isPending || updateTask.isPending}>
@@ -651,101 +696,129 @@ export default function SchedulesModule({ userProfile }) {
         ) : visibleTasks.length === 0 ? (
           <p className="col-span-full text-center py-8 text-sm text-muted-foreground">No tasks found</p>
         ) : (
-          visibleTasks.map((task) => (
-            <Card
-              key={task.id}
-              className={`${toUiStatus(task.status) === 'completed' ? 'border-green-300 bg-green-50 dark:bg-green-900/30' : ''} hover:shadow-md transition-shadow`}
-            >
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-base md:text-lg font-semibold tracking-tight text-foreground">
-                    {task.title}
-                  </CardTitle>
-                  <div className="flex flex-col items-end gap-1">
-                    {task.assignorName && (
-                      <span className="text-[11px] text-muted-foreground">Assigned by {task.assignorName}</span>
-                    )}
-                    {canManage && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleOpenDialog(task)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleDelete(task.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
+          visibleTasks.map((task) => {
+            const isCompleted = toUiStatus(task.status, task) === 'completed';
+            const isExpired = isTaskExpired(task);
+            return (
+              <Card
+                key={task.id}
+                className={`${
+                  isCompleted
+                    ? 'border-green-300 bg-green-50/40 dark:bg-green-900/20'
+                    : isExpired
+                    ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20'
+                    : ''
+                } hover:shadow-md transition-shadow`}
+              >
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <CardTitle
+                      className="text-base md:text-lg font-semibold tracking-tight text-foreground cursor-pointer hover:underline"
+                      onClick={() => setSelectedTask(task)}
+                      title="Click to view details"
+                    >
+                      {task.title}
+                    </CardTitle>
+                    <div className="flex flex-col items-end gap-1">
+                      {task.assignorName && (
+                        <span className="text-[11px] text-muted-foreground">Assigned by {task.assignorName}</span>
+                      )}
+                      {canManage && (
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleOpenDialog(task)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleDelete(task.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {((isStaff && currentUserId && (toIdText(task.assignee) === toIdText(currentUserId))) || canManage) && (
-                  <div className="mt-3 border-t border-primary/40 pt-3">
-                    {isStaff && isAssignedToMe(task) && toUiStatus(task.status) !== 'completed' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => handleMarkCompleted(task)}
-                        disabled={updateTask.isPending}
-                      >
-                        {updateTask.isPending ? 'Updating...' : 'Mark Completed'}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className={`${getStatusColor(task.status)} h-5 text-[11px] px-2`}>
-                    {formatStatusLabel(toUiStatus(task.status))}
-                  </Badge>
-                  <Badge className={
-                    task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                    task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                    'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                  }>
-                    {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm">
-                  <div className="flex items-center justify-between gap-2 min-w-0 sm:col-span-2">
-                    <span className="text-muted-foreground">Assignee:</span>
-                    <span className="truncate text-right" title={
-                      (() => {
-                        const u = users.find(x => toIdText(x.id) === toIdText(task.assignee));
-                        return u ? formatUserLabel(u) : toIdText(task.assignee);
-                      })()
+                  {((isStaff && currentUserId && (toIdText(task.assignee) === toIdText(currentUserId))) || canManage) && (
+                    <div className="mt-3 border-t border-primary/40 pt-3">
+                      {isStaff && isAssignedToMe(task) && !isCompleted && (
+                        isExpired ? (
+                          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-semibold py-1">
+                            <span className="inline-block w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+                            <span>Time Expired &bull; Not Completed</span>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs"
+                            onClick={() => handleMarkCompleted(task)}
+                            disabled={updateTask.isPending}
+                          >
+                            {updateTask.isPending ? 'Updating...' : 'Mark Completed'}
+                          </Button>
+                        )
+                      )}
+                    </div>
+                  )}
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className={`${getStatusColor(task.status, task)} h-5 text-[11px] px-2`}>
+                      {formatStatusLabel(toUiStatus(task.status, task), task)}
+                    </Badge>
+                    <Badge className={
+                      task.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                      task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
                     }>
-                      {(() => {
-                        const u = users.find(x => toIdText(x.id) === toIdText(task.assignee));
-                        return u ? formatUserLabel(u) : toIdText(task.assignee);
-                      })()}
-                    </span>
+                      {task.priority ? task.priority.charAt(0).toUpperCase() + task.priority.slice(1) : 'Medium'}
+                    </Badge>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">Start:</span>
-                    <span className="text-right">{new Date(Number(task.startDate) / 1000000).toLocaleDateString()}</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm">
+                    <div className="flex items-center justify-between gap-2 min-w-0 sm:col-span-2">
+                      <span className="text-muted-foreground">Assignee:</span>
+                      <span className="truncate text-right" title={
+                        (() => {
+                          const u = users.find(x => toIdText(x.id) === toIdText(task.assignee));
+                          return u ? formatUserLabel(u) : toIdText(task.assignee);
+                        })()
+                      }>
+                        {(() => {
+                          const u = users.find(x => toIdText(x.id) === toIdText(task.assignee));
+                          return u ? formatUserLabel(u) : toIdText(task.assignee);
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">Start:</span>
+                      <span className="text-right">{formatDisplayDate(task.rawStartDate || task.startDate)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">End:</span>
+                      <span className="text-right">{formatDisplayDate(task.rawEndDate || task.endDate)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 sm:col-span-2 pt-1 border-t border-muted/50">
+                      <span className="text-muted-foreground font-medium">Assigned Time:</span>
+                      <span className={`text-right font-medium ${isExpired ? 'text-red-600 dark:text-red-400 font-bold' : ''}`}>
+                        {formatDeadline(task) || `${formatDisplayDate(task.rawEndDate || task.endDate)} (End of day)`}
+                        {isExpired ? ' — Not Completed' : ''}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-muted-foreground">End:</span>
-                    <span className="text-right">{new Date(Number(task.endDate) / 1000000).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <p className="text-sm md:text-[13px] text-muted-foreground break-words line-clamp-2 text-balance">
-                  {task.description}
-                </p>
-              </CardContent>
-            </Card>
-          ))
+                  <p className="text-sm md:text-[13px] text-muted-foreground break-words line-clamp-2 text-balance">
+                    {task.description}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -755,15 +828,26 @@ export default function SchedulesModule({ userProfile }) {
             <DialogTitle>Task Details: {selectedTask?.title}</DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
+             {selectedTask && isTaskExpired(selectedTask) && (
+               <div className="p-3 rounded-md bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 text-xs md:text-sm font-semibold flex items-center gap-2">
+                 <span>⚠️ The assigned time for this task has ended ({formatDeadline(selectedTask) || 'Past Deadline'}). This task is marked as <strong>Not Completed</strong> and cannot be opened or modified.</span>
+               </div>
+             )}
              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <h4 className="font-semibold mb-1">Description</h4>
                   <p className="text-muted-foreground">{selectedTask?.description}</p>
                 </div>
                 <div>
-                   <h4 className="font-semibold mb-1">Timeline</h4>
+                   <h4 className="font-semibold mb-1">Timeline & Deadline</h4>
                    <p className="text-muted-foreground">
-                      {selectedTask && new Date(Number(selectedTask.startDate) / 1000000).toLocaleDateString()} - {selectedTask && new Date(Number(selectedTask.endDate) / 1000000).toLocaleDateString()}
+                      {selectedTask && formatDisplayDate(selectedTask.rawStartDate || selectedTask.startDate)} - {selectedTask && formatDisplayDate(selectedTask.rawEndDate || selectedTask.endDate)}
+                      {selectedTask && (selectedTask.dueTime || selectedTask.endTime) && ` by ${selectedTask.dueTime || selectedTask.endTime}`}
+                   </p>
+                   <p className="text-xs font-medium mt-1">
+                     Status: <span className={selectedTask && isTaskExpired(selectedTask) ? 'text-red-600 dark:text-red-400 font-bold' : ''}>
+                       {selectedTask && formatStatusLabel(toUiStatus(selectedTask.status, selectedTask), selectedTask)}
+                     </span>
                    </p>
                 </div>
              </div>

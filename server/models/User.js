@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const userSchema = new mongoose.Schema({
   userId: { type: String, required: true, unique: true }, // Principal ID
+  StaffId: { type: String, sparse: true, unique: true },
   username: { type: String, required: true },
   password: { type: String, select: false }, 
   mustChangePassword: { type: Boolean, default: true },

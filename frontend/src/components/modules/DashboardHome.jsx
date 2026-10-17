@@ -1,4 +1,6 @@
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useGetAllUsers, useGetUserAttendance, useGetUserLeaveRequests, useGetUserPayments, useGetAllAttendance, useGetAllTasks } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Users, Clock, Calendar, DollarSign, Building2, UserCheck, Briefcase, FileText, Settings, UserPlus, ListTodo } from 'lucide-react';
@@ -8,10 +10,11 @@ import { cn } from '@/lib/utils';
 
 export default function DashboardHome({ userProfile, onNavigate }) {
   const { identity } = useCustomAuth();
+  const currentUserId = userProfile?.userId || userProfile?.id || userProfile?.StaffId || identity?.getPrincipal() || null;
   const { data: users = [] } = useGetAllUsers();
-  const { data: attendance = [] } = useGetUserAttendance(identity?.getPrincipal() || null);
-  const { data: leaves = [] } = useGetUserLeaveRequests(identity?.getPrincipal() || null);
-  const { data: payments = [] } = useGetUserPayments(identity?.getPrincipal() || null);
+  const { data: attendance = [] } = useGetUserAttendance(currentUserId);
+  const { data: leaves = [] } = useGetUserLeaveRequests(currentUserId);
+  const { data: payments = [] } = useGetUserPayments(currentUserId);
   const { data: allAttendance = [] } = useGetAllAttendance();
   const { data: allTasks = [] } = useGetAllTasks();
   
@@ -57,11 +60,40 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   ).size;
 
   // Staff specific stats
-  const principalStr = identity?.getPrincipal().toText();
-  const myPendingTasks = allTasks.filter(t => {
-    const assigneeStr = typeof t.assignee === 'string' ? t.assignee : t.assignee.toText();
-    return principalStr && assigneeStr === principalStr && t.status.hasOwnProperty('todo');
-  }).length;
+  const toIdText = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val.toText) return val.toText();
+    return String(val);
+  };
+
+  const myIdentifiers = useMemo(() => {
+    const list = [
+      toIdText(userProfile?.userId),
+      toIdText(userProfile?.id),
+      toIdText(userProfile?.StaffId),
+      toIdText(userProfile?.username),
+      identity?.getPrincipal()?.toText?.(),
+    ].filter(Boolean);
+    return new Set(list);
+  }, [userProfile, identity]);
+
+  const myPendingTasksList = useMemo(() => {
+    return allTasks.filter(t => {
+      const a1 = toIdText(t.assignedTo);
+      const a2 = toIdText(t.assignee);
+      const isAssigned = (a1 && myIdentifiers.has(a1)) || (a2 && myIdentifiers.has(a2));
+      if (!isAssigned) return false;
+
+      const statusKey = typeof t.status === 'string'
+        ? t.status
+        : Object.keys(t.status || {})[0];
+      // Assigned and not completed (todo/not started, in_progress, review)
+      return statusKey !== 'done' && statusKey !== 'completed';
+    });
+  }, [allTasks, myIdentifiers]);
+
+  const myPendingTasks = myPendingTasksList.length;
 
   const stats = [
     // Admin Cards
@@ -169,8 +201,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       title: 'My Pending Tasks',
       value: myPendingTasks,
       icon: ListTodo,
-      color: 'text-orange-600 dark:text-orange-400',
-      bgColor: 'bg-orange-50 dark:bg-orange-950',
+      color: 'text-primary',
+      bgColor: 'bg-primary/10',
       show: isStaff,
     },
     {
@@ -383,25 +415,57 @@ export default function DashboardHome({ userProfile, onNavigate }) {
               <CardContent>
                 <div className="space-y-4">
                   {myPendingTasks > 0 ? (
-                    <div className="p-4 rounded-lg bg-orange-50 dark:bg-orange-950 border border-orange-100 dark:border-orange-900">
-                      <h4 className="font-semibold text-orange-900 dark:text-orange-100 mb-1">Pending Tasks</h4>
-                      <p className="text-sm text-orange-800 dark:text-orange-200">
-                        You have {myPendingTasks} tasks waiting for your attention.
+                    <div className="p-4 rounded-lg bg-card/50 border border-border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-foreground flex items-center gap-2">
+                          <ListTodo className="h-4 w-4 text-primary" />
+                          <span>Pending Tasks</span>
+                        </h4>
+                        <Badge variant="secondary" className="text-xs font-normal">
+                          {myPendingTasks} task{myPendingTasks > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        You have {myPendingTasks} assigned task{myPendingTasks > 1 ? 's' : ''} waiting to be started or worked on.
                       </p>
+                      <div className="space-y-1.5 pt-1 border-t border-border">
+                        {myPendingTasksList.slice(0, 4).map(task => {
+                          const statusKey = typeof task.status === 'string' ? task.status : Object.keys(task.status || {})[0];
+                          const isNotStarted = statusKey === 'todo';
+                          return (
+                            <div key={task.id} className="flex items-center justify-between text-xs py-2 px-3 rounded-md bg-muted/40 border border-border">
+                              <span className="font-medium text-foreground truncate max-w-[220px]" title={task.title}>
+                                • {task.title}
+                              </span>
+                              <Badge variant="outline" className="text-[10px] font-normal border-border text-muted-foreground">
+                                {isNotStarted ? 'Not Started' : 'In Progress'}
+                              </Badge>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs h-8 border-border hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => onNavigate('schedules')}
+                      >
+                        View in Schedules & Tasks
+                      </Button>
                     </div>
                   ) : (
-                    <div className="p-4 rounded-lg bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-900">
-                       <h4 className="font-semibold text-green-900 dark:text-green-100 mb-1">All Caught Up!</h4>
-                       <p className="text-sm text-green-800 dark:text-green-200">
+                    <div className="p-4 rounded-lg bg-card border border-border">
+                       <h4 className="font-semibold text-foreground mb-1">All Caught Up!</h4>
+                       <p className="text-sm text-muted-foreground">
                          You have no pending tasks.
                        </p>
                     </div>
                   )}
                   
                   {/* Mock System Update */}
-                  <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900">
-                     <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-1">System Announcement</h4>
-                     <p className="text-sm text-blue-800 dark:text-blue-200">
+                  <div className="p-4 rounded-lg bg-card border border-border">
+                     <h4 className="font-semibold text-foreground mb-1">System Announcement</h4>
+                     <p className="text-sm text-muted-foreground">
                        Welcome to the new dashboard! Please update your profile information.
                      </p>
                   </div>

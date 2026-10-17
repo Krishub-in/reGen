@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
+import { safeRandomUUID } from '@/lib/utils';
 
 export default function CalendarModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -324,7 +325,7 @@ export default function CalendarModule({ userProfile }) {
       }
 
       await applyLeave.mutateAsync({
-        id: crypto.randomUUID(),
+        id: safeRandomUUID(),
         userId: uid,
         displayId: uid,
         type: leaveForm.type,

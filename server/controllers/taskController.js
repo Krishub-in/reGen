@@ -34,11 +34,56 @@ export const createTask = async (req, res) => {
   }
 };
 
+export const isTaskExpired = (task) => {
+  if (!task) return false;
+  if (task.status === 'done' || task.status === 'completed') return false;
+  if (task.status === 'not_completed') return true;
+
+  const timeStr = task.dueTime || task.endTime;
+  const endDateStr = task.endDate || task.dueDate;
+
+  if (endDateStr && timeStr) {
+    const [hh, mm] = timeStr.split(':');
+    const d = new Date(endDateStr.includes('T') ? endDateStr.split('T')[0] + 'T00:00:00' : endDateStr + 'T00:00:00');
+    d.setHours(parseInt(hh || 0, 10), parseInt(mm || 0, 10), 0, 0);
+    if (!isNaN(d.getTime())) {
+      return Date.now() > d.getTime();
+    }
+  }
+
+  if (task.durationUnit === 'hours' && Number(task.durationValue) > 0) {
+    const base = task.createdAt ? new Date(task.createdAt) : (task.startDate ? new Date(task.startDate) : null);
+    if (base && !isNaN(base.getTime())) {
+      const deadline = new Date(base.getTime() + Number(task.durationValue) * 3600 * 1000);
+      return Date.now() > deadline.getTime();
+    }
+  }
+
+  if (endDateStr) {
+    const d = new Date(endDateStr.includes('T') ? endDateStr : endDateStr + 'T23:59:59.999');
+    if (!isNaN(d.getTime())) {
+      return Date.now() > d.getTime();
+    }
+  }
+
+  return false;
+};
+
 export const getAllTasks = async (req, res) => {
   try {
     const filter = req.companyId ? { companyId: req.companyId } : {};
     const tasks = await Task.find(filter);
-    res.status(200).json(tasks);
+
+    // Auto-update any expired incomplete tasks to not_completed
+    const processedTasks = await Promise.all(tasks.map(async (task) => {
+      if (isTaskExpired(task) && task.status !== 'not_completed') {
+        task.status = 'not_completed';
+        await Task.updateOne({ _id: task._id }, { status: 'not_completed' });
+      }
+      return task;
+    }));
+
+    res.status(200).json(processedTasks);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -50,6 +95,15 @@ export const updateTask = async (req, res) => {
     const findFilter = { id };
     if (req.companyId) findFilter.companyId = req.companyId;
     const previous = await Task.findOne(findFilter);
+    if (!previous) return res.status(404).json({ message: 'Task not found' });
+
+    // If task was expired and incomplete, prevent marking it completed
+    const reqStatus = req.body.status;
+    const isTryingToComplete = reqStatus === 'done' || reqStatus === 'completed' || (reqStatus && typeof reqStatus === 'object' && 'completed' in reqStatus);
+    if (isTaskExpired(previous) && isTryingToComplete) {
+      return res.status(400).json({ message: 'The assigned time for this task has ended. This task is marked as Not Completed and cannot be completed.' });
+    }
+
     const task = await Task.findOneAndUpdate(findFilter, req.body, { new: true });
     if (!task) return res.status(404).json({ message: 'Task not found' });
     if (task.assignedTo) {

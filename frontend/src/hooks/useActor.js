@@ -595,10 +595,14 @@ export const createHttpActor = (identity) => {
     getAllTasks: async () => {
         const tasks = await fetchJson(`${API_BASE}/tasks`, []);
         return tasks.map((t) => {
-            const startBig = t.startDate ? BigInt(Date.parse(t.startDate) * 1000000) : 0n;
-            const endBig = t.endDate ? BigInt(Date.parse(t.endDate) * 1000000) : 0n;
+            const startBig = t.startDate ? (isNaN(Date.parse(t.startDate)) ? 0n : BigInt(Date.parse(t.startDate) * 1000000)) : 0n;
+            const endBig = t.endDate ? (isNaN(Date.parse(t.endDate)) ? 0n : BigInt(Date.parse(t.endDate) * 1000000)) : 0n;
             return {
                 ...t,
+                rawStartDate: t.startDate,
+                rawEndDate: t.endDate,
+                dueTime: t.dueTime || t.endTime || '',
+                endTime: t.endTime || t.dueTime || '',
                 assignedTo: t.assignedTo ? safePrincipal(t.assignedTo) : undefined,
                 assignee: t.assignedTo ? safePrincipal(t.assignedTo) : Principal.anonymous(),
                 startDate: startBig,
@@ -608,29 +612,32 @@ export const createHttpActor = (identity) => {
     },
     createTask: async (task) => {
         const mapStatus = (s) => {
-            const k = Object.keys(s)[0];
+            if (typeof s === 'string') return s;
+            const k = Object.keys(s || {})[0];
             if (k === 'inProgress') return 'in_progress';
             if (k === 'completed') return 'done';
+            if (k === 'notCompleted' || k === 'not_completed') return 'not_completed';
             return k || 'todo';
         };
         const mapPriority = (p) => {
             if (typeof p === 'string') return p;
             return Object.keys(p || { medium: null })[0] || 'medium';
         };
-        const startIso = toIsoDate(task.startDate);
-        const endIso = toIsoDate(task.endDate);
+        const startIso = toIsoDate(task.startDate || task.rawStartDate);
+        const endIso = toIsoDate(task.endDate || task.rawEndDate);
         const payload = {
             ...task,
             id: task.id,
             assignedTo: typeof task.assignee === 'string' ? task.assignee : (task.assignee?.toText ? task.assignee.toText() : String(task.assignee)),
             assignorName: task.assignorName || '',
-            // Store other fields
             title: task.title,
             description: task.description,
             status: mapStatus(task.status),
             priority: mapPriority(task.priority),
             durationValue: task.durationValue,
             durationUnit: task.durationUnit,
+            dueTime: task.dueTime || task.endTime || '',
+            endTime: task.endTime || task.dueTime || '',
             startDate: startIso,
             endDate: endIso,
             dueDate: endIso
@@ -643,9 +650,11 @@ export const createHttpActor = (identity) => {
     },
     updateTask: async (task) => {
          const mapStatus = (s) => {
-            const k = Object.keys(s)[0];
+            if (typeof s === 'string') return s;
+            const k = Object.keys(s || {})[0];
             if (k === 'inProgress') return 'in_progress';
             if (k === 'completed') return 'done';
+            if (k === 'notCompleted' || k === 'not_completed') return 'not_completed';
             if (k === 'paused' || k === 'blocked') return 'review';
             return k || 'todo';
          };
@@ -653,8 +662,8 @@ export const createHttpActor = (identity) => {
             if (typeof p === 'string') return p;
             return Object.keys(p || { medium: null })[0] || 'medium';
          };
-            const startIso = toIsoDate(task.startDate);
-            const endIso = toIsoDate(task.endDate);
+         const startIso = toIsoDate(task.startDate || task.rawStartDate);
+         const endIso = toIsoDate(task.endDate || task.rawEndDate);
          const payload = {
             ...task,
             assignedTo: typeof task.assignee === 'string' ? task.assignee : (task.assignee?.toText ? task.assignee.toText() : String(task.assignee)),
@@ -663,9 +672,11 @@ export const createHttpActor = (identity) => {
             priority: mapPriority(task.priority),
             durationValue: task.durationValue,
             durationUnit: task.durationUnit,
-                startDate: startIso,
-                endDate: endIso,
-                dueDate: endIso
+            dueTime: task.dueTime || task.endTime || '',
+            endTime: task.endTime || task.dueTime || '',
+            startDate: startIso,
+            endDate: endIso,
+            dueDate: endIso
         };
         return handleResponse(await fetch(`${API_BASE}/tasks/${task.id}`, {
             method: 'PUT',
@@ -697,11 +708,17 @@ export const createHttpActor = (identity) => {
         }));
     },
     recordAttendance: async (attendance) => {
+        const resolveStatus = (s) => {
+            if (typeof s === 'string') return s;
+            if (s && typeof s === 'object') return Object.keys(s)[0] || 'present';
+            return 'present';
+        };
+
         const payload = {
             id: attendance.id,
             userId: (typeof attendance.userId === 'string' ? attendance.userId : (attendance.userId?.toText ? attendance.userId.toText() : String(attendance.userId))),
             date: attendance.date,
-            status: Object.keys(attendance.status || { present: null })[0] || 'present',
+            status: resolveStatus(attendance.status),
             checkIn: attendance.checkIn || (attendance.checkInTime ? new Date(Number(attendance.checkInTime) / 1000000).toISOString() : new Date().toISOString()),
             location: attendance.location || '',
             workMode: attendance.workMode || 'office',
@@ -714,11 +731,17 @@ export const createHttpActor = (identity) => {
         }));
     },
     updateAttendance: async (attendance) => {
+        const resolveStatus = (s) => {
+            if (typeof s === 'string') return s;
+            if (s && typeof s === 'object') return Object.keys(s)[0] || 'present';
+            return 'present';
+        };
+
         const payload = {
             id: attendance.id,
             userId: (typeof attendance.userId === 'string' ? attendance.userId : (attendance.userId?.toText ? attendance.userId.toText() : String(attendance.userId))),
             date: attendance.date,
-            status: Object.keys(attendance.status || { present: null })[0] || 'present',
+            status: resolveStatus(attendance.status),
             checkIn: attendance.checkIn ? attendance.checkIn : (attendance.checkInTime ? new Date(Number(attendance.checkInTime) / 1000000).toISOString() : undefined),
             checkOut: attendance.checkOut ? attendance.checkOut : (attendance.checkOutTime && attendance.checkOutTime.length > 0 ? new Date(Number(attendance.checkOutTime[0]) / 1000000).toISOString() : undefined),
             workMode: attendance.workMode || 'office',

@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer } from 'lucide-react';
 import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { cn, safeRandomUUID } from '@/lib/utils';
 import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
 
@@ -256,78 +256,110 @@ export default function AttendanceModule({ userProfile }) {
 
   const getCheckInTime = (record) => {
     if (!record) return null;
-    console.log('Checking record for checkInTime:', record);
-    
-    // Try multiple field names that might contain check-in time
-    const time = record?.checkInTime || 
-                 record?.checkIn || 
-                 record?.checkInAt || 
-                 record?.checkinTime ||
-                 record?.start ||
-                 record?.startTime;
-    console.log('Found checkInTime:', time);
-    return time;
+    return record?.checkIn || 
+           record?.checkInTime || 
+           record?.checkInAt || 
+           record?.checkinTime ||
+           record?.start ||
+           record?.startTime ||
+           null;
   };
 
   const getCheckOutTime = (record) => {
     if (!record) return null;
-    // Try multiple field names that might contain check-out time
-    const checkOut = record?.checkOutTime || 
-                    record?.checkOut || 
+    const checkOut = record?.checkOut || 
+                    record?.checkOutTime || 
                     record?.checkOutAt || 
                     record?.checkoutTime ||
                     record?.end ||
-                    record?.endTime;
-    // Handle array format [time] or just time
+                    record?.endTime ||
+                    null;
     return Array.isArray(checkOut) ? checkOut[0] : checkOut;
   };
 
+  const calculateDuration = (startTime, endTime, verbose = false) => {
+    if (!startTime || !endTime) return null;
+    try {
+      let startMs = typeof startTime === 'number'
+        ? (startTime > 10000000000 ? startTime / 1000000 : startTime)
+        : new Date(startTime).getTime();
+      let endMs = typeof endTime === 'number'
+        ? (endTime > 10000000000 ? endTime / 1000000 : endTime)
+        : new Date(endTime).getTime();
+
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return null;
+
+      const diffMs = endMs - startMs;
+      const totalMinutes = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+
+      if (verbose) {
+        if (hours === 0) return `${minutes} min${minutes !== 1 ? 's' : ''}`;
+        if (minutes === 0) return `${hours} hr${hours !== 1 ? 's' : ''}`;
+        return `${hours} hr${hours !== 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
+      }
+      if (hours === 0) return `${minutes}m`;
+      if (minutes === 0) return `${hours}h`;
+      return `${hours}h ${minutes}m`;
+    } catch {
+      return null;
+    }
+  };
+
   // -- User/Mobile View Logic --
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayRecord = userAttendance.find(r => r.date === todayStr);
+  const todayStr = format(currentTime, 'yyyy-MM-dd');
+  const todayRecord = userAttendance.find(r => r.date === todayStr || (typeof r.date === 'string' && r.date.startsWith(todayStr)));
   const isCheckedIn = !!todayRecord;
   const isCheckedOut = todayRecord && !!getCheckOutTime(todayRecord);
+
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const handleCheckIn = async () => {
     if (!identity) {
       toast.error('Please login first');
       return;
     }
+    if (isCheckingIn || isCheckedIn) return;
+
+    setIsCheckingIn(true);
 
     const doCheckIn = async (locationStr = '') => {
-      const now = new Date();
-      const payload = {
-        id: crypto.randomUUID(),
-        userId: staffIdStr,
-        date: todayStr,
-        checkIn: now.toISOString(),
-        status: { present: null },
-        workMode: 'office',
-        location: locationStr,
-        notes: []
-      };
-
       try {
+        const now = new Date();
+        const payload = {
+          id: safeRandomUUID(),
+          userId: staffIdStr,
+          date: todayStr,
+          checkIn: now.toISOString(),
+          status: 'present',
+          workMode: 'office',
+          location: locationStr,
+          notes: ''
+        };
+
         await recordAttendance.mutateAsync(payload);
         toast.success('Check-in successful!');
       } catch (error) {
         console.error('Check-in failed:', error);
         toast.error(`Check-in failed: ${error.message || 'Please try again.'}`);
+      } finally {
+        setIsCheckingIn(false);
       }
     };
 
-    if (navigator.geolocation) {
+    if (typeof navigator !== 'undefined' && navigator.geolocation && window.isSecureContext) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
           const { latitude, longitude } = position.coords;
           doCheckIn(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
         },
         (error) => {
-          console.warn('Geolocation error, proceeding without location:', error.message);
-          toast.info('Location unavailable — checking in without location.');
+          console.warn('Geolocation unavailable:', error.message);
           doCheckIn('');
         },
-        { timeout: 5000, enableHighAccuracy: false }
+        { timeout: 3000, enableHighAccuracy: false }
       );
     } else {
       doCheckIn('');
@@ -339,9 +371,11 @@ export default function AttendanceModule({ userProfile }) {
       toast.error('Please check in first before checking out');
       return;
     }
-    
+    if (isCheckingOut || isCheckedOut) return;
+
+    setIsCheckingOut(true);
     const now = new Date();
-    
+
     try {
       await updateAttendance.mutateAsync({
         ...todayRecord,
@@ -352,6 +386,8 @@ export default function AttendanceModule({ userProfile }) {
     } catch (error) {
       console.error("Check-out failed:", error);
       toast.error('Check-out failed. Please try again.');
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -385,38 +421,101 @@ export default function AttendanceModule({ userProfile }) {
             </CardContent>
         </Card>
 
+        {/* Working Duration Card (Visible when checked in) */}
+        {isCheckedIn && (
+            <Card className="border-border/60 shadow-sm bg-gradient-to-br from-card via-card to-muted/40 overflow-hidden">
+                <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={cn(
+                                "h-11 w-11 rounded-xl flex items-center justify-center transition-all",
+                                isCheckedOut ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                            )}>
+                                <Timer className="h-6 w-6" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold">
+                                        {isCheckedOut ? "Total Working Hours" : "Active Working Hours"}
+                                    </h4>
+                                    <span className={cn(
+                                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1",
+                                        isCheckedOut ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                    )}>
+                                        {!isCheckedOut && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                        {isCheckedOut ? "Completed" : "In Progress"}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    In: {formatTime(getCheckInTime(todayRecord))}
+                                    {isCheckedOut && ` • Out: ${formatTime(getCheckOutTime(todayRecord))}`}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="text-right">
+                            <span className="text-xl font-extrabold tracking-tight text-foreground font-mono">
+                                {isCheckedOut
+                                    ? (calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord), true) || '0 mins')
+                                    : (calculateDuration(getCheckInTime(todayRecord), currentTime, true) || '0 mins')}
+                            </span>
+                            <p className="text-[11px] text-muted-foreground">
+                                {isCheckedOut ? "Check-in to Check-out" : "Elapsed time"}
+                            </p>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
+
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-4">
             <Button 
                 className={cn(
-                    "h-32 flex flex-col gap-3 rounded-2xl shadow-sm hover:shadow-md transition-all",
+                    "h-32 flex flex-col gap-2 rounded-2xl shadow-sm hover:shadow-md transition-all",
                     isCheckedIn ? "bg-muted text-muted-foreground border-2 border-transparent" : "bg-card text-green-600 border-2 border-green-100 dark:border-green-900 hover:border-green-200 hover:bg-green-50 dark:hover:bg-green-900/20"
                 )}
                 variant="ghost"
-                disabled={isCheckedIn}
+                disabled={isCheckedIn || isCheckingIn}
                 onClick={handleCheckIn}
             >
                 <div className={cn("h-12 w-12 rounded-full flex items-center justify-center", isCheckedIn ? "bg-muted" : "bg-green-100 dark:bg-green-900/30")}>
-                    <LogIn className={cn("h-6 w-6", isCheckedIn ? "text-muted-foreground" : "text-green-600 dark:text-green-400")} />
+                    {isCheckingIn ? (
+                        <div className="h-6 w-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        <LogIn className={cn("h-6 w-6", isCheckedIn ? "text-muted-foreground" : "text-green-600 dark:text-green-400")} />
+                    )}
                 </div>
-                <span className="font-semibold text-lg">Check In</span>
+                <span className="font-semibold text-lg">{isCheckingIn ? 'Checking In...' : 'Check In'}</span>
                 {isCheckedIn && <span className="text-xs">Done at {formatTime(getCheckInTime(todayRecord))}</span>}
             </Button>
 
             <Button 
                 className={cn(
-                    "h-32 flex flex-col gap-3 rounded-2xl shadow-sm hover:shadow-md transition-all",
+                    "h-32 flex flex-col gap-2 rounded-2xl shadow-sm hover:shadow-md transition-all",
                     !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground border-2 border-transparent" : "bg-card text-red-600 border-2 border-red-100 dark:border-red-900 hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20"
                 )}
                 variant="ghost"
-                disabled={!isCheckedIn || isCheckedOut}
+                disabled={!isCheckedIn || isCheckedOut || isCheckingOut}
                 onClick={handleCheckOut}
             >
                 <div className={cn("h-12 w-12 rounded-full flex items-center justify-center", !isCheckedIn || isCheckedOut ? "bg-muted" : "bg-red-100 dark:bg-red-900/30")}>
-                    <LogOut className={cn("h-6 w-6", !isCheckedIn || isCheckedOut ? "text-muted-foreground" : "text-red-600 dark:text-red-400")} />
+                    {isCheckingOut ? (
+                        <div className="h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                        <LogOut className={cn("h-6 w-6", !isCheckedIn || isCheckedOut ? "text-muted-foreground" : "text-red-600 dark:text-red-400")} />
+                    )}
                 </div>
-                <span className="font-semibold text-lg">Check Out</span>
-                {isCheckedOut && <span className="text-xs">Done at {formatTime(getCheckOutTime(todayRecord))}</span>}
+                <span className="font-semibold text-lg">{isCheckingOut ? 'Checking Out...' : 'Check Out'}</span>
+                {isCheckedOut && (
+                    <div className="flex flex-col items-center">
+                        <span className="text-xs">Done at {formatTime(getCheckOutTime(todayRecord))}</span>
+                        {calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord)) && (
+                            <span className="text-[11px] font-bold text-foreground/80">
+                                {calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord))}
+                            </span>
+                        )}
+                    </div>
+                )}
             </Button>
         </div>
 
@@ -452,29 +551,48 @@ export default function AttendanceModule({ userProfile }) {
             </div>
             
             <div className="space-y-3">
-                {(showAllHistory ? userAttendance : userAttendance.slice(0, 5)).map((record) => (
-                    <div key={record.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">
-                                {new Date(record.date).getDate()}
+                {(showAllHistory ? userAttendance : userAttendance.slice(0, 5)).map((record) => {
+                    const inTime = getCheckInTime(record);
+                    const outTime = getCheckOutTime(record);
+                    const durationStr = calculateDuration(inTime, outTime, true);
+                    return (
+                        <div key={record.id || record._id} className="flex items-center justify-between p-3.5 bg-card rounded-xl border border-border shadow-sm">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">
+                                    {new Date(record.date).getDate()}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <p className="font-semibold text-foreground text-sm">
+                                            {record.status === 'present' ? 'Present' : (record.status || 'Present')}
+                                        </p>
+                                        {durationStr && (
+                                            <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold">
+                                                {durationStr}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        {formatTime(inTime)} - {outTime ? formatTime(outTime) : 'Ongoing'}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <p className="font-semibold text-foreground">
-                                    {record.status === 'present' ? 'Present' : 'Absent'}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                    {formatTime(getCheckInTime(record))} - {getCheckOutTime(record) ? formatTime(getCheckOutTime(record)) : '...'}
-                                </p>
+                            <div className="text-right flex flex-col items-end gap-1">
+                                <span className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-xs font-medium capitalize",
+                                    record.status === 'present' ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+                                )}>
+                                    {record.status || 'present'}
+                                </span>
+                                {durationStr && (
+                                    <span className="text-[11px] text-muted-foreground font-mono">
+                                        {calculateDuration(inTime, outTime)}
+                                    </span>
+                                )}
                             </div>
                         </div>
-                        <span className={cn(
-                            "px-2 py-1 rounded-full text-xs font-medium",
-                            record.status === 'present' ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                        )}>
-                            {record.status}
-                        </span>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
 
@@ -667,9 +785,14 @@ export default function AttendanceModule({ userProfile }) {
                       <span className="text-foreground/90">{user?.department || '--'}</span>
                     </div>
                     <div className="col-span-2">
-                      <span className="block text-[10px] uppercase tracking-wide">In / Out</span>
+                      <span className="block text-[10px] uppercase tracking-wide">In / Out & Duration</span>
                       <span className="text-foreground/90">
                         {formatTime(getCheckInTime(record))} - {getCheckOutTime(record) ? formatTime(getCheckOutTime(record)) : '--'}
+                        {calculateDuration(getCheckInTime(record), getCheckOutTime(record)) && (
+                          <span className="ml-1.5 font-bold text-primary">
+                            ({calculateDuration(getCheckInTime(record), getCheckOutTime(record))})
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
@@ -695,6 +818,7 @@ export default function AttendanceModule({ userProfile }) {
                 <TableHead>Department</TableHead>
                 <TableHead>In Time</TableHead>
                 <TableHead>Out Time</TableHead>
+                <TableHead>Working Hours</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Geo-Location</TableHead>
               </TableRow>
@@ -711,6 +835,9 @@ export default function AttendanceModule({ userProfile }) {
                       <TableCell>{user?.department || '--'}</TableCell>
                       <TableCell>{formatTime(getCheckInTime(record))}</TableCell>
                       <TableCell>{getCheckOutTime(record) ? formatTime(getCheckOutTime(record)) : '--'}</TableCell>
+                      <TableCell className="font-mono text-xs font-semibold text-primary">
+                        {calculateDuration(getCheckInTime(record), getCheckOutTime(record)) || '--'}
+                      </TableCell>
                       <TableCell>
                         <span className={cn(
                           "capitalize px-2 py-1 rounded-full text-xs font-medium",
@@ -733,7 +860,7 @@ export default function AttendanceModule({ userProfile }) {
               })}
               {paginatedData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={showHistory ? 8 : 7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={showHistory ? 9 : 8} className="text-center py-8 text-muted-foreground">
                     No attendance records found.
                   </TableCell>
                 </TableRow>

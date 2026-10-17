@@ -73,8 +73,8 @@ const ALLOWED_ORIGINS = [
 ];
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (server-to-server, curl, mobile apps)
-    if (!origin || ALLOWED_ORIGINS.includes(origin) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+    // Allow requests with no origin (server-to-server, curl, mobile apps) or localhost/LAN
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin)) return cb(null, true);
     cb(null, false);
   },
   credentials: true,
@@ -245,7 +245,7 @@ const isMaintenanceMode = async () => {
 // Rate limiter for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,  // 15 minutes
-  max: 10,                     // 10 attempts per IP per window
+  max: process.env.NODE_ENV === 'production' ? 10 : 200, // 200 in dev
   message: { message: 'Too many attempts. Please try again after 15 minutes.' },
   standardHeaders: true,
   legacyHeaders: false,

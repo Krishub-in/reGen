@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useCustomAuth } from '../hooks/useCustomAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck } from 'lucide-react';
+import { Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User } from 'lucide-react';
 import UsersModule from '../components/modules/UsersModule';
 import AttendanceModule from '../components/modules/AttendanceModule';
 import SchedulesModule from '../components/modules/SchedulesModule';
@@ -25,7 +25,10 @@ import Footer from '../components/Footer';
 export default function Dashboard({ userProfile }) {
   const { logout } = useCustomAuth();
   const queryClient = useQueryClient();
-  const [activeModule, setActiveModule] = useState(userProfile?.mustChangePassword ? 'profile' : 'home');
+  const [activeModule, setActiveModule] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('tab') || params.get('module') || 'profile';
+  });
   const isMobile = useIsMobile();
   const [logoError, setLogoError] = useState(false);
   const [logoSrc, setLogoSrc] = useState('/logo.jpeg');
@@ -36,8 +39,7 @@ export default function Dashboard({ userProfile }) {
 
   useEffect(() => {
     if (userProfile?.mustChangePassword) {
-      setActiveModule('profile');
-      toast.error('Please change your default password');
+      toast.info('You are using a default password. You can change it in Settings.');
     }
   }, [userProfile?.mustChangePassword]);
 
@@ -70,9 +72,9 @@ export default function Dashboard({ userProfile }) {
     { id: 'messenger', label: 'Messenger', icon: MessageSquare, show: true },
     { id: 'scrum', label: 'Scrum', icon: FileText, show: true },
     { id: 'calendar', label: 'Calendar', icon: Calendar, show: true },
+    { id: 'profile', label: 'Settings', icon: Settings, show: true },
     { id: 'payments', label: 'Payments', icon: DollarSign, show: isAdmin || isOwner },
     { id: 'company', label: 'Company', icon: Building2, show: isAdmin || isOwner },
-    { id: 'profile', label: 'Settings', icon: Settings, show: true },
   ];
 
   const renderModule = () => {

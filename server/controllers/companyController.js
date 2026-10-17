@@ -75,6 +75,7 @@ export const superAdminCreateCompany = async (req, res) => {
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
     const ownerUser = new User({
       userId,
+      StaffId: userId,
       username,
       password: hashedPassword,
       mustChangePassword: true,
