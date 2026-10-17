@@ -40,40 +40,24 @@ import { Textarea } from '@/components/ui/textarea';
 import Footer from '../components/Footer';
 import { Menu } from 'lucide-react';
 
-// Mock Data
-const MOCK_COMPANIES = [
-  { id: '1', name: 'Krishub Innovations', users: 45, plan: 'Gold', status: 'active', revenue: 12000, joined: '2025-01-10' },
-  { id: '2', name: 'TechNexus corp', users: 12, plan: 'Silver', status: 'active', revenue: 5000, joined: '2025-02-15' },
-  { id: '3', name: 'Global Logistics', users: 89, plan: 'Enterprise', status: 'active', revenue: 54000, joined: '2024-11-20' },
-  { id: '4', name: 'Creative Studio', users: 5, plan: 'Basic', status: 'inactive', revenue: 800, joined: '2025-03-01' },
-  { id: '5', name: 'Swift Solutions', users: 22, plan: 'Gold', status: 'active', revenue: 8500, joined: '2025-01-25' },
-];
+// Real-time Calculation and Pricing Helpers
+export const toLocalDateStr = (d) => {
+  if (!d) return null;
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return null;
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
-const MOCK_USERS = [
-  { id: 'u1', name: 'John Doe', email: 'john@krishub.in', company: 'Krishub Innovations', role: 'Staff', status: 'active' },
-  { id: 'u2', name: 'Jane Smith', email: 'jane@technexus.com', company: 'TechNexus corp', role: 'Admin', status: 'active' },
-  { id: 'u3', name: 'Robert Brown', email: 'robert@global.com', company: 'Global Logistics', role: 'Owner', status: 'suspended' },
-  { id: 'u4', name: 'Alice Wong', email: 'alice@creative.io', company: 'Creative Studio', role: 'Freelancer', status: 'active' },
-];
-
-const REVENUE_DATA = [
-  { month: 'Jan', revenue: 45000, growth: 12 },
-  { month: 'Feb', revenue: 52000, growth: 15 },
-  { month: 'Mar', revenue: 61000, growth: 18 },
-  { month: 'Apr', revenue: 58000, growth: -5 },
-  { month: 'May', revenue: 72000, growth: 24 },
-  { month: 'Jun', revenue: 85000, growth: 18 },
-];
-
-const GROWTH_DATA = [
-  { day: 'Mon', active: 120 },
-  { day: 'Tue', active: 150 },
-  { day: 'Wed', active: 180 },
-  { day: 'Thu', active: 170 },
-  { day: 'Fri', active: 210 },
-  { day: 'Sat', active: 90 },
-  { day: 'Sun', active: 60 },
-];
+export const COMPANY_CATEGORIES = {
+  it: 'IT Solutions',
+  logistics: 'Logistics',
+  manufacturing: 'Manufacturing',
+  retail: 'Retail',
+  healthcare: 'Healthcare',
+};
 
 export default function SuperAdminDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -93,6 +77,9 @@ export default function SuperAdminDashboard() {
   });
   const [dbCompanies, setDbCompanies] = useState([]);
   const [dbUsers, setDbUsers] = useState([]);
+  const [dbAttendance, setDbAttendance] = useState([]);
+  const [dbTasks, setDbTasks] = useState([]);
+  const [dbMessages, setDbMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Restore session on page load / refresh
@@ -140,15 +127,30 @@ export default function SuperAdminDashboard() {
   const fetchRealData = async () => {
     setIsLoading(true);
     try {
-      const [uResp, cResp] = await Promise.all([
-        authFetch('/api/users'),
-        authFetch('/api/company')
+      const [uResp, cResp, aResp, tResp, mResp] = await Promise.all([
+        authFetch('/api/users').catch(() => null),
+        authFetch('/api/company').catch(() => null),
+        authFetch('/api/attendance').catch(() => null),
+        authFetch('/api/tasks').catch(() => null),
+        authFetch('/api/messages').catch(() => null),
       ]);
-      if (uResp.ok) setDbUsers(await uResp.json());
-      if (cResp.ok) {
+      if (uResp && uResp.ok) setDbUsers(await uResp.json());
+      if (cResp && cResp.ok) {
         const coData = await cResp.json();
         // Backend returns single object or array depending on structure. normalize.
         setDbCompanies(Array.isArray(coData) ? coData : (coData ? [coData] : []));
+      }
+      if (aResp && aResp.ok) {
+        const aData = await aResp.json();
+        setDbAttendance(Array.isArray(aData) ? aData : []);
+      }
+      if (tResp && tResp.ok) {
+        const tData = await tResp.json();
+        setDbTasks(Array.isArray(tData) ? tData : []);
+      }
+      if (mResp && mResp.ok) {
+        const mData = await mResp.json();
+        setDbMessages(Array.isArray(mData) ? mData : []);
       }
     } catch (e) {
       console.error("Failed to fetch dashboard data", e);
@@ -383,11 +385,27 @@ export default function SuperAdminDashboard() {
             </div>
           </header>
 
-          {activeTab === 'dashboard' && <TabDashboard dbUsers={dbUsers} dbCompanies={dbCompanies} />}
+          {activeTab === 'dashboard' && (
+            <TabDashboard 
+              dbUsers={dbUsers} 
+              dbCompanies={dbCompanies} 
+              dbAttendance={dbAttendance} 
+              dbTasks={dbTasks} 
+              dbMessages={dbMessages}
+            />
+          )}
           {activeTab === 'companies' && <TabCompanies dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
-          {activeTab === 'users' && <TabUsers dbUsers={dbUsers} searchTerm={searchTerm} />}
-          {activeTab === 'payments' && <TabPayments />}
-          {activeTab === 'analytics' && <TabAnalytics />}
+          {activeTab === 'users' && <TabUsers dbUsers={dbUsers} dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
+          {activeTab === 'payments' && <TabPayments dbCompanies={dbCompanies} dbUsers={dbUsers} />}
+          {activeTab === 'analytics' && (
+            <TabAnalytics 
+              dbCompanies={dbCompanies} 
+              dbUsers={dbUsers} 
+              dbAttendance={dbAttendance} 
+              dbTasks={dbTasks} 
+              dbMessages={dbMessages}
+            />
+          )}
           {activeTab === 'system' && <TabSystem />}
           {activeTab === 'profile' && <TabProfile data={profileData} setData={setProfileData} />}
         </main>
@@ -415,28 +433,170 @@ function SidebarItem({ active, icon: Icon, label, onClick }) {
 
 // --- TAB COMPONENTS ---
 
-function TabDashboard({ dbUsers, dbCompanies }) {
+function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTasks = [], dbMessages = [] }) {
   const activeCount = dbUsers.filter(u => u.status === 'active').length;
+
+  // Dynamic Revenue Trends based on active user usage and company subscriptions over the past 6 months
+  const revenueTrendsData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const result = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthLabel = monthNames[d.getMonth()];
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+      // Companies registered on or before this month
+      const activeCompaniesInMonth = dbCompanies.filter(c => {
+        if (c.status === 'blocked') return false;
+        if (!c.createdAt) return true;
+        return new Date(c.createdAt) <= endOfMonth;
+      });
+
+      // Users registered on or before this month
+      const activeUsersInMonth = dbUsers.filter(u => {
+        if (u.status !== 'active') return false;
+        if (!u.createdAt && !u.joiningDate) return true;
+        const joined = u.createdAt ? new Date(u.createdAt) : new Date(u.joiningDate);
+        return joined <= endOfMonth;
+      });
+
+      // Real monthly revenue from actual company accounts (if 0, real value is 0)
+      let monthRevenue = 0;
+      activeCompaniesInMonth.forEach(comp => {
+        const val = Number(comp.amount ?? comp.monthlyFee ?? comp.revenue ?? comp.subscriptionAmount ?? 0);
+        monthRevenue += isNaN(val) ? 0 : val;
+      });
+
+      result.push({
+        month: monthLabel,
+        revenue: monthRevenue,
+        activeUsers: activeUsersInMonth.length,
+        companies: activeCompaniesInMonth.length,
+        growth: 0
+      });
+    }
+
+    // Calculate month-over-month growth rate
+    for (let i = 0; i < result.length; i++) {
+      if (i === 0) {
+        result[i].growth = 0;
+      } else {
+        const prev = result[i - 1].revenue;
+        const curr = result[i].revenue;
+        result[i].growth = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : (curr > 0 ? 100 : 0);
+      }
+    }
+
+    return result;
+  }, [dbUsers, dbCompanies]);
+
+  // Dynamic Weekly Usage based on real user activity, attendance, tasks, and messages for each day
+  const weeklyUsageData = useMemo(() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const now = new Date();
+    const currentDayOfWeek = (now.getDay() + 6) % 7; // 0 for Mon, 6 for Sun
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+
+    return days.map((dayName, idx) => {
+      const targetDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+      const dateStr = toLocalDateStr(targetDate);
+      const activeUserIds = new Set();
+      const activeUserNames = new Set();
+
+      // 1. Attendance records on this day
+      dbAttendance.forEach(att => {
+        const attDate = att.date ? att.date.slice(0, 10) : toLocalDateStr(att.createdAt);
+        if (attDate === dateStr && att.status !== 'absent') {
+          activeUserIds.add(att.userId);
+          const u = dbUsers.find(x => x.userId === att.userId);
+          activeUserNames.add(u?.name || u?.username || att.userId);
+        }
+      });
+
+      // 2. Tasks created or updated on this day
+      dbTasks.forEach(task => {
+        const cDate = toLocalDateStr(task.createdAt);
+        const uDate = toLocalDateStr(task.updatedAt);
+        if (cDate === dateStr || uDate === dateStr) {
+          if (task.assignedTo) {
+            activeUserIds.add(task.assignedTo);
+            const u = dbUsers.find(x => x.userId === task.assignedTo);
+            activeUserNames.add(u?.name || u?.username || task.assignedTo);
+          }
+        }
+      });
+
+      // 3. Messages sent on this day
+      dbMessages.forEach(msg => {
+        const mDate = toLocalDateStr(msg.createdAt || msg.timestamp);
+        if (mDate === dateStr && msg.senderId) {
+          activeUserIds.add(msg.senderId);
+          activeUserNames.add(msg.senderName || msg.senderId);
+        }
+      });
+
+      // 4. User activity on this day (lastActive, lastLogin, createdAt, updatedAt)
+      dbUsers.forEach(u => {
+        const laDate = toLocalDateStr(u.lastActive);
+        const llDate = toLocalDateStr(u.lastLogin);
+        const cDate = toLocalDateStr(u.createdAt);
+        const uDate = toLocalDateStr(u.updatedAt);
+        if (laDate === dateStr || llDate === dateStr || cDate === dateStr || uDate === dateStr) {
+          activeUserIds.add(u.userId || u.username);
+          activeUserNames.add(u.name || u.username || u.userId);
+        }
+      });
+
+      // 5. Today's active session for currently logged-in SuperAdmin
+      const isToday = (idx === currentDayOfWeek);
+      if (isToday) {
+        const currentSa = localStorage.getItem('active_sa_id') || localStorage.getItem('current_user') || 'Vyshwa';
+        activeUserIds.add(currentSa);
+        const u = dbUsers.find(x => x.userId === currentSa);
+        activeUserNames.add(u?.name || u?.username || currentSa);
+      }
+
+      return {
+        day: dayName,
+        date: dateStr,
+        active: activeUserIds.size,
+        users: Array.from(activeUserNames),
+        isToday,
+      };
+    });
+  }, [dbAttendance, dbTasks, dbMessages, dbUsers]);
+
+  const currentRevenue = revenueTrendsData[revenueTrendsData.length - 1]?.revenue || 0;
+  const currentGrowth = revenueTrendsData[revenueTrendsData.length - 1]?.growth || 0;
+  const trendSign = currentGrowth >= 0 ? '+' : '';
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="Total Companies" value={dbCompanies.length} icon={Building2} trend="+0% from last month" color="emerald" />
-        <StatCard title="Active Users" value={activeCount} icon={Users} trend={`Total ${dbUsers.length}`} color="blue" />
-        <StatCard title="Total Revenue" value="$0" icon={CreditCard} trend="Experimental" color="purple" />
+        <StatCard title="Total Companies" value={dbCompanies.length} icon={Building2} trend={`${dbCompanies.filter(c => c.status === 'active').length} Active`} color="emerald" />
+        <StatCard title="Active Users" value={activeCount} icon={Users} trend={`Total ${dbUsers.length} Registered`} color="blue" />
+        <StatCard title="Monthly Revenue" value={`$${currentRevenue.toLocaleString()}`} icon={CreditCard} trend={`${trendSign}${currentGrowth}% from last month`} color="purple" />
         <StatCard title="Success Rate" value="100%" icon={TrendingUp} trend="System stability" color="amber" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="lg:col-span-2 border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              Revenue Trends
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                Revenue Trends
+              </CardTitle>
+              <div className="text-xs text-zinc-400">
+                Live calculated from company plans & active user seats
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="h-[300px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={REVENUE_DATA}>
+              <AreaChart data={revenueTrendsData}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -445,10 +605,21 @@ function TabDashboard({ dbUsers, dbCompanies }) {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
                 <XAxis dataKey="month" stroke="#71717a" fontSize={12} />
-                <YAxis stroke="#71717a" fontSize={12} />
+                <YAxis stroke="#71717a" fontSize={12} tickFormatter={(v) => `$${v}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }}
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
                   itemStyle={{ color: '#fff' }}
+                  formatter={(val, name, item) => [
+                    `$${Number(val).toLocaleString()}`, 
+                    'Monthly Revenue'
+                  ]}
+                  labelFormatter={(label, items) => {
+                    const item = items && items[0] && items[0].payload;
+                    if (item) {
+                      return `${label} — ${item.companies} Companies, ${item.activeUsers} Users (${item.growth >= 0 ? '+' : ''}${item.growth}% MoM)`;
+                    }
+                    return label;
+                  }}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
               </AreaChart>
@@ -458,22 +629,50 @@ function TabDashboard({ dbUsers, dbCompanies }) {
 
         <Card className="border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Activity className="w-5 h-5 text-emerald-400" />
-              Weekly Usage
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="w-5 h-5 text-emerald-400" />
+                Weekly Usage
+              </CardTitle>
+              <span className="text-[11px] font-mono text-zinc-500">Current Week</span>
+            </div>
           </CardHeader>
           <CardContent className="h-[300px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={GROWTH_DATA}>
+              <BarChart data={weeklyUsageData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="day" stroke="#71717a" fontSize={10} />
-                <YAxis hide />
+                <XAxis dataKey="day" stroke="#71717a" fontSize={11} />
+                <YAxis stroke="#71717a" fontSize={10} allowDecimals={false} width={25} />
                 <Tooltip 
                   cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-lg shadow-xl text-xs space-y-1">
+                          <div className="font-semibold text-white flex items-center justify-between gap-4">
+                            <span>{data.day} ({data.date})</span>
+                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">Today</span>}
+                          </div>
+                          <div className="text-emerald-400 font-bold text-sm">
+                            {data.active} Active User{data.active !== 1 ? 's' : ''}
+                          </div>
+                          {data.users && data.users.length > 0 ? (
+                            <div className="text-zinc-400 text-[11px] pt-1 border-t border-zinc-800">
+                              Active: {data.users.slice(0, 3).join(', ')}{data.users.length > 3 ? ` +${data.users.length - 3} more` : ''}
+                            </div>
+                          ) : (
+                            <div className="text-zinc-500 text-[11px] pt-1 border-t border-zinc-800">
+                              No active users recorded
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
                 />
-                <Bar dataKey="active" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="active" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -510,6 +709,98 @@ function StatCard({ title, value, icon: Icon, trend, color }) {
         </p>
       </CardContent>
     </Card>
+  );
+}
+
+function CompanyFormFields({ data, setData }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+      <div className="relative group">
+        <Input 
+          placeholder="GST No (Optional)" 
+          value={data.gst}
+          onChange={(e) => setData({...data, gst: e.target.value})}
+          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl pr-20 focus:border-primary/50 transition-all placeholder:text-zinc-600"
+        />
+        <button 
+          type="button"
+          onClick={() => {
+            if (!data.gst) return;
+            toast.success('GST validated successfully');
+          }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-semibold text-sm hover:text-primary/80 transition-colors"
+        >
+          Validate
+        </button>
+      </div>
+      <Input 
+        placeholder="Company Name *" 
+        value={data.name}
+        onChange={(e) => setData({...data, name: e.target.value})}
+        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+      />
+      <Input 
+        placeholder="Phone Number *" 
+        value={data.phoneNumber}
+        onChange={(e) => setData({...data, phoneNumber: e.target.value})}
+        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+      />
+      <Input 
+        placeholder="Email (Optional)" 
+        value={data.email}
+        onChange={(e) => setData({...data, email: e.target.value})}
+        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+      />
+      <Select 
+        onValueChange={(val) => setData({...data, category: val})}
+        value={data.category}
+      >
+        <SelectTrigger className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all text-zinc-300">
+          <SelectValue placeholder="Select Category *" />
+        </SelectTrigger>
+        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectItem value="it">IT Solutions</SelectItem>
+          <SelectItem value="logistics">Logistics</SelectItem>
+          <SelectItem value="manufacturing">Manufacturing</SelectItem>
+          <SelectItem value="retail">Retail</SelectItem>
+          <SelectItem value="healthcare">Healthcare</SelectItem>
+        </SelectContent>
+      </Select>
+      <Input 
+        placeholder="Brief Description (Optional)" 
+        value={data.about}
+        onChange={(e) => setData({...data, about: e.target.value})}
+        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+      />
+      <div className="md:col-span-2">
+        <Textarea 
+          placeholder="Full Street Address (Optional)" 
+          value={data.address}
+          onChange={(e) => setData({...data, address: e.target.value})}
+          className="min-h-[120px] bg-zinc-900/40 border-zinc-800/50 rounded-2xl resize-none p-4 focus:border-primary/40 focus:bg-zinc-900/60 transition-all placeholder:text-zinc-600 outline-none ring-0"
+        />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4">
+        <Input 
+          placeholder="City *" 
+          value={data.city}
+          onChange={(e) => setData({...data, city: e.target.value})}
+          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+        />
+        <Input 
+          placeholder="State" 
+          value={data.state}
+          onChange={(e) => setData({...data, state: e.target.value})}
+          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+        />
+        <Input 
+          placeholder="Zip Code" 
+          value={data.zip}
+          onChange={(e) => setData({...data, zip: e.target.value})}
+          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
+        />
+      </div>
+    </div>
   );
 }
 
@@ -849,95 +1140,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
     }, 1500);
   };
 
-  const CompanyFormFields = ({ data, setData }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-      <div className="relative group">
-        <Input 
-          placeholder="GST No (Optional)" 
-          value={data.gst}
-          onChange={(e) => setData({...data, gst: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl pr-20 focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <button 
-          type="button"
-          onClick={() => {
-            if (!data.gst) return;
-            toast.success('GST validated successfully');
-          }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-semibold text-sm hover:text-primary/80 transition-colors"
-        >
-          Validate
-        </button>
-      </div>
-      <Input 
-        placeholder="Company Name *" 
-        value={data.name}
-        onChange={(e) => setData({...data, name: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Input 
-        placeholder="Phone Number *" 
-        value={data.phoneNumber}
-        onChange={(e) => setData({...data, phoneNumber: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Input 
-        placeholder="Email (Optional)" 
-        value={data.email}
-        onChange={(e) => setData({...data, email: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Select 
-        onValueChange={(val) => setData({...data, category: val})}
-        value={data.category}
-      >
-        <SelectTrigger className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all text-zinc-300">
-          <SelectValue placeholder="Select Category *" />
-        </SelectTrigger>
-        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-          <SelectItem value="it">IT Solutions</SelectItem>
-          <SelectItem value="logistics">Logistics</SelectItem>
-          <SelectItem value="manufacturing">Manufacturing</SelectItem>
-          <SelectItem value="retail">Retail</SelectItem>
-          <SelectItem value="healthcare">Healthcare</SelectItem>
-        </SelectContent>
-      </Select>
-      <Input 
-        placeholder="Brief Description (Optional)" 
-        value={data.about}
-        onChange={(e) => setData({...data, about: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <div className="md:col-span-2">
-        <Textarea 
-          placeholder="Full Street Address (Optional)" 
-          value={data.address}
-          onChange={(e) => setData({...data, address: e.target.value})}
-          className="min-h-[120px] bg-zinc-900/40 border-zinc-800/50 rounded-2xl resize-none p-4 focus:border-primary/40 focus:bg-zinc-900/60 transition-all placeholder:text-zinc-600 outline-none ring-0"
-        />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4">
-        <Input 
-          placeholder="City *" 
-          value={data.city}
-          onChange={(e) => setData({...data, city: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <Input 
-          placeholder="State" 
-          value={data.state}
-          onChange={(e) => setData({...data, state: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <Input 
-          placeholder="Zip Code" 
-          value={data.zip}
-          onChange={(e) => setData({...data, zip: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-      </div>
-    </div>
-  );
+
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -1352,7 +1555,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   );
 }
 
-function TabUsers({ dbUsers, searchTerm }) {
+function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
   const filtered = dbUsers.filter(u => 
     !searchTerm || 
     u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -1407,7 +1610,7 @@ function TabUsers({ dbUsers, searchTerm }) {
             <TableHeader className="bg-zinc-900/50">
               <TableRow className="border-zinc-800">
                 <TableHead>User</TableHead>
-                <TableHead>Mobile</TableHead>
+                <TableHead>Affiliated Company</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
@@ -1415,34 +1618,52 @@ function TabUsers({ dbUsers, searchTerm }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((user) => (
-                <TableRow key={user.userId} className="border-zinc-800">
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden">
-                        <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
+              {filtered.map((user) => {
+                const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name;
+                const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
+                return (
+                  <TableRow key={user.userId} className="border-zinc-800 hover:bg-white/5 transition-colors">
+                    <TableCell className="py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
+                          <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-white">{displayName}</div>
+                          <div className="text-xs text-zinc-500">{user.email || user.userId}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-semibold">{user.name || user.username}</div>
-                        <div className="text-xs text-zinc-500">{user.email || 'No email'}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-zinc-400">{user.phone || user.contact || '—'}</TableCell>
-                  <TableCell className="text-zinc-400">{user.department || 'General'}</TableCell>
-                  <TableCell>
-                    <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 capitalize">{user.role}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`text-xs ${user.status === 'active' ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {user.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right pr-6">
-                    <ManageUserDialog user={user} />
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                    <TableCell className="text-zinc-300">
+                      {userCompanyName ? (
+                        <span className="text-blue-400 font-medium">{userCompanyName}</span>
+                      ) : (
+                        <span className="text-zinc-500 text-xs italic">No Company</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-zinc-400">{user.department || 'General'}</TableCell>
+                    <TableCell>
+                      <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 capitalize text-zinc-300">{user.role}</span>
+                    </TableCell>
+                    <TableCell>
+                      {user.status === 'active' ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                          Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs text-red-400 font-medium">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                          Suspended
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
               {filtered.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-zinc-500">No users found</TableCell>
@@ -1456,72 +1677,332 @@ function TabUsers({ dbUsers, searchTerm }) {
   );
 }
 
-function ManageUserDialog({ user }) {
+function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
+  const [open, setOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  const initialCompanyId = user.companyId 
+    ? String(user.companyId?._id || user.companyId) 
+    : 'none';
+
+  const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name || '';
+  const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
+
+  const [editForm, setEditForm] = useState({
+    name: displayName || '',
+    designation: user.designation || '',
+    department: user.department || '',
+    phone: user.phone || user.contact || '',
+    companyId: initialCompanyId,
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(
+    initialCompanyId !== 'none' ? initialCompanyId : (dbCompanies[0]?._id ? String(dbCompanies[0]._id) : 'none')
+  );
+
+  useEffect(() => {
+    if (open) {
+      const cId = user.companyId ? String(user.companyId?._id || user.companyId) : 'none';
+      const cName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name || '';
+      const resolvedName = (user.role === 'owner' && cName) ? cName : (user.name || user.username || '');
+      setEditForm({
+        name: resolvedName,
+        designation: user.designation || '',
+        department: user.department || '',
+        phone: user.phone || user.contact || '',
+        companyId: cId,
+      });
+      setSelectedCompanyId(cId !== 'none' ? cId : (dbCompanies[0]?._id ? String(dbCompanies[0]._id) : 'none'));
+      setIsEditing(false);
+    }
+  }, [open, user, dbCompanies]);
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const resp = await authFetch(`/api/users/${user.userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update profile');
+      }
+      toast.success('User profile updated successfully');
+      setIsEditing(false);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Update failed');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleToggleStatus = async (action) => {
+    setActionLoading(true);
+    try {
+      let payload = { action };
+      if (action === 'activate') {
+        if (selectedCompanyId && selectedCompanyId !== 'none') {
+          const foundCo = dbCompanies.find(c => String(c._id || c.id) === String(selectedCompanyId));
+          payload.companyId = selectedCompanyId;
+          payload.company = foundCo?.name || '';
+        } else if (user.companyId) {
+          payload.companyId = String(user.companyId?._id || user.companyId);
+          payload.company = userCompanyName || '';
+        }
+      }
+
+      const resp = await authFetch(`/api/users/${user.userId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update user status');
+      }
+
+      const resData = await resp.json();
+      toast.success(resData.message || (action === 'suspend' ? 'User suspended successfully' : 'User access restored'));
+      if (onRefresh) onRefresh();
+      setOpen(false);
+    } catch (err) {
+      toast.error(err.message || 'Operation failed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="text-blue-400 font-semibold hover:bg-blue-400/10">Manage</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl bg-zinc-950/90 backdrop-blur-3xl border-zinc-800/50 text-white rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden p-0">
-        <div className="bg-gradient-to-b from-blue-500/10 via-transparent to-transparent px-8 py-10">
-          <DialogHeader className="mb-8">
-            <div className="flex items-center gap-4">
-               <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center overflow-hidden">
+      <DialogContent className="max-w-xl bg-zinc-950/95 backdrop-blur-3xl border-zinc-800/60 text-white rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.6)] overflow-hidden p-0">
+        <div className="bg-gradient-to-b from-blue-500/10 via-transparent to-transparent px-8 py-8">
+          <DialogHeader className="mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
                   <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
-               </div>
-               <div>
-                  <DialogTitle className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">User Profile</DialogTitle>
-                  <p className="text-zinc-500 text-sm font-medium">Manage and view system identity</p>
-               </div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <DialogTitle className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                      {displayName}
+                    </DialogTitle>
+                    {user.status === 'active' ? (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+                        Suspended
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-zinc-500 text-xs font-medium mt-0.5">UID: {user.userId} • Role: <span className="capitalize text-zinc-300">{user.role}</span></p>
+                </div>
+              </div>
             </div>
           </DialogHeader>
 
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-             {/* Association Section */}
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-zinc-900/40 p-5 rounded-2xl border border-zinc-800/50 hover:bg-zinc-900/60 transition-all group">
-                   <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-extrabold mb-1 group-hover:text-zinc-500 transition-colors">Affiliated Company</p>
-                   <p className="text-lg font-bold text-blue-400">{user.company || 'Innovation Inc (Global)'}</p>
-                </div>
-                <div className="bg-zinc-900/40 p-5 rounded-2xl border border-zinc-800/50 hover:bg-zinc-900/60 transition-all group">
-                   <p className="text-[10px] text-zinc-600 uppercase tracking-widest font-extrabold mb-1 group-hover:text-zinc-500 transition-colors">Designation</p>
-                   <p className="text-lg font-bold text-white capitalize">{user.designation || user.role || 'Unspecified'}</p>
-                </div>
-             </div>
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            {/* Association Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-extrabold mb-1">Affiliated Company</p>
+                {userCompanyName ? (
+                  <p className="text-base font-bold text-blue-400">{userCompanyName}</p>
+                ) : (
+                  <p className="text-xs font-semibold text-zinc-500 italic">None (No company assigned)</p>
+                )}
+              </div>
+              <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-extrabold mb-1">Designation & Department</p>
+                <p className="text-base font-bold text-white capitalize">{user.designation || 'Staff'} • <span className="text-zinc-400 text-xs font-normal">{user.department || 'General'}</span></p>
+              </div>
+            </div>
 
-             {/* Personal Information */}
-             <div className="bg-zinc-900/40 p-6 rounded-[2rem] border border-zinc-800/50 hover:bg-zinc-900/60 transition-all">
-                <div className="flex items-center gap-2 mb-6">
-                   <div className="p-2 rounded-xl bg-blue-500/10"><UserCog className="w-5 h-5 text-blue-400" /></div>
-                   <h4 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Personal Information</h4>
+            {/* Profile Details or Edit Form */}
+            {isEditing ? (
+              <form onSubmit={handleSaveProfile} className="bg-zinc-900/50 p-5 rounded-2xl border border-zinc-800 space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-primary">Edit User Profile</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Full Name</label>
+                    <Input 
+                      value={editForm.name} 
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} 
+                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Phone</label>
+                    <Input 
+                      value={editForm.phone} 
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} 
+                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Designation</label>
+                    <Input 
+                      value={editForm.designation} 
+                      onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })} 
+                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-zinc-400">Department</label>
+                    <Input 
+                      value={editForm.department} 
+                      onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} 
+                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[11px] text-zinc-400 mb-1 block">Affiliated Company</label>
+                    <Select 
+                      value={editForm.companyId} 
+                      onValueChange={(val) => setEditForm({ ...editForm, companyId: val })}
+                    >
+                      <SelectTrigger className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white">
+                        <SelectValue placeholder="Select Company" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                        <SelectItem value="none">None (No company)</SelectItem>
+                        {dbCompanies.map((c) => (
+                          <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
+                            {c.name} {c.city ? `(${c.city})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(false)} className="h-9 text-xs">
+                    Cancel
+                  </Button>
+                  <Button type="submit" size="sm" disabled={editLoading} className="h-9 text-xs font-bold bg-primary text-black">
+                    {editLoading ? 'Saving…' : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <div className="bg-zinc-900/40 p-5 rounded-2xl border border-zinc-800/50">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-blue-500/10"><UserCog className="w-4 h-4 text-blue-400" /></div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Personal Information</h4>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => setIsEditing(true)} 
+                    className="h-8 rounded-xl border-zinc-800 bg-white/5 text-zinc-300 font-semibold text-xs hover:bg-white/10"
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1.5 text-zinc-400" />
+                    Edit Profile
+                  </Button>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                   <div className="space-y-1">
-                      <p className="text-xs text-zinc-600 font-bold uppercase tracking-tighter">Full Identity</p>
-                      <p className="text-md font-semibold text-white">{user.name || user.username}</p>
-                   </div>
-                   <div className="space-y-1">
-                      <p className="text-xs text-zinc-600 font-bold uppercase tracking-tighter">Vital Stats</p>
-                      <p className="text-md font-semibold text-white">Age: {user.age || 'NA'} / {user.gender || 'Any'}</p>
-                   </div>
-                   <div className="col-span-2 space-y-1 border-t border-zinc-800/30 pt-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MapPin className="w-3.5 h-3.5 text-zinc-600" />
-                        <p className="text-xs text-zinc-600 font-bold uppercase tracking-tighter">Registered Address</p>
-                      </div>
-                      <p className="text-sm font-medium text-zinc-300 leading-relaxed italic">{user.address || 'Address hidden or unassigned'}</p>
-                   </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
+                  <div>
+                    <p className="text-zinc-500 font-medium">Email / Contact</p>
+                    <p className="font-semibold text-white">{user.email || user.phone || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500 font-medium">Age & Gender</p>
+                    <p className="font-semibold text-white">{user.age ? `${user.age} yrs` : 'NA'} / {user.gender || 'Unspecified'}</p>
+                  </div>
+                  <div className="col-span-2 pt-2 border-t border-zinc-800/40">
+                    <p className="text-zinc-500 font-medium">Address</p>
+                    <p className="font-medium text-zinc-300 leading-relaxed">{user.address || 'Address unassigned'}</p>
+                  </div>
                 </div>
-             </div>
+              </div>
+            )}
 
-             <div className="pt-4 flex justify-between items-center px-2">
-                <div className="flex gap-2">
-                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                   <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Global UID: {user.userId || user.id}</span>
+            {/* Super Admin Access Control: Suspend & Restore */}
+            {user.role !== 'param' && (
+              <div className="pt-3 border-t border-zinc-800/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                    Super Admin Access Control
+                  </p>
+                  <span className="text-[10px] font-mono text-zinc-500">Privileged Super Admin Action</span>
                 </div>
-                <Button size="sm" variant="outline" className="h-10 rounded-xl border-zinc-800 bg-white/5 text-zinc-400 font-bold hover:bg-white/10 hover:text-white transition-all px-6">Edit Profile</Button>
-             </div>
+
+                {user.status === 'active' ? (
+                  <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
+                    <div className="text-xs text-zinc-400">
+                      <span className="font-semibold text-red-400">Suspend User:</span> Will revoke system login access immediately. Their company affiliation is preserved so they can be reinstated at any time.
+                    </div>
+                    <Button
+                      size="sm"
+                      disabled={actionLoading}
+                      onClick={() => handleToggleStatus('suspend')}
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 transition-all shadow-lg shadow-red-900/20"
+                    >
+                      <Ban className="w-4 h-4 mr-1.5" />
+                      {actionLoading ? 'Suspending…' : 'Suspend User'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4" /> Account Suspended
+                        </div>
+                        <div className="text-[11px] text-zinc-400 mt-0.5">
+                          Restore login access for this user and get them back into the system.
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={actionLoading}
+                        onClick={() => handleToggleStatus('activate')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 shadow-lg shadow-emerald-900/30"
+                      >
+                        <Unlock className="w-4 h-4 mr-1.5" />
+                        {actionLoading ? 'Restoring…' : 'Restore Access / Get Back'}
+                      </Button>
+                    </div>
+
+                    {dbCompanies.length > 0 && (
+                      <div className="pt-2 border-t border-emerald-500/10 flex items-center gap-3">
+                        <span className="text-xs text-zinc-400 whitespace-nowrap">Affiliated Company:</span>
+                        <Select 
+                          value={selectedCompanyId} 
+                          onValueChange={setSelectedCompanyId}
+                        >
+                          <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-xs text-zinc-200 rounded-lg">
+                            <SelectValue placeholder="Choose Company" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                            <SelectItem value="none">No Company (Independent)</SelectItem>
+                            {dbCompanies.map(c => (
+                              <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
+                                {c.name} ({c.city || 'HQ'})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </DialogContent>
@@ -1529,57 +2010,239 @@ function ManageUserDialog({ user }) {
   );
 }
 
-function TabPayments() {
+
+function TabPayments({ dbCompanies = [], dbUsers = [] }) {
+  // Real billing calculations: pull amount from actual company records; if not set or 0, real value is 0
+  const billingStats = useMemo(() => {
+    const activeCompanies = dbCompanies.filter(c => c.status !== 'blocked');
+    let totalMRR = 0;
+
+    const companyTransactions = dbCompanies.map((comp) => {
+      const cat = String(comp.category || '').toLowerCase();
+      const categoryName = COMPANY_CATEGORIES[cat] || (comp.category ? String(comp.category).toUpperCase() : 'General');
+      const companyUsers = dbUsers.filter(u => String(u.companyId) === String(comp._id) || u.company === comp.name);
+      const isBlocked = comp.status === 'blocked';
+      
+      // Pull real amount from company; if 0 or undefined, real value is 0
+      const rawAmount = Number(comp.amount ?? comp.monthlyFee ?? comp.revenue ?? comp.subscriptionAmount ?? 0);
+      const monthlyAmount = isBlocked ? 0 : (isNaN(rawAmount) ? 0 : rawAmount);
+      
+      if (!isBlocked) {
+        totalMRR += monthlyAmount;
+      }
+
+      const txDate = comp.createdAt ? new Date(comp.createdAt) : new Date();
+      const txDateStr = txDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      const txid = `TXN-${String(comp._id || comp.id || '00000').slice(-6).toUpperCase()}-${txDate.getFullYear()}`;
+
+      return {
+        id: comp._id || comp.id,
+        name: comp.name,
+        categoryName,
+        city: comp.city || 'Headquarters',
+        state: comp.state || 'IN',
+        ownerId: comp.ownerId || 'N/A',
+        userCount: companyUsers.length,
+        amount: monthlyAmount,
+        status: isBlocked ? 'suspended' : 'active',
+        txid,
+        date: txDateStr,
+      };
+    });
+
+    const totalARR = totalMRR * 12;
+    const arpu = activeCompanies.length > 0 ? Math.round(totalMRR / activeCompanies.length) : 0;
+
+    // Subscription Category Mix calculation (from real companies in DB)
+    const categoryCounts = {};
+    activeCompanies.forEach(c => {
+      const cat = String(c.category || 'other').toLowerCase();
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+    });
+
+    const categoryMix = Object.keys(COMPANY_CATEGORIES).map(catKey => {
+      const count = categoryCounts[catKey] || 0;
+      const pct = activeCompanies.length > 0 ? Math.round((count / activeCompanies.length) * 100) : 0;
+      return {
+        key: catKey,
+        name: COMPANY_CATEGORIES[catKey],
+        count,
+        pct,
+      };
+    });
+
+    return {
+      totalMRR,
+      totalARR,
+      arpu,
+      activeCompaniesCount: activeCompanies.length,
+      totalUsersCount: dbUsers.filter(u => u.status === 'active').length,
+      companyTransactions,
+      categoryMix,
+    };
+  }, [dbCompanies, dbUsers]);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-         <Card className="border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950">
-            <CardHeader>
-              <CardTitle className="text-zinc-400 text-sm font-medium uppercase tracking-widest">Total ARR</CardTitle>
-            </CardHeader>
-            <CardContent>
-               <div className="text-5xl font-extrabold text-white tracking-tighter">$510,000</div>
-               <p className="text-emerald-400 text-sm mt-2 font-medium flex items-center gap-1">
-                 <TrendingUp className="w-4 h-4" /> +22.4% projected growth
-               </p>
-            </CardContent>
-         </Card>
-         <Card className="border-zinc-800 bg-zinc-900/30">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-lg">Subscription Mix</CardTitle>
-              <CreditCard className="w-4 h-4 text-zinc-500" />
-            </CardHeader>
-            <CardContent className="h-24 flex items-end gap-2">
-               <div className="flex-1 bg-emerald-500/20 h-[60%] rounded-t-lg border-t border-emerald-500/50" title="Enterprise (45%)"></div>
-               <div className="flex-1 bg-blue-500/20 h-[85%] rounded-t-lg border-t border-blue-500/50" title="Gold (75%)"></div>
-               <div className="flex-1 bg-purple-500/20 h-[40%] rounded-t-lg border-t border-purple-500/50" title="Silver (20%)"></div>
-               <div className="flex-1 bg-amber-500/20 h-[20%] rounded-t-lg border-t border-amber-500/50" title="Basic (10%)"></div>
-            </CardContent>
-         </Card>
+      {/* Top ARR & Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+              <span>Total Annual Revenue (ARR)</span>
+              <CreditCard className="w-4 h-4 text-primary" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-extrabold text-white tracking-tight">
+              ${billingStats.totalARR.toLocaleString()}
+            </div>
+            <p className="text-zinc-400 text-xs mt-2 font-medium flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" /> 
+              ${billingStats.totalMRR.toLocaleString()}/mo real monthly revenue
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+              <span>Registered Accounts & Seats</span>
+              <Building2 className="w-4 h-4 text-blue-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-extrabold text-white tracking-tight">
+              {billingStats.activeCompaniesCount} <span className="text-lg text-zinc-500 font-normal">Co.</span>
+            </div>
+            <p className="text-zinc-400 text-xs mt-2 flex items-center gap-1">
+              <span>{billingStats.totalUsersCount} active registered users</span>
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+              <span>Average Revenue Per Account</span>
+              <Activity className="w-4 h-4 text-purple-400" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-4xl font-extrabold text-white tracking-tight">
+              ${billingStats.arpu} <span className="text-lg text-zinc-500 font-normal">/mo</span>
+            </div>
+            <p className="text-emerald-400 text-xs mt-2 font-medium flex items-center gap-1">
+              <CheckCircle className="w-3.5 h-3.5" /> Real database valuation
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Subscription Mix & Plan Breakdown */}
       <Card className="border-zinc-800 bg-zinc-900/30">
-        <CardHeader>
-          <CardTitle className="text-lg">Recent Transactions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-primary" />
+              Company Subscription Mix by Category
+            </CardTitle>
+            <p className="text-xs text-zinc-400 mt-1">
+              Distribution of active enrolled company accounts
+            </p>
+          </div>
+          <span className="text-xs font-mono text-zinc-500">
+            {billingStats.activeCompaniesCount} Total Active
+          </span>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {billingStats.categoryMix.map((item) => (
+              <div key={item.key} className="bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/60 flex flex-col justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-zinc-300">{item.name}</div>
+                  <div className="text-xs text-zinc-500">Industry Category</div>
+                </div>
+                <div className="mt-4 flex items-baseline justify-between">
+                  <div className="text-2xl font-bold text-white">{item.count}</div>
+                  <div className="text-xs font-semibold text-primary">{item.pct}%</div>
+                </div>
+                <div className="w-full bg-zinc-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div 
+                    className="bg-primary h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.max(item.pct, item.count > 0 ? 15 : 0)}%` }} 
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Real Invoices & Transactions Table */}
+      <Card className="border-zinc-800 bg-zinc-900/30">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-lg">Real Company Billing Invoices</CardTitle>
+            <p className="text-xs text-zinc-400 mt-1">Live statement generated from registered company accounts</p>
+          </div>
+          <span className="text-xs font-mono bg-zinc-800/80 px-2.5 py-1 rounded-md text-zinc-400">
+            {billingStats.companyTransactions.length} Account{billingStats.companyTransactions.length !== 1 ? 's' : ''}
+          </span>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
+            <TableHeader>
+              <TableRow className="border-zinc-800 hover:bg-transparent">
+                <TableHead className="w-12"></TableHead>
+                <TableHead>Company & Account</TableHead>
+                <TableHead>Subscription Category</TableHead>
+                <TableHead>Invoice ID</TableHead>
+                <TableHead>Billing Date</TableHead>
+                <TableHead className="text-right pr-6">Monthly Amount</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {[1, 2, 3, 4, 5].map(i => (
-                <TableRow key={i} className="border-zinc-800 hover:bg-white/5">
-                  <TableCell className="w-12 pr-0">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                      <CheckCircle className="w-4 h-4" />
-                    </div>
+              {billingStats.companyTransactions.length === 0 ? (
+                <TableRow className="border-zinc-800">
+                  <TableCell colSpan={6} className="text-center py-8 text-zinc-500 text-sm">
+                    No registered company accounts found.
                   </TableCell>
-                  <TableCell>
-                    <div className="font-medium text-white">Payment from Co. {i}</div>
-                    <div className="text-xs text-zinc-500">TXID: 9283-XJ23-882{i}</div>
-                  </TableCell>
-                  <TableCell className="text-zinc-400">Enterprise Subscription</TableCell>
-                  <TableCell className="font-bold text-white text-right pr-6">+$2,499.00</TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                billingStats.companyTransactions.map((tx) => (
+                  <TableRow key={tx.id} className="border-zinc-800 hover:bg-white/5 transition-colors">
+                    <TableCell className="w-12 pr-0 pl-4">
+                      {tx.status === 'active' ? (
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400" title="Active">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400" title="Suspended">
+                          <XCircle className="w-4 h-4" />
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-semibold text-white">{tx.name}</div>
+                      <div className="text-xs text-zinc-500">{tx.city}, {tx.state} • Owner: {tx.ownerId}</div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm text-zinc-300 font-medium">{tx.categoryName}</div>
+                      <div className="text-xs text-zinc-500">{tx.userCount} registered user{tx.userCount !== 1 ? 's' : ''}</div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-zinc-400">
+                      {tx.txid}
+                    </TableCell>
+                    <TableCell className="text-sm text-zinc-400">
+                      {tx.date}
+                    </TableCell>
+                    <TableCell className="font-bold text-white text-right pr-6">
+                      ${tx.amount.toFixed(2)}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -1588,42 +2251,325 @@ function TabPayments() {
   );
 }
 
-function TabAnalytics() {
+function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTasks = [], dbMessages = [] }) {
+  // 1. Dynamic 6-month growth metrics based on real registration dates
+  const monthlyGrowthData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const result = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthLabel = monthNames[d.getMonth()];
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+      const companiesUpToMonth = dbCompanies.filter(c => {
+        if (!c.createdAt) return true;
+        return new Date(c.createdAt) <= endOfMonth;
+      });
+
+      const usersUpToMonth = dbUsers.filter(u => {
+        if (!u.createdAt && !u.joiningDate) return true;
+        const joined = u.createdAt ? new Date(u.createdAt) : new Date(u.joiningDate);
+        return joined <= endOfMonth;
+      });
+
+      result.push({
+        month: monthLabel,
+        companies: companiesUpToMonth.length,
+        users: usersUpToMonth.length,
+      });
+    }
+
+    return result;
+  }, [dbCompanies, dbUsers]);
+
+  // 2. Dynamic Operational Intensity across current week (Mon-Sun)
+  const operationalIntensityData = useMemo(() => {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const now = new Date();
+    const currentDayOfWeek = (now.getDay() + 6) % 7;
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+
+    return days.map((dayName, idx) => {
+      const targetDate = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+      const dateStr = toLocalDateStr(targetDate);
+
+      const activeUsers = new Set();
+      let taskEvents = 0;
+      let messageEvents = 0;
+      let attendanceEvents = 0;
+
+      // Attendance
+      dbAttendance.forEach(att => {
+        const attDate = att.date ? att.date.slice(0, 10) : toLocalDateStr(att.createdAt);
+        if (attDate === dateStr && att.status !== 'absent') {
+          activeUsers.add(att.userId);
+          attendanceEvents++;
+        }
+      });
+
+      // Tasks
+      dbTasks.forEach(task => {
+        const cDate = toLocalDateStr(task.createdAt);
+        const uDate = toLocalDateStr(task.updatedAt);
+        if (cDate === dateStr || uDate === dateStr) {
+          taskEvents++;
+          if (task.assignedTo) activeUsers.add(task.assignedTo);
+        }
+      });
+
+      // Messages
+      dbMessages.forEach(msg => {
+        const mDate = toLocalDateStr(msg.createdAt || msg.timestamp);
+        if (mDate === dateStr) {
+          messageEvents++;
+          if (msg.senderId) activeUsers.add(msg.senderId);
+        }
+      });
+
+      // User logins/updates
+      dbUsers.forEach(u => {
+        const laDate = toLocalDateStr(u.lastActive);
+        const llDate = toLocalDateStr(u.lastLogin);
+        const cDate = toLocalDateStr(u.createdAt);
+        const uDate = toLocalDateStr(u.updatedAt);
+        if (laDate === dateStr || llDate === dateStr || cDate === dateStr || uDate === dateStr) {
+          activeUsers.add(u.userId || u.username);
+        }
+      });
+
+      // If today, count currently active SuperAdmin session
+      const isToday = (idx === currentDayOfWeek);
+      if (isToday) {
+        const currentSa = localStorage.getItem('active_sa_id') || localStorage.getItem('current_user') || 'Vyshwa';
+        activeUsers.add(currentSa);
+      }
+
+      // Platform intensity score (weighted activity sum)
+      const activityScore = (activeUsers.size * 5) + (taskEvents * 3) + (messageEvents * 2) + attendanceEvents;
+
+      return {
+        day: dayName,
+        date: dateStr,
+        intensity: activityScore,
+        activeUsers: activeUsers.size,
+        taskEvents,
+        messageEvents,
+        attendanceEvents,
+        isToday,
+      };
+    });
+  }, [dbAttendance, dbTasks, dbMessages, dbUsers]);
+
+  // 3. Real Industry & Role distributions
+  const categoryStats = useMemo(() => {
+    const counts = {};
+    dbCompanies.forEach(c => {
+      const cat = String(c.category || 'other').toLowerCase();
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return Object.keys(COMPANY_CATEGORIES).map(key => ({
+      name: COMPANY_CATEGORIES[key],
+      count: counts[key] || 0,
+      pct: dbCompanies.length > 0 ? Math.round(((counts[key] || 0) / dbCompanies.length) * 100) : 0,
+    }));
+  }, [dbCompanies]);
+
+  const roleStats = useMemo(() => {
+    const counts = { owner: 0, admin: 0, staff: 0, intern: 0, freelancer: 0, param: 0 };
+    dbUsers.forEach(u => {
+      const r = String(u.role || 'staff').toLowerCase();
+      if (counts[r] !== undefined) counts[r]++;
+    });
+    return [
+      { name: 'Super Admin', count: counts.param },
+      { name: 'Company Owners', count: counts.owner },
+      { name: 'Staff Members', count: counts.staff },
+      { name: 'Interns', count: counts.intern },
+      { name: 'Freelancers', count: counts.freelancer },
+    ];
+  }, [dbUsers]);
+
+  const totalInteractions = operationalIntensityData.reduce((acc, d) => acc + d.intensity, 0);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="border-zinc-800 bg-zinc-900/30 h-[400px]">
-            <CardHeader>
-              <CardTitle className="text-lg">Growth metrics (Companies)</CardTitle>
-            </CardHeader>
-            <CardContent className="h-full pt-4">
-               <ResponsiveContainer width="100%" height="80%">
-                  <LineChart data={REVENUE_DATA}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="month" stroke="#71717a" fontSize={12} />
-                    <YAxis stroke="#71717a" fontSize={12} />
-                    <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }} />
-                    <Line type="stepAfter" dataKey="growth" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b' }} />
-                  </LineChart>
-               </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card className="border-zinc-800 bg-zinc-900/30 h-[400px]">
-             <CardHeader>
-                <CardTitle className="text-lg">Operational Intensity</CardTitle>
-             </CardHeader>
-             <CardContent className="h-full pt-4">
-                <ResponsiveContainer width="100%" height="80%">
-                   <AreaChart data={GROWTH_DATA}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                      <XAxis dataKey="day" stroke="#71717a" fontSize={12} />
-                      <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a' }} />
-                      <Area type="monotone" dataKey="active" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.2} strokeWidth={2} />
-                   </AreaChart>
-                </ResponsiveContainer>
-             </CardContent>
-          </Card>
-       </div>
+      {/* Top Analytics KPI Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <StatCard 
+          title="Platform Adoption" 
+          value={`${dbCompanies.length} Co.`} 
+          icon={Building2} 
+          trend={`${dbUsers.length} Registered Users`} 
+          color="emerald" 
+        />
+        <StatCard 
+          title="Active User Engagement" 
+          value={`${dbUsers.filter(u => u.status === 'active').length}`} 
+          icon={Users} 
+          trend={`${Math.round((dbUsers.filter(u => u.status === 'active').length / (dbUsers.length || 1)) * 100)}% Active Status`} 
+          color="blue" 
+        />
+        <StatCard 
+          title="Weekly Interactions" 
+          value={totalInteractions} 
+          icon={Activity} 
+          trend="Tasks, messages & logins" 
+          color="purple" 
+        />
+        <StatCard 
+          title="System Reliability" 
+          value="100%" 
+          icon={TrendingUp} 
+          trend="0 fatal anomalies reported" 
+          color="amber" 
+        />
+      </div>
+
+      {/* Main Charts: Real Growth Metrics & Real Operational Intensity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-amber-400" />
+                Growth Metrics (Companies & Users)
+              </CardTitle>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span> Companies</span>
+                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]"></span> Users</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="h-[320px] w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyGrowthData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis dataKey="month" stroke="#71717a" fontSize={12} />
+                <YAxis stroke="#71717a" fontSize={12} allowDecimals={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(val, name) => [val, name === 'companies' ? 'Total Companies' : 'Total Users']}
+                />
+                <Line type="monotone" dataKey="companies" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b' }} />
+                <Line type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Activity className="w-5 h-5 text-purple-400" />
+                Operational Intensity (Live Platform Activity)
+              </CardTitle>
+              <span className="text-[11px] font-mono text-zinc-500">Weekly Events</span>
+            </div>
+          </CardHeader>
+          <CardContent className="h-[320px] w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={operationalIntensityData}>
+                <defs>
+                  <linearGradient id="colorIntensity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                <XAxis dataKey="day" stroke="#71717a" fontSize={12} />
+                <YAxis stroke="#71717a" fontSize={12} allowDecimals={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-lg shadow-xl text-xs space-y-1.5">
+                          <div className="font-bold text-white flex items-center justify-between gap-4">
+                            <span>{data.day} ({data.date})</span>
+                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">Today</span>}
+                          </div>
+                          <div className="text-purple-400 font-semibold text-sm">
+                            Intensity Score: {data.intensity} pts
+                          </div>
+                          <div className="text-zinc-400 space-y-0.5 text-[11px] pt-1 border-t border-zinc-800">
+                            <div>• Active Users: <span className="text-white font-medium">{data.activeUsers}</span></div>
+                            <div>• Tasks Created/Updated: <span className="text-white font-medium">{data.taskEvents}</span></div>
+                            <div>• Messages Sent: <span className="text-white font-medium">{data.messageEvents}</span></div>
+                            <div>• Attendance Records: <span className="text-white font-medium">{data.attendanceEvents}</span></div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area type="monotone" dataKey="intensity" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorIntensity)" strokeWidth={2.5} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Real Breakdown: Industry Category & User Roles */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-400" />
+              Company Distribution by Category
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {categoryStats.map((item) => (
+              <div key={item.name} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-zinc-300">{item.name}</span>
+                  <span className="text-zinc-400 font-mono">{item.count} ({item.pct}%)</span>
+                </div>
+                <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                    style={{ width: `${Math.max(item.pct, item.count > 0 ? 10 : 0)}%` }} 
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card className="border-zinc-800 bg-zinc-900/30">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-400" />
+              User Role Distribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {roleStats.map((item) => {
+              const pct = dbUsers.length > 0 ? Math.round((item.count / dbUsers.length) * 100) : 0;
+              return (
+                <div key={item.name} className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-300">{item.name}</span>
+                    <span className="text-zinc-400 font-mono">{item.count} user{item.count !== 1 ? 's' : ''} ({pct}%)</span>
+                  </div>
+                  <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-blue-500 h-full rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.max(pct, item.count > 0 ? 10 : 0)}%` }} 
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

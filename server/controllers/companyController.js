@@ -153,6 +153,19 @@ export const updateCompany = async (req, res) => {
 
     const company = await Company.findByIdAndUpdate(id, updates, { new: true });
     if (!company) return res.status(404).json({ message: 'Company not found' });
+
+    if (updates.name) {
+      await User.updateMany(
+        { $or: [{ companyId: company._id }, { userId: company.ownerId }] },
+        { $set: { company: updates.name } }
+      );
+      // For owners, owner name should be same as company name
+      await User.updateMany(
+        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+        { $set: { name: updates.name } }
+      );
+    }
+
     res.status(200).json(company);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -164,6 +177,19 @@ export const superAdminUpdateCompany = async (req, res) => {
     const { id } = req.params;
     const company = await Company.findByIdAndUpdate(id, req.body, { new: true });
     if (!company) return res.status(404).json({ message: 'Company not found' });
+
+    if (req.body.name) {
+      await User.updateMany(
+        { $or: [{ companyId: company._id }, { userId: company.ownerId }] },
+        { $set: { company: req.body.name } }
+      );
+      // For owners, owner name should be same as company name
+      await User.updateMany(
+        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+        { $set: { name: req.body.name } }
+      );
+    }
+
     res.status(200).json(company);
   } catch (error) {
     res.status(400).json({ message: error.message });

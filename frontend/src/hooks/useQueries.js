@@ -824,6 +824,8 @@ export function useUpdateCompany() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['companyInfo'] });
       queryClient.invalidateQueries({ queryKey: ['companies'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
     },
   });
 }

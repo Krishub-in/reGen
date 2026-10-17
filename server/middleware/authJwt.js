@@ -37,14 +37,21 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, getSecret());
-    const dbUser = await User.findOne({ userId: decoded.userId }).select('userId tokenVersion').lean();
+    const dbUser = await User.findOne({ userId: decoded.userId }).select('userId tokenVersion lastActive status role').lean();
     if (!dbUser) {
       return res.status(401).json({ message: 'Invalid session. Please login again.' });
+    }
+    if (dbUser.role !== 'param' && dbUser.status === 'inactive') {
+      return res.status(403).json({ message: 'Your account has been suspended by the Super Admin.', code: 'USER_SUSPENDED' });
     }
     const tokenVersion = Number(decoded.tokenVersion || 0);
     const currentTokenVersion = Number(dbUser.tokenVersion || 0);
     if (tokenVersion !== currentTokenVersion) {
       return res.status(401).json({ message: 'Session expired. Please login again.' });
+    }
+    const now = Date.now();
+    if (!dbUser.lastActive || (now - new Date(dbUser.lastActive).getTime()) > 60000) {
+      User.updateOne({ userId: decoded.userId }, { $set: { lastActive: new Date() } }).catch(() => {});
     }
     req.user = decoded; // { userId, username, role, companyId, iat, exp }
     next();

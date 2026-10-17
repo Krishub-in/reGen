@@ -27,7 +27,9 @@ const userSchema = new mongoose.Schema({
   avatar: { type: String }, 
   lastAvatarUpdate: { type: Date },
   address: { type: String },
-  tokenVersion: { type: Number, default: 0 }
+  tokenVersion: { type: Number, default: 0 },
+  lastLogin: { type: Date },
+  lastActive: { type: Date }
 }, { timestamps: true });
 
 export default mongoose.model('User', userSchema);
