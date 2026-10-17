@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { authFetch } from '@/lib/utils';
+import { authFetch, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,7 +96,7 @@ export default function SuperAdminDashboard() {
         const resp = await authFetch(`/api/users/${saId}`);
         if (!resp.ok) throw new Error('Token invalid');
         const dbUser = await resp.json();
-        if (dbUser.role !== 'param') throw new Error('Not a superadmin');
+        if (dbUser.role !== 'param' && dbUser.role !== 'admin') throw new Error('Not an admin');
         setProfileData({
           userId: dbUser.userId,
           name: dbUser.name || dbUser.username || '',
@@ -174,7 +174,7 @@ export default function SuperAdminDashboard() {
         throw new Error(err.message || 'Verification failed');
       }
       const user = await resp.json();
-      if (user.role === 'param') {
+      if (user.role === 'param' || user.role === 'admin') {
         // Store JWT token for superadmin session
         if (user.token) {
           localStorage.setItem('sa_auth_token', user.token);
@@ -188,7 +188,7 @@ export default function SuperAdminDashboard() {
           const profileResp = await authFetch(`/api/users/${user.userId}`);
           if (profileResp.ok) {
             const dbUser = await profileResp.json();
-            if (dbUser.role === 'param') {
+            if (dbUser.role === 'param' || dbUser.role === 'admin') {
               setProfileData({
                 userId: dbUser.userId,
                 name: dbUser.name || dbUser.username || '',
@@ -1556,6 +1556,8 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 }
 
 function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
+  const [togglingId, setTogglingId] = useState(null);
+
   const filtered = dbUsers.filter(u => 
     !searchTerm || 
     u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -1565,6 +1567,34 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
 
   const activeCount = dbUsers.filter(u => u.status === 'active').length;
   const suspendedCount = dbUsers.filter(u => u.status !== 'active').length;
+
+  const handleQuickToggle = async (targetUser, action) => {
+    const targetUserId = targetUser.userId || targetUser._id || targetUser.id;
+    setTogglingId(targetUserId);
+    try {
+      let payload = { action };
+      if (action === 'activate' && targetUser.companyId) {
+        payload.companyId = String(targetUser.companyId?._id || targetUser.companyId);
+        payload.company = targetUser.company || '';
+      }
+      const resp = await authFetch(`/api/users/${targetUserId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update user status');
+      }
+      const resData = await resp.json();
+      toast.success(resData.message || (action === 'suspend' ? 'User suspended successfully' : 'User access restored'));
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Operation failed');
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -1621,8 +1651,9 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
               {filtered.map((user) => {
                 const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name;
                 const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
+                const userKey = user.userId || user._id || user.id;
                 return (
-                  <TableRow key={user.userId} className="border-zinc-800 hover:bg-white/5 transition-colors">
+                  <TableRow key={userKey} className="border-zinc-800 hover:bg-white/5 transition-colors">
                     <TableCell className="py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
@@ -1659,7 +1690,36 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
                       )}
                     </TableCell>
                     <TableCell className="text-right pr-6">
-                      <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                      <div className="flex items-center justify-end gap-2">
+                        {!hasUserRole(user, 'param') && (
+                          user.status === 'active' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={togglingId === userKey}
+                              onClick={() => handleQuickToggle(user, 'suspend')}
+                              className="h-8 px-2.5 rounded-xl border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-semibold"
+                              title="Suspend User"
+                            >
+                              <Ban className="w-3.5 h-3.5 mr-1" />
+                              {togglingId === userKey ? 'Updating…' : 'Suspend'}
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={togglingId === userKey}
+                              onClick={() => handleQuickToggle(user, 'activate')}
+                              className="h-8 px-2.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 text-xs font-semibold"
+                              title="Restore / Add Back"
+                            >
+                              <Unlock className="w-3.5 h-3.5 mr-1" />
+                              {togglingId === userKey ? 'Updating…' : 'Add Back'}
+                            </Button>
+                          )
+                        )}
+                        <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -1712,17 +1772,20 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
         department: user.department || '',
         phone: user.phone || user.contact || '',
         companyId: cId,
+        status: user.status === 'inactive' ? 'inactive' : 'active',
       });
       setSelectedCompanyId(cId !== 'none' ? cId : (dbCompanies[0]?._id ? String(dbCompanies[0]._id) : 'none'));
       setIsEditing(false);
     }
   }, [open, user, dbCompanies]);
 
+  const targetUserId = user.userId || user._id || user.id;
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const resp = await authFetch(`/api/users/${user.userId}`, {
+      const resp = await authFetch(`/api/users/${targetUserId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
@@ -1756,7 +1819,7 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
         }
       }
 
-      const resp = await authFetch(`/api/users/${user.userId}/status`, {
+      const resp = await authFetch(`/api/users/${targetUserId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1865,6 +1928,21 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
                       onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} 
                       className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[11px] text-zinc-400 mb-1 block">Account Access / Status</label>
+                    <Select 
+                      value={editForm.status} 
+                      onValueChange={(val) => setEditForm({ ...editForm, status: val })}
+                    >
+                      <SelectTrigger className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                        <SelectItem value="active">Active (Full System Access)</SelectItem>
+                        <SelectItem value="inactive">Suspended / Inactive (Revoke Login Access)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="col-span-2">
                     <label className="text-[11px] text-zinc-400 mb-1 block">Affiliated Company</label>
