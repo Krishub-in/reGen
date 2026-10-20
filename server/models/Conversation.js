@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const conversationSchema = new mongoose.Schema({
-  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
+  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: false, index: true },
   participants: [{ type: String, required: true }], // userId strings, exactly 2 for 1:1
   lastMessage: {
     content: { type: String, default: '' },

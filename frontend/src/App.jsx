@@ -28,7 +28,7 @@ export default function App() {
     const checkMaintenance = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
         const resp = await fetch('/api/system/maintenance', {
           cache: 'no-store',
           signal: controller.signal
@@ -37,7 +37,7 @@ export default function App() {
 
         if (!resp.ok) {
           // If port/server stops, proxy or server returns non-2xx (500, 502, 503, 504, etc.)
-          if (active) setIsMaintenance(true);
+          if (active && resp.status === 503) setIsMaintenance(true);
           return;
         }
         const data = await resp.json().catch(() => ({}));
@@ -47,7 +47,8 @@ export default function App() {
           if (active) setIsMaintenance(false);
         }
       } catch (e) {
-        // Port stopped, network down, timeout, or connection refused
+        if (e?.name === 'AbortError') return; // Do not trigger maintenance mode on momentary timeout
+        // Port stopped, network down, or connection refused
         if (active) setIsMaintenance(true);
       }
     };

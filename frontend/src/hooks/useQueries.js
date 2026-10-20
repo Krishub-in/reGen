@@ -330,7 +330,8 @@ export function useGetAllAttendance() {
       return actor.getAllAttendance();
     },
     enabled: !!actor && !isFetching,
-    // Real-time updates handled by WebSocket (useSocket hook)
+    refetchInterval: 5000, // 5s dynamic auto-sync
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -349,8 +350,9 @@ export function useGetAllLeaveRequests() {
 
 export function useGetUserLeaveRequests(userId) {
   const { actor, isFetching } = useActor();
+  const userIdStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : (userId?.toString ? userId.toString() : String(userId || '')));
   return useQuery({
-    queryKey: ['leaves', userId?.toString()],
+    queryKey: ['leaves', userIdStr],
     queryFn: async () => {
       if (!actor || !userId) return [];
       return actor.getUserLeaveRequests(userId);
@@ -388,16 +390,20 @@ export function useUpdateLeaveRequest() {
     },
   });
 }
+
 export function useGetUserAttendance(userId) {
   const { actor, isFetching } = useActor();
+  const userIdStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : (userId?.toString ? userId.toString() : String(userId || '')));
 
   return useQuery({
-    queryKey: ['attendance', userId?.toString()],
+    queryKey: ['attendance', userIdStr],
     queryFn: async () => {
       if (!actor || !userId) return [];
       return actor.getUserAttendance(userId);
     },
     enabled: !!actor && !isFetching && !!userId,
+    refetchInterval: 5000, // 5s dynamic auto-sync
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -410,8 +416,17 @@ export function useRecordAttendance() {
       if (!actor) throw new Error('Actor not available');
       return actor.recordAttendance(attendance);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+        refetchType: 'all',
+      });
+      queryClient.refetchQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('attendance:updated', { detail: { action: 'record', attendance: variables } }));
+      }
     },
   });
 }
@@ -425,8 +440,17 @@ export function useUpdateAttendance() {
       if (!actor) throw new Error('Actor not available');
       return actor.updateAttendance(attendance);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['attendance'] });
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+        refetchType: 'all',
+      });
+      queryClient.refetchQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+      });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('attendance:updated', { detail: { action: 'update', attendance: variables } }));
+      }
     },
   });
 }

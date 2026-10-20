@@ -18,8 +18,8 @@ export default defineConfig({
         target: 'http://127.0.0.1:5006',  // your backend
         changeOrigin: true,
         secure: false,
-        timeout: 2500,
-        proxyTimeout: 2500,
+        timeout: 30000,
+        proxyTimeout: 30000,
         configure: (proxy) => {
           proxy.on('error', (err, req, res) => {
             if (res && !res.headersSent && typeof res.writeHead === 'function') {

@@ -88,25 +88,43 @@ const normalizeIdentifier = (value) => {
 // ─── Get or create a 1:1 conversation ───────────────────────────
 export const getOrCreateConversation = async (req, res) => {
   try {
-    const companyId = await resolveCompanyId(req, req.body);
+    let companyId = await resolveCompanyId(req, req.body);
     const myId = normalizeIdentifier(req.user?.userId);
     const recipientId = normalizeIdentifier(req.body?.recipientId);
     if (!recipientId) return res.status(400).json({ message: 'recipientId is required' });
     if (recipientId === myId) return res.status(400).json({ message: 'Cannot create conversation with yourself' });
 
+    // Fallback companyId from recipient or sender if SuperAdmin or missing
+    if (!companyId && recipientId) {
+      const recipientUser = await User.findOne({ userId: recipientId }).select('companyId').lean();
+      if (recipientUser?.companyId) companyId = recipientUser.companyId;
+    }
+    if (!companyId && myId) {
+      const meUser = await User.findOne({ userId: myId }).select('companyId').lean();
+      if (meUser?.companyId) companyId = meUser.companyId;
+    }
+
     const participants = [myId, recipientId].sort();
 
-    let convo = await Conversation.findOne({
-      companyId,
+    const query = {
       participants: { $all: participants, $size: 2 }
-    });
+    };
+    if (companyId) {
+      query.companyId = companyId;
+    }
+
+    let convo = await Conversation.findOne(query);
 
     if (!convo) {
-      convo = new Conversation({ companyId, participants });
+      convo = new Conversation({
+        ...(companyId ? { companyId } : {}),
+        participants
+      });
       await convo.save();
     }
     res.status(200).json(convo);
   } catch (error) {
+    console.error('[DM] getOrCreateConversation error:', error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -85,6 +85,14 @@ export default function PrivateChatModule({ userProfile }) {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
+  const isRecordingVoice = isRecording;
+  const voiceDuration = recordDuration;
+  const formatVoiceDuration = useCallback((secs) => {
+    const s = Number(secs) || 0;
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${m}:${rem < 10 ? '0' : ''}${rem}`;
+  }, []);
   const [voiceError, setVoiceError] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -361,17 +369,34 @@ export default function PrivateChatModule({ userProfile }) {
 
 
   const toIdText = useCallback((value) => {
-    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
     if (value?.toText) return value.toText();
     if (value && typeof value === 'object') {
-      if (typeof value.userId === 'string') return value.userId;
-      if (typeof value.id === 'string') return value.id;
-      if (typeof value._text === 'string') return value._text;
+      if (typeof value.userId === 'string') return value.userId.trim();
+      if (typeof value.id === 'string') return value.id.trim();
+      if (typeof value._id === 'string') return value._id.trim();
+      if (typeof value._text === 'string') return value._text.trim();
     }
-    return String(value || '');
+    return String(value || '').trim();
   }, []);
 
-  const myId = toIdText(userProfile.userId || userProfile.id);
+  const getConvoPeerId = useCallback((convo, currentUserId) => {
+    if (!convo || !Array.isArray(convo.participants)) return '';
+    return convo.participants.map(toIdText).find(p => p && p !== currentUserId) || '';
+  }, [toIdText]);
+
+  const formatRoleText = useCallback((role) => {
+    if (!role) return 'Colleague';
+    if (typeof role === 'string') return role.charAt(0).toUpperCase() + role.slice(1);
+    if (typeof role === 'object') {
+      const key = Object.keys(role)[0];
+      if (key) return key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    return String(role || 'Colleague');
+  }, []);
+
+  const myId = toIdText(userProfile?.userId || userProfile?.id || userProfile?.username || '');
   const markedReadRef = useRef(null);
 
   const { data: rawMessages = EMPTY_ARRAY, refetch: refetchMessages } = useGetConversationMessages(activeConvoId);
@@ -407,9 +432,10 @@ export default function PrivateChatModule({ userProfile }) {
   // Resolve peer user from a conversation
   const getPeer = useCallback((convo) => {
     if (!convo) return null;
-    const peerId = convo.participants?.map(toIdText).find(p => p !== myId);
-    return users.find(u => toIdText(u.userId || u.id) === peerId) || { userId: peerId, name: peerId };
-  }, [users, myId, toIdText]);
+    const peerId = getConvoPeerId(convo, myId);
+    if (!peerId) return null;
+    return users.find(u => toIdText(u?.userId || u?.id) === peerId) || { userId: peerId, name: peerId };
+  }, [users, myId, getConvoPeerId, toIdText]);
 
   const normalizeAvatar = (avatar) => {
     if (!avatar) return '';
@@ -437,7 +463,7 @@ export default function PrivateChatModule({ userProfile }) {
         }
 
         // 2. Check if peer has published their key
-        const peerId = activeConvo.participants?.map(toIdText).find(p => p !== myId);
+        const peerId = getConvoPeerId(activeConvo, myId);
         const peerKeyStr = activeConvo.publicKeys?.[peerId];
         if (peerKeyStr) {
           const peerPubJwk = JSON.parse(peerKeyStr);
@@ -474,16 +500,36 @@ export default function PrivateChatModule({ userProfile }) {
   // ─── Open conversation with a user ─────────────────────────────
   const openChat = useCallback(async (userId) => {
     try {
-      const convo = await getOrCreate.mutateAsync(userId);
-      setActiveConvoId(convo._id);
+      const targetId = toIdText(userId);
+      if (!targetId) return;
+
+      // 1. Instant open if conversation already exists in cached list
+      const existing = Array.isArray(conversations)
+        ? conversations.find(c => getConvoPeerId(c, myId) === targetId)
+        : null;
+      if (existing) {
+        setActiveConvoId(existing._id);
+        setContent('');
+        setFiles([]);
+        setContactSearch('');
+        setEditingId(null);
+        return;
+      }
+
+      // 2. Otherwise get or create on server
+      const convo = await getOrCreate.mutateAsync(targetId);
+      if (convo?._id) {
+        setActiveConvoId(convo._id);
+      }
       setContent('');
       setFiles([]);
       setContactSearch('');
       setEditingId(null);
     } catch (err) {
+      console.error('[PrivateChat] openChat error:', err);
       toast.error(err.message || 'Failed to open conversation');
     }
-  }, [getOrCreate]);
+  }, [conversations, getOrCreate, myId, toIdText]);
 
   // Listen to open-conversation event and check pending storage from notifications
   useEffect(() => {
@@ -759,6 +805,7 @@ export default function PrivateChatModule({ userProfile }) {
 
         {/* Contacts or Conversation Threads list */}
         <div className="flex-1 overflow-y-auto divide-y divide-border/40">
+<<<<<<< HEAD
           {contactSearch.trim() ? (
             contactList.length === 0 ? (
               <div className="py-12 text-center text-xs text-muted-foreground">
@@ -848,10 +895,199 @@ export default function PrivateChatModule({ userProfile }) {
                         </span>
                       )}
                     </div>
+=======
+          {(contactSearch || searchTerm) ? (
+            /* Search Mode: Show matching conversations and matching colleagues */
+            <div>
+              {convoList.length > 0 && (
+                <div>
+                  <div className="px-3.5 py-1.5 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Matching Conversations ({convoList.length})
                   </div>
-                </button>
-              );
-            })
+                  {convoList.map(c => {
+                    const cPeer = c.peer;
+                    const avatar = normalizeAvatar(cPeer?.avatar);
+                    const cInitials = (cPeer?.name || cPeer?.username || '?').slice(0, 2).toUpperCase();
+                    const isSelected = activeConvoId === c._id;
+                    return (
+                      <button
+                        key={c._id}
+                        onClick={() => { setActiveConvoId(c._id); }}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-3 transition-all text-left relative",
+                          isSelected ? "bg-secondary/70 border-l-4 border-l-primary" : "hover:bg-secondary/30"
+                        )}
+                      >
+                        <Avatar className="h-10 w-10 shrink-0 border border-border">
+                          <AvatarImage src={avatar} />
+                          <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{cInitials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate text-foreground">{cPeer?.name || cPeer?.username}</p>
+                          <p className="text-xs text-muted-foreground truncate">{c.lastMessage?.content || 'No messages yet'}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {contactList.length > 0 && (
+                <div>
+                  <div className="px-3.5 py-1.5 bg-muted/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Colleagues ({contactList.length})
+                  </div>
+                  {contactList.map(u => {
+                    const uid = toIdText(u.userId || u.id);
+                    const avatar = normalizeAvatar(u.avatar);
+                    const uInitials = (u.name || u.username || '?').slice(0, 2).toUpperCase();
+                    return (
+                      <button
+                        key={uid}
+                        onClick={() => openChat(uid)}
+                        className="flex items-center gap-3 w-full px-4 py-3 hover:bg-secondary/40 transition-colors text-left group"
+                      >
+                        <Avatar className="h-10 w-10 shrink-0 border border-border">
+                          <AvatarImage src={avatar} />
+                          <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{uInitials}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">{u.name || u.username}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.designation || u.department || formatRoleText(u.role)}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {convoList.length === 0 && contactList.length === 0 && (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  <Users className="w-8 h-8 opacity-30 mx-auto mb-2" />
+                  <p>No conversations or colleagues match "{contactSearch || searchTerm}"</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Normal Mode: Show Recent Conversations first, and ALL company employees below */
+            <div>
+              {/* 1. Recent Conversations */}
+              {convoList.length > 0 && (
+                <div className="border-b border-border/40">
+                  <div className="px-3.5 py-2 bg-muted/30 text-[11px] font-semibold text-muted-foreground flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><MessageSquare className="h-3.5 w-3.5" /> Recent Chats</span>
+                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 font-mono">{convoList.length}</Badge>
+>>>>>>> origin/mukesh
+                  </div>
+                  {convoList.map(c => {
+                    const cPeer = c.peer;
+                    const avatar = normalizeAvatar(cPeer?.avatar);
+                    const cInitials = (cPeer?.name || cPeer?.username || '?').slice(0, 2).toUpperCase();
+                    const lastMsg = c.lastMessage;
+                    const unread = c.unreadCount || 0;
+                    const isSelected = activeConvoId === c._id;
+
+                    return (
+                      <button
+                        key={c._id}
+                        onClick={() => { setActiveConvoId(c._id); }}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-3.5 transition-all text-left relative",
+                          isSelected
+                            ? "bg-secondary/70 border-l-4 border-l-primary"
+                            : "hover:bg-secondary/30"
+                        )}
+                      >
+                        <Avatar className="h-11 w-11 shrink-0 border border-border">
+                          <AvatarImage src={avatar} />
+                          <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{cInitials}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className={cn("text-sm truncate", isSelected ? "font-bold text-foreground" : "font-semibold text-foreground")}>
+                              {cPeer?.name || cPeer?.username}
+                            </p>
+                            {lastMsg?.timestamp && (
+                              <span className="text-[10px] text-muted-foreground shrink-0 ml-2 font-mono">
+                                {formatDate(lastMsg.timestamp) === 'Today' ? formatTime(lastMsg.timestamp) : formatDate(lastMsg.timestamp)}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <p className="text-xs text-muted-foreground truncate pr-2">
+                              {toIdText(lastMsg?.senderId) === myId && <span className="text-muted-foreground/80 font-medium">You: </span>}
+                              {lastMsg?.content || 'No messages yet'}
+                            </p>
+                            {unread > 0 && (
+                              <span className="shrink-0 flex items-center justify-center h-5 min-w-[20px] px-1.5 rounded-full bg-primary text-white text-[10px] font-bold">
+                                {unread}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 2. All Company Employees Listed Below */}
+              <div>
+                <div className="px-3.5 py-2 bg-muted/40 text-[11px] font-semibold text-muted-foreground flex items-center justify-between sticky top-0 z-10 backdrop-blur-xs border-b border-border/40">
+                  <span className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Company Team Members</span>
+                  <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-mono">{contactList.length}</Badge>
+                </div>
+                {contactList.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    <p>No colleagues found in your company</p>
+                  </div>
+                ) : (
+                  contactList.map(u => {
+                    const uid = toIdText(u.userId || u.id);
+                    const avatar = normalizeAvatar(u.avatar);
+                    const uInitials = (u.name || u.username || '?').slice(0, 2).toUpperCase();
+                    const existingConvo = Array.isArray(conversations)
+                      ? conversations.find(c => getConvoPeerId(c, myId) === uid)
+                      : null;
+                    const isSelected = activeConvoId && existingConvo && activeConvoId === existingConvo._id;
+
+                    return (
+                      <button
+                        key={uid}
+                        onClick={() => openChat(uid)}
+                        className={cn(
+                          "flex items-center gap-3 w-full px-4 py-3 transition-colors text-left group",
+                          isSelected ? "bg-secondary/70 border-l-4 border-l-primary" : "hover:bg-secondary/40"
+                        )}
+                      >
+                        <div className="relative shrink-0">
+                          <Avatar className="h-10 w-10 border border-border">
+                            <AvatarImage src={avatar} />
+                            <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{uInitials}</AvatarFallback>
+                          </Avatar>
+                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-background" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                              {u.name || u.username}
+                            </p>
+                            {existingConvo && (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground">
+                                Active chat
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {u.designation || u.department || formatRoleText(u.role)}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
