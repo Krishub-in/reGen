@@ -20,8 +20,18 @@ export default function AttendanceModule({ userProfile }) {
   const queryClient = useQueryClient();
   const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   
-  const staffIdObj = userProfile.userId || userProfile.id || identity?.getPrincipal() || null;
-  const staffIdStr = typeof staffIdObj === 'string' ? staffIdObj : (staffIdObj?.toText ? staffIdObj.toText() : String(staffIdObj || ''));
+  const staffIdObj = userProfile?.userId || 
+                     userProfile?.id || 
+                     userProfile?._id || 
+                     userProfile?.staffId || 
+                     userProfile?.StaffId || 
+                     (identity?.getPrincipal ? identity.getPrincipal() : null) || 
+                     userProfile?.username || 
+                     (typeof window !== 'undefined' ? localStorage.getItem('current_user') : null) || 
+                     null;
+  const staffIdStr = typeof staffIdObj === 'string' 
+    ? staffIdObj.trim() 
+    : (staffIdObj?.toText ? staffIdObj.toText() : (staffIdObj ? String(staffIdObj).trim() : ''));
 
   // Dynamically sync and refetch attendance immediately on check-in or socket update
   useEffect(() => {
@@ -688,7 +698,7 @@ export default function AttendanceModule({ userProfile }) {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   const handleCheckIn = async () => {
-    if (!identity) {
+    if (!staffIdStr && !identity && !userProfile) {
       toast.error('Please login first');
       return;
     }
@@ -718,11 +728,12 @@ export default function AttendanceModule({ userProfile }) {
         const payload = {
           id: safeRandomUUID(),
           userId: staffIdStr,
+          companyId: userProfile?.companyId || userProfile?.tenantId || undefined,
           date: todayStr,
           checkIn: now.toISOString(),
           status: checkInStatus,
           workMode: 'office',
-          location: locationStr,
+          location: locationStr || 'Office Main',
           notes: checkInStatus === 'late' ? `Late arrival (Shift start: ${workSchedule.checkInTime})` : ''
         };
 
@@ -740,25 +751,44 @@ export default function AttendanceModule({ userProfile }) {
       }
     };
 
-    if (typeof navigator !== 'undefined' && navigator.geolocation && window.isSecureContext) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          doCheckIn(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-        },
-        (error) => {
-          console.warn('Geolocation unavailable:', error.message);
-          doCheckIn('');
-        },
-        { timeout: 3000, enableHighAccuracy: false }
-      );
+    let hasExecuted = false;
+    const executeCheckIn = (loc = '') => {
+      if (hasExecuted) return;
+      hasExecuted = true;
+      doCheckIn(loc);
+    };
+
+    // Quick 800ms fallback so UI is immediately responsive even if geolocation hangs or permissions are pending
+    const geoTimer = setTimeout(() => {
+      executeCheckIn('');
+    }, 800);
+
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            clearTimeout(geoTimer);
+            const { latitude, longitude } = position.coords;
+            executeCheckIn(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          },
+          (error) => {
+            clearTimeout(geoTimer);
+            executeCheckIn('');
+          },
+          { timeout: 800, enableHighAccuracy: false, maximumAge: 60000 }
+        );
+      } catch {
+        clearTimeout(geoTimer);
+        executeCheckIn('');
+      }
     } else {
-      doCheckIn('');
+      clearTimeout(geoTimer);
+      executeCheckIn('');
     }
   };
 
   const handleCheckOut = async () => {
-    if (!todayRecord || !identity) {
+    if (!todayRecord) {
       toast.error('Please check in first before checking out');
       return;
     }
@@ -770,10 +800,11 @@ export default function AttendanceModule({ userProfile }) {
     try {
       await updateAttendance.mutateAsync({
         ...todayRecord,
-        userId: staffIdStr,
+        id: todayRecord.id || todayRecord._id,
+        userId: staffIdStr || toIdText(todayRecord.userId),
         checkOut: now.toISOString(),
       });
-      toast.success('Check-out successful!');
+      toast.success('Check-out successful! Shift completed.');
     } catch (error) {
       console.error("Check-out failed:", error);
       toast.error('Check-out failed. Please try again.');
@@ -937,12 +968,16 @@ export default function AttendanceModule({ userProfile }) {
             </div>
             <Button
               disabled={isCheckedIn || isCheckingIn}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isCheckedIn && !isCheckingIn) handleCheckIn();
+              }}
               className={cn(
-                "rounded-xl px-5 h-10 font-semibold shadow-xs",
-                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
+                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
               )}
             >
-              {isCheckedIn ? 'Done' : 'Check In'}
+              {isCheckingIn ? 'Saving...' : isCheckedIn ? 'Done' : 'Check In'}
             </Button>
           </div>
 
@@ -982,12 +1017,16 @@ export default function AttendanceModule({ userProfile }) {
             </div>
             <Button
               disabled={!isCheckedIn || isCheckedOut || isCheckingOut}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isCheckedIn && !isCheckedOut && !isCheckingOut) handleCheckOut();
+              }}
               className={cn(
-                "rounded-xl px-5 h-10 font-semibold shadow-xs",
-                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-600 hover:bg-red-700 text-white"
+                "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
+                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
               )}
             >
-              {isCheckedOut ? 'Done' : 'Check Out'}
+              {isCheckingOut ? 'Saving...' : isCheckedOut ? 'Done' : 'Check Out'}
             </Button>
           </div>
         </div>

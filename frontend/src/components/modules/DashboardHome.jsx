@@ -630,6 +630,15 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                     {userTodayRecord.checkIn ? `In: ${formatTime(userTodayRecord.checkIn)}` : 'Checked In'}
                   </span>
                 )}
+                {!isCompanyLogin && userTodayStatus === 'Not Checked In' && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('attendance')}
+                    className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    Check In Now →
+                  </button>
+                )}
               </div>
               <div className="mt-3 flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] font-medium text-muted-foreground">
