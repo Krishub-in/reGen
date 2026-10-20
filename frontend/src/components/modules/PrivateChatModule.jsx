@@ -378,6 +378,16 @@ export default function PrivateChatModule({ userProfile }) {
     return convo.participants.map(toIdText).find(p => p && p !== currentUserId) || '';
   }, [toIdText]);
 
+  const formatRoleText = useCallback((role) => {
+    if (!role) return 'Colleague';
+    if (typeof role === 'string') return role.charAt(0).toUpperCase() + role.slice(1);
+    if (typeof role === 'object') {
+      const key = Object.keys(role)[0];
+      if (key) return key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    return String(role || 'Colleague');
+  }, []);
+
   const myId = toIdText(userProfile?.userId || userProfile?.id || userProfile?.username || '');
   const markedReadRef = useRef(null);
 
@@ -844,7 +854,7 @@ export default function PrivateChatModule({ userProfile }) {
                         </Avatar>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">{u.name || u.username}</p>
-                          <p className="text-xs text-muted-foreground truncate">{u.designation || u.department || 'Team Member'}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.designation || u.department || formatRoleText(u.role)}</p>
                         </div>
                       </button>
                     );
@@ -969,7 +979,7 @@ export default function PrivateChatModule({ userProfile }) {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground truncate mt-0.5">
-                            {u.designation || u.department || (u.role ? u.role.charAt(0).toUpperCase() + u.role.slice(1) : 'Colleague')}
+                            {u.designation || u.department || formatRoleText(u.role)}
                           </p>
                         </div>
                       </button>
