@@ -361,17 +361,24 @@ export default function PrivateChatModule({ userProfile }) {
 
 
   const toIdText = useCallback((value) => {
-    if (typeof value === 'string') return value;
+    if (value === null || value === undefined) return '';
+    if (typeof value === 'string') return value.trim();
     if (value?.toText) return value.toText();
     if (value && typeof value === 'object') {
-      if (typeof value.userId === 'string') return value.userId;
-      if (typeof value.id === 'string') return value.id;
-      if (typeof value._text === 'string') return value._text;
+      if (typeof value.userId === 'string') return value.userId.trim();
+      if (typeof value.id === 'string') return value.id.trim();
+      if (typeof value._id === 'string') return value._id.trim();
+      if (typeof value._text === 'string') return value._text.trim();
     }
-    return String(value || '');
+    return String(value || '').trim();
   }, []);
 
-  const myId = toIdText(userProfile.userId || userProfile.id);
+  const getConvoPeerId = useCallback((convo, currentUserId) => {
+    if (!convo || !Array.isArray(convo.participants)) return '';
+    return convo.participants.map(toIdText).find(p => p && p !== currentUserId) || '';
+  }, [toIdText]);
+
+  const myId = toIdText(userProfile?.userId || userProfile?.id || userProfile?.username || '');
   const markedReadRef = useRef(null);
 
   const { data: rawMessages = EMPTY_ARRAY, refetch: refetchMessages } = useGetConversationMessages(activeConvoId);
@@ -407,9 +414,10 @@ export default function PrivateChatModule({ userProfile }) {
   // Resolve peer user from a conversation
   const getPeer = useCallback((convo) => {
     if (!convo) return null;
-    const peerId = convo.participants?.map(toIdText).find(p => p !== myId);
-    return users.find(u => toIdText(u.userId || u.id) === peerId) || { userId: peerId, name: peerId };
-  }, [users, myId, toIdText]);
+    const peerId = getConvoPeerId(convo, myId);
+    if (!peerId) return null;
+    return users.find(u => toIdText(u?.userId || u?.id) === peerId) || { userId: peerId, name: peerId };
+  }, [users, myId, getConvoPeerId, toIdText]);
 
   const normalizeAvatar = (avatar) => {
     if (!avatar) return '';
@@ -437,7 +445,7 @@ export default function PrivateChatModule({ userProfile }) {
         }
 
         // 2. Check if peer has published their key
-        const peerId = activeConvo.participants?.map(toIdText).find(p => p !== myId);
+        const peerId = getConvoPeerId(activeConvo, myId);
         const peerKeyStr = activeConvo.publicKeys?.[peerId];
         if (peerKeyStr) {
           const peerPubJwk = JSON.parse(peerKeyStr);
@@ -478,10 +486,9 @@ export default function PrivateChatModule({ userProfile }) {
       if (!targetId) return;
 
       // 1. Instant open if conversation already exists in cached list
-      const existing = conversations.find(c => {
-        const peerId = c.participants?.map(toIdText).find(p => p !== myId);
-        return peerId === targetId;
-      });
+      const existing = Array.isArray(conversations)
+        ? conversations.find(c => getConvoPeerId(c, myId) === targetId)
+        : null;
       if (existing) {
         setActiveConvoId(existing._id);
         setContent('');
@@ -929,10 +936,9 @@ export default function PrivateChatModule({ userProfile }) {
                     const uid = toIdText(u.userId || u.id);
                     const avatar = normalizeAvatar(u.avatar);
                     const uInitials = (u.name || u.username || '?').slice(0, 2).toUpperCase();
-                    const existingConvo = conversations.find(c => {
-                      const peerId = c.participants?.map(toIdText).find(p => p !== myId);
-                      return peerId === uid;
-                    });
+                    const existingConvo = Array.isArray(conversations)
+                      ? conversations.find(c => getConvoPeerId(c, myId) === uid)
+                      : null;
                     const isSelected = activeConvoId && existingConvo && activeConvoId === existingConvo._id;
 
                     return (

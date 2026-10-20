@@ -23,50 +23,33 @@ export class ErrorBoundary extends Component {
       }
 
       return (
-        <div
-          id="server-maintenance-screen"
-          style={{
-            minHeight: '100vh',
-            width: '100vw',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#111111',
-            color: '#ffffff',
-            textAlign: 'center',
-            padding: '2rem',
-            boxSizing: 'border-box',
-            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-          }}
-        >
-          <h1
-            style={{
-              color: '#ffffff',
-              fontSize: '2.5rem',
-              fontWeight: '800',
-              letterSpacing: '-0.025em',
-              margin: '0 0 1rem 0'
-            }}
-          >
-            Server Under Maintenance
-          </h1>
-          <p
-            style={{
-              color: '#ffffff',
-              fontSize: '1.125rem',
-              maxWidth: '520px',
-              lineHeight: 1.6,
-              margin: 0,
-              opacity: 0.9
-            }}
-          >
-            Our services are currently undergoing maintenance. Please check back shortly.
+        <div className="min-h-[400px] w-full flex flex-col items-center justify-center p-8 text-center bg-card text-foreground rounded-2xl border border-border m-4 shadow-sm">
+          <div className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mb-3">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <h3 className="font-bold text-lg mb-1">Something went wrong in this module</h3>
+          <p className="text-xs text-muted-foreground mb-4 max-w-md">
+            {this.state.error?.message || 'An unexpected error occurred while rendering this component.'}
           </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+              }}
+            >
+              Try Again
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                window.location.reload();
+              }}
+            >
+              Reload Page
+            </Button>
+          </div>
         </div>
       );
     }

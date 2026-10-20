@@ -333,11 +333,11 @@ setInterval(async () => {
 // Maintenance status check endpoint (bypasses auth and maintenance check)
 app.get('/api/system/maintenance', async (req, res) => {
   try {
-    const is3004Up = await isPort3004Reachable(true);
+    const is3004Up = await isPort3004Reachable(false);
     if (!is3004Up) {
       return res.status(503).json({ maintenance: true, portDown: true, message: 'Server Under Maintenance' });
     }
-    const status = await isMaintenanceMode(true);
+    const status = await isMaintenanceMode(false);
     if (status) {
       return res.status(503).json({ maintenance: true, message: 'Server Under Maintenance' });
     }
