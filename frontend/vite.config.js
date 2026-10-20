@@ -10,7 +10,7 @@ export default defineConfig({
   logLevel: 'info',
 
   server: {
-    host: '0.0.0.0',          // ← required to accept requests from Nginx/external
+    host: '::',          // ← listens on both IPv6 (::1/localhost) and IPv4 (127.0.0.1/LAN/Nginx)
     port: 2000,
     strictPort: false,
     proxy: {
@@ -55,7 +55,7 @@ export default defineConfig({
         secure: false
       }
     },
-    allowedHosts: ['regen.krishub.in']   // ← allow Vite to accept this host
+    allowedHosts: true   // ← allow localhost, LAN IPs, and regen.krishub.in
   },
 
   build: {

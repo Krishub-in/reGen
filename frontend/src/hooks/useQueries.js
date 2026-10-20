@@ -6,21 +6,22 @@ import { Principal } from '@dfinity/principal';
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
   const currentUser = typeof window !== 'undefined' ? localStorage.getItem('current_user') : null;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 
   const query = useQuery({
-    queryKey: ['currentUserProfile', currentUser],
+    queryKey: ['currentUserProfile', currentUser, token],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) return null;
       return actor.getCallerUserProfile();
     },
-    enabled: !!actor && !actorFetching && !!currentUser,
-    retry: 1,
+    enabled: !!actor && !actorFetching && !!token,
+    retry: false,
   });
 
   return {
     ...query,
-    isLoading: actorFetching || query.isLoading,
-    isFetched: !!actor && query.isFetched,
+    isLoading: actorFetching || (!!token && query.isLoading),
+    isFetched: !actorFetching && (!actor || !token || query.isFetched),
   };
 }
 

@@ -29,7 +29,7 @@ function CardHeader({ className, ...props }) {
 }
 
 function CardTitle({ className, ...props }) {
-    return <div data-slot="card-title" className={cn('leading-none font-bold tracking-tight', className)} {...props} />;
+    return <div data-slot="card-title" className={cn('leading-none font-medium tracking-normal', className)} {...props} />;
 }
 
 function CardDescription({ className, ...props }) {

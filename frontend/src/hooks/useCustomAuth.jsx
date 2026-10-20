@@ -20,11 +20,11 @@ export const CustomAuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      // Check if there is a current active session
+      // Check if there is a current active session (requires both token and current_user)
       const currentUsername = localStorage.getItem('current_user');
       const token = localStorage.getItem('auth_token');
-      if (currentUsername || token) {
-        const sessionKey = currentUsername || 'current_user';
+      if (token && currentUsername) {
+        const sessionKey = currentUsername;
         const db = getAuthDb();
         let userRecord = db[sessionKey];
 
@@ -48,8 +48,15 @@ export const CustomAuthProvider = ({ children }) => {
             console.error("Failed to load identity", e);
             localStorage.removeItem('current_user');
             localStorage.removeItem('auth_token');
+            setIdentity(null);
+            setIsAuthenticated(false);
           }
         }
+      } else {
+        localStorage.removeItem('current_user');
+        localStorage.removeItem('auth_token');
+        setIdentity(null);
+        setIsAuthenticated(false);
       }
       setIsLoggingIn(false);
     };

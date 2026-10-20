@@ -32,11 +32,11 @@ import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { safeRandomUUID, cn, hasUserRole } from '@/lib/utils';
 
-export default function CalendarModule({ userProfile }) {
+export default function CalendarModule({ userProfile = {}, portalType }) {
   const { identity } = useCustomAuth();
   const { data: holidays = [], isLoading: holidaysLoading } = useGetAllHolidays();
   const { data: leaveRequests = [], isLoading: leavesLoading } = useGetAllLeaveRequests();
-  const { data: myLeaves = [] } = useGetUserLeaveRequests((userProfile.userId || userProfile.id) || null);
+  const { data: myLeaves = [] } = useGetUserLeaveRequests((userProfile?.userId || userProfile?.id) || null);
   const { data: users = [] } = useGetAllUsers();
   const addHoliday = useAddHoliday();
   const updateHoliday = useUpdateHoliday();
@@ -56,7 +56,21 @@ export default function CalendarModule({ userProfile }) {
   const isMobile = useIsMobile();
   const touchStartX = useRef(null);
 
-  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  // Portal & Role Permissions
+  const isSuperAdmin = hasUserRole(userProfile, 'param') || portalType === 'superadmin';
+  const isOwner = hasUserRole(userProfile, 'owner');
+  const isCompanyAdmin = hasUserRole(userProfile, 'admin');
+  const isCompanyPortal = isOwner || isCompanyAdmin;
+  const isEmployee = !isCompanyPortal && !isSuperAdmin;
+
+  // Administrative powers (holiday management & employee leave review/approval)
+  const canManageHolidays = isCompanyPortal || isSuperAdmin;
+  const canReviewLeaves = isCompanyPortal || isSuperAdmin;
+
+  // Strict Role Requirement: "Apply Leave" is ONLY for employees in User Portal.
+  // Company Portal (Owner/Admin) and Super Admin must NEVER see or be able to apply for leave here.
+  const canApplyLeave = isEmployee && !isCompanyPortal && !isSuperAdmin;
+  const isAdmin = canReviewLeaves;
   const visibleHolidays = useMemo(() => holidays, [holidays]);
   const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
   const formatUserLabel = (u) => {
@@ -295,8 +309,8 @@ export default function CalendarModule({ userProfile }) {
           type: 'birthday',
           typeLabel: 'Birthday',
           icon: '🎂',
-          badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25',
-          dotClass: 'bg-rose-500',
+          badgeClass: 'bg-[#FEF9C3] text-[#854D0E] dark:bg-[#3D310C] dark:text-[#FFD700] border-[#D4AF37]/50 dark:border-[#FFD700]/40',
+          dotClass: 'bg-[#FFD700]',
         });
       }
 
@@ -477,6 +491,11 @@ export default function CalendarModule({ userProfile }) {
   const handleLeaveSubmit = async (e) => {
     e.preventDefault();
 
+    if (!canApplyLeave) {
+      toast.error('Leave applications are only available for employees in the User Portal');
+      return;
+    }
+
     if (!identity) return;
 
     try {
@@ -564,25 +583,25 @@ export default function CalendarModule({ userProfile }) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-5">
       {/* 1. Page Header with Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
+          <h2 className="text-2xl md:text-3xl font-light tracking-normal text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
             Office Calendar
           </h2>
-          <p className="text-sm md:text-base text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5 font-normal">
             Your team's schedule, celebrations, and time off.
           </p>
         </div>
 
         {/* Global Navigation Controls */}
-        <div className="flex items-center gap-2 self-start sm:self-auto bg-white dark:bg-[#15232D] p-1.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
+        <div className="flex items-center gap-1.5 self-start sm:self-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setMonthDate(new Date())}
-            className="h-8 px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
+            className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
             title="Jump to current date"
           >
             Today
@@ -591,19 +610,19 @@ export default function CalendarModule({ userProfile }) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+            className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
             onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
             title="Previous Month"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
-          <span className="text-xs sm:text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4] px-2 min-w-[125px] text-center">
+          <span className="text-xs sm:text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4] px-1.5 min-w-[120px] sm:min-w-[130px] text-center">
             {format(monthDate, 'MMMM yyyy')}
           </span>
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+            className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
             onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
             title="Next Month"
           >
@@ -613,63 +632,63 @@ export default function CalendarModule({ userProfile }) {
       </div>
 
       {/* 2. Compact Event Summary Cards (Real Month Data) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-2.5 sm:p-3 shadow-xs flex items-center justify-between">
           <div className="space-y-0.5">
-            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Birthdays</p>
-            <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{monthlyMetrics.birthdays}</p>
+            <p className="text-[11px] sm:text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Birthdays</p>
+            <p className="text-xl sm:text-2xl font-semibold tracking-normal text-[#D4AF37] dark:text-[#FFD700]">{monthlyMetrics.birthdays}</p>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#FEF9C3] dark:bg-[#D4AF37]/20 text-[#D4AF37] dark:text-[#FFD700] flex items-center justify-center">
             <Cake className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-2.5 sm:p-3 shadow-xs flex items-center justify-between">
           <div className="space-y-0.5">
-            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Holidays</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{monthlyMetrics.holidays}</p>
+            <p className="text-[11px] sm:text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Holidays</p>
+            <p className="text-xl sm:text-2xl font-semibold tracking-normal text-blue-600 dark:text-blue-400">{monthlyMetrics.holidays}</p>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
             <Palmtree className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-2.5 sm:p-3 shadow-xs flex items-center justify-between">
           <div className="space-y-0.5">
-            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Approved Leaves</p>
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{monthlyMetrics.approvedLeaves}</p>
+            <p className="text-[11px] sm:text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Approved Leaves</p>
+            <p className="text-xl sm:text-2xl font-semibold tracking-normal text-emerald-600 dark:text-emerald-400">{monthlyMetrics.approvedLeaves}</p>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
             <CheckCircle2 className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-2.5 sm:p-3 shadow-xs flex items-center justify-between">
           <div className="space-y-0.5">
-            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Pending Leaves</p>
-            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{monthlyMetrics.pendingLeaves}</p>
+            <p className="text-[11px] sm:text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Pending Leaves</p>
+            <p className="text-xl sm:text-2xl font-semibold tracking-normal text-amber-600 dark:text-amber-400">{monthlyMetrics.pendingLeaves}</p>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <Clock className="w-4 h-4" />
           </div>
         </div>
       </div>
 
       {/* 3. Two-Pane Calendar Dashboard Composition */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Centerpiece Monthly Calendar Card */}
-        <div className="lg:col-span-8 w-full">
-          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,69fr)_minmax(0,31fr)] gap-4 lg:gap-5 items-stretch">
+        {/* Left: Centerpiece Monthly Calendar Card (~69% width) */}
+        <div className="w-full flex flex-col h-full">
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full flex-1 flex flex-col">
           {/* Calendar Header with Legend */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 sm:p-4 border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 shrink-0">
             <div className="flex items-center gap-2">
               <CalendarIcon className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
-              <span className="text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Schedule</span>
+              <span className="text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4]">Monthly Schedule</span>
             </div>
 
             {/* Event Legend */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#FFE4E6] text-[#9F1239] border border-[#E11D48]/30 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-500/60 font-medium text-[11px]">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#FFFBEB] text-[#854D0E] border border-[#D4AF37]/60 dark:bg-[#78350F]/25 dark:text-[#FFD700] dark:border-[#D4AF37]/70 font-semibold text-[11px] shadow-2xs">
                 <span>🎂</span>
                 <span>Birthday</span>
               </div>
@@ -688,9 +707,9 @@ export default function CalendarModule({ userProfile }) {
             </div>
           </div>
 
-          <CardContent className="p-4 sm:p-5 space-y-3">
+          <CardContent className="p-2.5 sm:p-3.5 space-y-2 sm:space-y-2.5 flex-1 flex flex-col justify-between">
             {/* Weekday Header - Subtle Weekend Distinction */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-1 text-center">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-0.5 text-center shrink-0">
               <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sun</div>
               <div>Mon</div>
               <div>Tue</div>
@@ -702,7 +721,7 @@ export default function CalendarModule({ userProfile }) {
 
             {/* Month Matrix Grid */}
             <div
-              className="overflow-x-auto w-full"
+              className="overflow-x-auto w-full flex-1 flex flex-col justify-between"
               onTouchStart={
                 isMobile
                   ? (e) => {
@@ -728,7 +747,7 @@ export default function CalendarModule({ userProfile }) {
                   : undefined
               }
             >
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 w-full min-w-[340px]">
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full min-w-[320px] flex-1">
                 {monthMatrix.flat().map((cell, idx) => {
                   const isToday = format(cell.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                   const hasBirthday = Boolean(cell.birthdayLabel);
@@ -746,7 +765,7 @@ export default function CalendarModule({ userProfile }) {
                       label: `B'Day: ${cell.birthdayLabel}`,
                       title: `Birthday: ${cell.birthdayLabel}`,
                       icon: '🎂',
-                      className: 'bg-[#FFE4E6] text-[#9F1239] border-[#E11D48]/30 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-500/60'
+                      className: 'bg-[#FEF9C3] text-[#854D0E] border-[#D4AF37]/60 dark:bg-[#3D310C]/90 dark:text-[#FFD700] dark:border-[#FFD700]/50 shadow-2xs'
                     });
                   }
                   if (hasHoliday) {
@@ -788,47 +807,56 @@ export default function CalendarModule({ userProfile }) {
                       role="button"
                       tabIndex={0}
                       className={cn(
-                        "rounded-xl p-1.5 sm:p-2.5 min-h-[85px] sm:min-h-[105px] flex flex-col justify-between overflow-hidden relative cursor-pointer border transition-all text-left group",
-                        !cell.inMonth && "opacity-35 bg-muted/15 border-[#DFE8EC]/40 dark:border-[#2A3D48]/40",
+                        "rounded-xl p-1 sm:p-1.5 lg:p-2 min-h-[56px] sm:min-h-[64px] lg:min-h-[70px] xl:min-h-[74px] flex flex-col justify-between overflow-hidden relative cursor-pointer border transition-all text-left group",
+                        !cell.inMonth && "opacity-30 bg-muted/10 border-[#DFE8EC]/40 dark:border-[#2A3D48]/40",
                         cell.inMonth && "bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 hover:shadow-xs",
-                        isWeekend && cell.inMonth && "bg-[#F4F8FA]/40 dark:bg-[#1D303B]/30",
-                        hasBirthday && "border-rose-300 dark:border-rose-500/50 bg-rose-50/20 dark:bg-rose-950/15",
-                        hasHoliday && !hasBirthday && "border-blue-300 dark:border-blue-500/50 bg-blue-50/20 dark:bg-blue-950/15",
+                        isWeekend && cell.inMonth && !hasBirthday && "bg-[#F4F8FA]/50 dark:bg-[#1D303B]/30",
+                        hasBirthday && cell.inMonth && "border-[#D4AF37] dark:border-[#FFD700]/70 bg-gradient-to-b from-[#FFFDF0] to-[#FFF9DB]/80 dark:from-[#242010]/90 dark:to-[#181508] shadow-[0_0_12px_rgba(255,215,0,0.18)] dark:shadow-[0_0_16px_rgba(255,215,0,0.14)]",
+                        hasHoliday && !hasBirthday && cell.inMonth && "border-blue-300 dark:border-blue-500/50 bg-blue-50/20 dark:bg-blue-950/15",
+                        hasApprovedLeave && !hasBirthday && !hasHoliday && cell.inMonth && "border-emerald-300 dark:border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/15",
+                        hasPendingLeave && !hasBirthday && !hasHoliday && !hasApprovedLeave && cell.inMonth && "border-amber-300 dark:border-amber-500/50 bg-amber-50/20 dark:bg-amber-950/15",
                         isToday && "ring-2 ring-[#0D9488] ring-offset-1 ring-offset-background"
                       )}
                     >
                       <div className="w-full flex items-center justify-between">
                         <span className={cn(
-                          "text-xs sm:text-sm font-semibold inline-flex items-center justify-center transition-transform group-hover:scale-105",
+                          "text-[11px] sm:text-xs font-semibold inline-flex items-center justify-center transition-all",
                           isToday 
-                            ? "h-6 w-6 rounded-lg bg-[#0D9488] text-white font-bold shadow-xs" 
+                            ? "h-5 w-5 sm:h-6 sm:w-6 rounded-md sm:rounded-lg bg-[#0D9488] text-white font-bold shadow-xs" 
+                            : hasBirthday && cell.inMonth
+                            ? "h-5 w-5 sm:h-6 sm:w-6 rounded-md sm:rounded-lg bg-[#FEF9C3] dark:bg-[#78350F]/40 text-[#854D0E] dark:text-[#FFD700] font-black border border-[#D4AF37]/50 shadow-2xs group-hover:scale-105"
                             : cell.inMonth 
-                            ? (isWeekend ? "text-[#64748B] dark:text-[#A6B5C0]" : "text-[#172B3A] dark:text-[#E8F0F4]") 
-                            : "text-muted-foreground/50"
+                            ? (isWeekend ? "text-[#64748B] dark:text-[#A6B5C0]" : "text-[#172B3A] dark:text-[#E8F0F4] group-hover:scale-105") 
+                            : "text-muted-foreground/40"
                         )}>
                           {cell.date.getDate()}
                         </span>
                         {events.length > 0 && (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]" />
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            hasBirthday && cell.inMonth 
+                              ? "bg-[#D4AF37] dark:bg-[#FFD700] shadow-[0_0_6px_#FFD700]" 
+                              : "bg-[#0D9488]"
+                          )} />
                         )}
                       </div>
 
-                      <div className="mt-1 w-full flex flex-col gap-1 items-start">
+                      <div className="mt-0.5 sm:mt-1 w-full flex flex-col gap-0.5 sm:gap-1 items-start">
                         {visibleEvents.map((evt, eIdx) => (
                           <div
                             key={eIdx}
                             className={cn(
-                              "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold border truncate w-full shadow-2xs",
+                              "flex items-center gap-1 px-1 sm:px-1.5 py-0.5 rounded text-[9px] sm:text-[10px] font-semibold border truncate w-full shadow-2xs leading-tight",
                               evt.className
                             )}
                             title={evt.title}
                           >
-                            <span className="shrink-0 text-[10px]">{evt.icon}</span>
+                            <span className="shrink-0 text-[9px] sm:text-[10px]">{evt.icon}</span>
                             <span className="truncate">{evt.label}</span>
                           </div>
                         ))}
                         {overflowCount > 0 && (
-                          <span className="text-[10px] font-medium text-[#0D9488] dark:text-[#14B8A6] px-1 bg-[#0D9488]/10 rounded">
+                          <span className="text-[9px] font-medium text-[#0D9488] dark:text-[#14B8A6] px-1 bg-[#0D9488]/10 rounded leading-tight">
                             +{overflowCount} more
                           </span>
                         )}
@@ -841,29 +869,28 @@ export default function CalendarModule({ userProfile }) {
           </CardContent>
         </Card>
         </div>
-        {/* Right: Agenda & Leave Requests Column (~30% width) */}
-        <div className="lg:col-span-4 flex flex-col gap-6 w-full">
-          {/* Right: Upcoming Events Agenda Side Panel */}
-        <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
-          <div>
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        {/* Right: Agenda & Leave Requests Column (~31% width, matches calendar height on desktop) */}
+        <div className="flex flex-col gap-4 lg:gap-5 w-full lg:h-full">
+          {/* Right Top: Upcoming Events Agenda Side Panel */}
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-3.5 sm:p-4 flex flex-col lg:flex-1 lg:min-h-0 overflow-hidden">
+            <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#DFE8EC] dark:border-[#2A3D48] shrink-0">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
-                <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Agenda</h3>
+                <h3 className="text-sm sm:text-base font-medium text-[#172B3A] dark:text-[#E8F0F4]">Monthly Agenda</h3>
               </div>
-              <Badge variant="outline" className="text-[11px] px-2 font-medium">
+              <Badge variant="outline" className="text-[10px] sm:text-[11px] px-2 font-medium">
                 {filteredUpcomingEvents.length} event{filteredUpcomingEvents.length === 1 ? '' : 's'}
               </Badge>
             </div>
 
             {/* Quick Type Filter Pills */}
-            <div className="flex items-center gap-1.5 pb-3 overflow-x-auto">
+            <div className="flex items-center gap-1.5 pb-2.5 overflow-x-auto shrink-0">
               {['all', 'holiday', 'birthday', 'leave'].map((type) => (
                 <button
                   key={type}
                   onClick={() => setAgendaFilter(type)}
                   className={cn(
-                    "px-2.5 py-1 rounded-lg text-xs font-medium transition-all capitalize shrink-0",
+                    "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] font-medium transition-all capitalize shrink-0",
                     agendaFilter === type 
                       ? "bg-[#0D9488] text-white shadow-xs" 
                       : "bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] hover:text-foreground"
@@ -875,9 +902,9 @@ export default function CalendarModule({ userProfile }) {
             </div>
 
             {/* Event List */}
-            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-[260px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
               {filteredUpcomingEvents.length === 0 ? (
-                <div className="py-12 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
+                <div className="h-full min-h-[140px] flex flex-col items-center justify-center py-6 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
                   <p className="font-semibold text-foreground">No events found</p>
                   <p>No celebrations or leaves match this filter in {format(monthDate, 'MMMM')}.</p>
                 </div>
@@ -889,54 +916,55 @@ export default function CalendarModule({ userProfile }) {
                       const matchingCell = monthMatrix.flat().find(c => c.iso === evt.iso);
                       if (matchingCell) handleCellClick(matchingCell);
                     }}
-                    className="p-3 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/60 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                    className="p-2 sm:p-2.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/60 transition-all cursor-pointer flex items-center justify-between gap-2.5 group"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-base shrink-0">{evt.icon}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0">{evt.icon}</span>
                       <div className="min-w-0">
                         <p className="text-xs font-semibold text-[#172B3A] dark:text-[#E8F0F4] group-hover:text-[#0D9488] dark:group-hover:text-[#14B8A6] truncate transition-colors">
                           {evt.title}
                         </p>
-                        <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                        <p className="text-[10px] text-[#64748B] dark:text-[#A6B5C0]">
                           {format(evt.date, 'EEE, MMM d')}
                         </p>
                       </div>
                     </div>
-                    <Badge className={cn("text-[10px] px-1.5 py-0.5 rounded border shrink-0", evt.badgeClass)}>
+                    <Badge className={cn("text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border shrink-0", evt.badgeClass)}>
                       {evt.typeLabel}
                     </Badge>
                   </div>
                 ))
               )}
             </div>
-          </div>
-        </Card>
+          </Card>
 
-          {/* Bottom: Leave Requests Card */}
-          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
+          {/* Right Bottom: Leave Requests / Management Card */}
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-3.5 sm:p-4 flex flex-col lg:flex-1 lg:min-h-0 overflow-hidden">
             {/* Header: Title, Description, and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#DFE8EC] dark:border-[#2A3D48] shrink-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <Palmtree className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6] shrink-0" />
-                  <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                  <h3 className="text-base font-medium text-[#172B3A] dark:text-[#E8F0F4] truncate">
                     Leave Requests
                   </h3>
                 </div>
                 <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] mt-0.5 line-clamp-1">
-                  Review team applications or submit a request.
+                  {canApplyLeave 
+                    ? "Review your submitted applications or submit a new leave request." 
+                    : "Review and manage team leave applications and official company holidays."}
                 </p>
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
-                {isAdmin && (
+                {canManageHolidays && (
                   <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
                     <DialogTrigger asChild>
                       <Button 
                         variant="outline"
                         size="sm"
                         onClick={() => handleOpenHolidayDialog()}
-                        className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-8 px-2.5 font-medium rounded-xl"
+                        className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-8 px-2.5 font-medium rounded-xl hover:text-[#0D9488] dark:hover:text-[#14B8A6]"
                       >
                         <Plus className="mr-1 h-3 w-3" />
                         Holiday
@@ -979,81 +1007,83 @@ export default function CalendarModule({ userProfile }) {
                   </Dialog>
                 )}
 
-                <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button 
-                      size="sm"
-                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-2.5 font-medium shadow-xs rounded-xl flex items-center gap-1"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Apply Leave</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
-                    <DialogHeader>
-                      <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
-                        <select
-                          id="type"
-                          className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
-                          value={leaveForm.type}
-                          onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
-                        >
-                          <option value="casual">Casual Leave</option>
-                          <option value="sick">Sick Leave</option>
-                          <option value="earned">Earned Leave</option>
-                          <option value="unpaid">Unpaid Leave</option>
-                        </select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
-                        <Input
-                          id="startDate"
-                          type="date"
-                          value={leaveForm.startDate}
-                          onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
-                        <Input
-                          id="endDate"
-                          type="date"
-                          value={leaveForm.endDate}
-                          onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
-                        <Textarea
-                          id="reason"
-                          value={leaveForm.reason}
-                          onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
-                          placeholder="Reason for leave request..."
-                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                          rows={3}
-                        />
-                      </div>
-                      <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
-                        {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
+                {canApplyLeave && (
+                  <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        size="sm"
+                        className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-2.5 font-medium shadow-xs rounded-xl flex items-center gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>Apply Leave</span>
                       </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
+                          <select
+                            id="type"
+                            className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
+                            value={leaveForm.type}
+                            onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
+                          >
+                            <option value="casual">Casual Leave</option>
+                            <option value="sick">Sick Leave</option>
+                            <option value="earned">Earned Leave</option>
+                            <option value="unpaid">Unpaid Leave</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
+                          <Input
+                            id="startDate"
+                            type="date"
+                            value={leaveForm.startDate}
+                            onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
+                          <Input
+                            id="endDate"
+                            type="date"
+                            value={leaveForm.endDate}
+                            onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
+                          <Textarea
+                            id="reason"
+                            value={leaveForm.reason}
+                            onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                            placeholder="Reason for leave request..."
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            rows={3}
+                          />
+                        </div>
+                        <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
+                          {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </div>
 
             {/* Content: Admin Tabs vs Staff Direct View */}
             {isAdmin ? (
-              <Tabs defaultValue="leaves" className="w-full space-y-3">
-                <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-full">
+              <Tabs defaultValue="leaves" className="w-full lg:flex-1 lg:min-h-0 flex flex-col space-y-2.5">
+                <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-full shrink-0">
                   <TabsTrigger 
                     value="leaves" 
                     className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
@@ -1068,11 +1098,11 @@ export default function CalendarModule({ userProfile }) {
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="leaves" className="space-y-3 mt-3">
+                <TabsContent value="leaves" className="lg:flex-1 lg:min-h-0 flex flex-col mt-2.5 data-[state=inactive]:hidden">
                   {leavesLoading ? (
-                    <p className="text-center py-6 text-muted-foreground text-xs">Loading leave requests...</p>
+                    <div className="flex-1 flex items-center justify-center py-6 text-muted-foreground text-xs">Loading leave requests...</div>
                   ) : leaveRequests.length === 0 ? (
-                    <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                    <div className="flex-1 min-h-[140px] flex flex-col items-center justify-center bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 text-center space-y-2">
                       <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
                         <CalendarDays className="w-5 h-5" />
                       </div>
@@ -1084,7 +1114,7 @@ export default function CalendarModule({ userProfile }) {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
                       {leaveRequests.map((leave) => {
                         const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                         const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
@@ -1176,12 +1206,12 @@ export default function CalendarModule({ userProfile }) {
                   )}
                 </TabsContent>
 
-                <TabsContent value="holidays" className="space-y-3 mt-3">
-                  <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                <TabsContent value="holidays" className="lg:flex-1 lg:min-h-0 flex flex-col mt-2.5 data-[state=inactive]:hidden">
+                  <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
                     {holidaysLoading ? (
-                      <p className="text-center py-6 text-muted-foreground text-xs">Loading holidays...</p>
+                      <div className="flex-1 flex items-center justify-center py-6 text-muted-foreground text-xs">Loading holidays...</div>
                     ) : holidayList.length === 0 ? (
-                      <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                      <div className="flex-1 min-h-[140px] flex flex-col items-center justify-center bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 text-center space-y-2">
                         <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No holidays registered</p>
                         <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Holiday" above to add official company holidays.</p>
                       </div>
@@ -1231,9 +1261,9 @@ export default function CalendarModule({ userProfile }) {
                 </TabsContent>
               </Tabs>
             ) : (
-              <div className="space-y-3">
+              <div className="w-full lg:flex-1 lg:min-h-0 flex flex-col space-y-2.5">
                 {myLeaves.length === 0 ? (
-                  <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                  <div className="flex-1 min-h-[140px] flex flex-col items-center justify-center bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 text-center space-y-2">
                     <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
                       <CalendarDays className="w-5 h-5" />
                     </div>
@@ -1245,7 +1275,7 @@ export default function CalendarModule({ userProfile }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                  <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
                     {myLeaves.map((leave) => {
                       const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                       const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
@@ -1314,7 +1344,6 @@ export default function CalendarModule({ userProfile }) {
               </div>
             )}
           </Card>
-
         </div>
       </div>
 
@@ -1339,11 +1368,11 @@ export default function CalendarModule({ userProfile }) {
                 </div>
               )}
               {selectedCell.birthdayLabel && (
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FFE4E6] text-[#9F1239] border border-[#E11D48]/30 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-500/50">
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FEF9C3] text-[#854D0E] border border-[#D4AF37]/50 dark:bg-[#2A2310] dark:text-[#FFD700] dark:border-[#D4AF37]/60 shadow-sm">
                   <span className="text-xl">🎂</span>
                   <div>
-                    <p className="font-bold text-sm">Team Birthdays</p>
-                    <p className="text-xs">{String(selectedCell.birthdayLabel)}</p>
+                    <p className="font-bold text-sm text-[#78350F] dark:text-[#FFD700]">Team Birthday</p>
+                    <p className="text-xs text-[#854D0E] dark:text-[#FDE047] font-medium">{String(selectedCell.birthdayLabel)}</p>
                   </div>
                 </div>
               )}

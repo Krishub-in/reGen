@@ -316,7 +316,7 @@ export default function Dashboard({ userProfile }) {
         {/* Brand Logo */}
         <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
           <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigateToModule('home')}>
-            <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+            <span className="text-xl font-semibold tracking-normal text-foreground">reGen</span>
             <span className="w-2 h-2 rounded-full bg-primary" />
           </div>
         </div>
@@ -384,7 +384,7 @@ export default function Dashboard({ userProfile }) {
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
-              <span className="text-lg font-bold tracking-tight text-foreground">reGen</span>
+              <span className="text-lg font-semibold tracking-normal text-foreground">reGen</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>
@@ -627,7 +627,7 @@ export default function Dashboard({ userProfile }) {
           <SheetContent side="left" className="w-72 bg-card border-r border-border p-0 flex flex-col">
             <SheetHeader className="p-6 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
-                <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+                <span className="text-xl font-semibold tracking-normal text-foreground">reGen</span>
                 <span className="w-2 h-2 rounded-full bg-primary" />
               </SheetTitle>
             </SheetHeader>

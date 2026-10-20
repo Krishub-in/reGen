@@ -660,7 +660,7 @@ export default function SchedulesModule({ userProfile }) {
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
+          <h2 className="text-2xl md:text-3xl font-light tracking-normal leading-snug text-[#172B3A] dark:text-[#E8F0F4]">
             Schedules & Tasks
           </h2>
           <p className="text-sm md:text-base text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
@@ -802,7 +802,7 @@ export default function SchedulesModule({ userProfile }) {
         <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 shadow-sm flex items-center justify-between transition-all">
           <div className="space-y-1">
             <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Total Tasks</p>
-            <p className="text-2xl font-bold text-[#172B3A] dark:text-[#E8F0F4]">{taskMetrics.total}</p>
+            <p className="text-2xl font-semibold text-[#172B3A] dark:text-[#E8F0F4]">{taskMetrics.total}</p>
           </div>
           <div className="w-10 h-10 rounded-lg bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
             <Layers className="w-5 h-5" />
@@ -812,7 +812,7 @@ export default function SchedulesModule({ userProfile }) {
         <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 shadow-sm flex items-center justify-between transition-all">
           <div className="space-y-1">
             <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Completed</p>
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{taskMetrics.completed}</p>
+            <p className="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{taskMetrics.completed}</p>
           </div>
           <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
             <CheckCircle2 className="w-5 h-5" />
@@ -822,7 +822,7 @@ export default function SchedulesModule({ userProfile }) {
         <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 shadow-sm flex items-center justify-between transition-all">
           <div className="space-y-1">
             <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">In Progress</p>
-            <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">{taskMetrics.inProgress}</p>
+            <p className="text-2xl font-semibold text-teal-600 dark:text-teal-400">{taskMetrics.inProgress}</p>
           </div>
           <div className="w-10 h-10 rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center">
             <Clock className="w-5 h-5" />
@@ -832,7 +832,7 @@ export default function SchedulesModule({ userProfile }) {
         <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 shadow-sm flex items-center justify-between transition-all">
           <div className="space-y-1">
             <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Pending / Overdue</p>
-            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{taskMetrics.pendingOrOverdue}</p>
+            <p className="text-2xl font-semibold text-amber-600 dark:text-amber-400">{taskMetrics.pendingOrOverdue}</p>
           </div>
           <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
             <AlertTriangle className="w-5 h-5" />
@@ -1114,7 +1114,7 @@ export default function SchedulesModule({ userProfile }) {
                   {/* Task Title & Assignor Attribution */}
                   <div className="space-y-1">
                     <h3
-                      className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4] group-hover:text-[#0D9488] dark:group-hover:text-[#14B8A6] transition-colors cursor-pointer line-clamp-1"
+                      className="text-base font-medium text-[#172B3A] dark:text-[#E8F0F4] group-hover:text-[#0D9488] dark:group-hover:text-[#14B8A6] transition-colors cursor-pointer line-clamp-1"
                       onClick={() => setSelectedTask(task)}
                       title="Click to view details"
                     >
@@ -1252,7 +1252,7 @@ export default function SchedulesModule({ userProfile }) {
                 </>
               )}
             </div>
-            <DialogTitle className="text-xl font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+            <DialogTitle className="text-xl font-medium text-[#172B3A] dark:text-[#E8F0F4]">
               {selectedTask?.title}
             </DialogTitle>
           </DialogHeader>
@@ -1269,7 +1269,7 @@ export default function SchedulesModule({ userProfile }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 space-y-2">
-                <h4 className="font-semibold text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
+                <h4 className="font-medium text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
                   Description
                 </h4>
                 <p className="text-sm text-[#172B3A] dark:text-[#E8F0F4] whitespace-pre-wrap leading-relaxed">
@@ -1278,7 +1278,7 @@ export default function SchedulesModule({ userProfile }) {
               </div>
 
               <div className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 space-y-3">
-                <h4 className="font-semibold text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
+                <h4 className="font-medium text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
                   Timeline & Deadline
                 </h4>
                 <div className="space-y-2 text-xs">
@@ -1317,7 +1317,7 @@ export default function SchedulesModule({ userProfile }) {
             {/* Updates History */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-sm text-[#172B3A] dark:text-[#E8F0F4] flex items-center gap-2">
+                <h4 className="font-medium text-sm text-[#172B3A] dark:text-[#E8F0F4] flex items-center gap-2">
                   <Clock className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
                   <span>Task Updates History</span>
                 </h4>

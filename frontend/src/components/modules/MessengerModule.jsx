@@ -577,7 +577,7 @@ export default function MessengerModule({ userProfile }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Messenger</h2>
+        <h2 className="text-2xl font-light tracking-normal leading-snug text-foreground">Messenger</h2>
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
           <Button
             variant={chatMode === 'private' ? 'default' : 'ghost'}

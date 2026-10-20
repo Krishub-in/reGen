@@ -77,7 +77,8 @@ export default function App() {
     return <MaintenancePage />;
   }
 
-  const isAuthenticated = !!identity;
+  const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('auth_token') : false;
+  const isAuthenticated = !!identity && hasToken;
   const resetToken = new URLSearchParams(window.location.search).get('resetToken');
 
   useEffect(() => {
@@ -87,16 +88,11 @@ export default function App() {
   }, [resetToken]);
 
   useEffect(() => {
-    if (!isAuthenticated || !profileError) return;
-    const msg = String(profileError?.message || '').toLowerCase();
-    const isAuthError = msg.includes('invalid or expired token')
-      || msg.includes('access token required')
-      || msg.includes('session expired')
-      || msg.includes('invalid session');
-    if (isAuthError) {
+    if (!isAuthenticated) return;
+    if (profileError || (isFetched && !profileLoading && !userProfile)) {
       logout();
     }
-  }, [isAuthenticated, profileError, logout]);
+  }, [isAuthenticated, profileError, isFetched, profileLoading, userProfile, logout]);
 
   // Show loading state while initializing
   if (isInitializing) {
@@ -135,7 +131,7 @@ export default function App() {
   const showDashboard = isAuthenticated && isFetched && !!userProfile;
 
   // Show loading while fetching profile
-  if (profileLoading || !isFetched) {
+  if (profileLoading || (isAuthenticated && !isFetched)) {
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <div className="flex h-screen items-center justify-center bg-background">

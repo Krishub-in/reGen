@@ -14,7 +14,7 @@ import {
   Building2, Users, CreditCard, TrendingUp, Settings, ShieldAlert, LogOut, 
   CheckCircle, XCircle, Search, Filter, ShieldCheck, Activity, Database, Plus,
   UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download, Home, Eye, EyeOff, Sun, Moon,
-  ArrowLeft, ChevronRight, MoreVertical, ArrowLeftRight, AlertTriangle
+  ArrowLeft, ChevronRight, MoreVertical, ArrowLeftRight, AlertTriangle, Calendar
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import Footer from '../components/Footer';
+import CalendarModule from '../components/modules/CalendarModule';
 import { Menu } from 'lucide-react';
 
 // Real-time Calculation and Pricing Helpers
@@ -246,7 +247,7 @@ export default function SuperAdminDashboard() {
             <div className="mx-auto bg-primary/10 border border-primary/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 text-primary shadow-xs">
               <ShieldCheck className="w-10 h-10" />
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Super Admin Access</CardTitle>
+            <CardTitle className="text-2xl font-light tracking-normal text-foreground">Super Admin Access</CardTitle>
             <p className="text-sm text-muted-foreground">Enter your credentials to manage the platform</p>
           </CardHeader>
           <CardContent>
@@ -316,6 +317,7 @@ export default function SuperAdminDashboard() {
           <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
           <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
           <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
+          <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
           <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
           <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
           <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
@@ -365,6 +367,9 @@ export default function SuperAdminDashboard() {
                       <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
                     </SheetClose>
                     <SheetClose asChild>
+                      <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
+                    </SheetClose>
+                    <SheetClose asChild>
                       <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
                     </SheetClose>
                     <SheetClose asChild>
@@ -390,8 +395,8 @@ export default function SuperAdminDashboard() {
                 </SheetContent>
               </Sheet>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-foreground capitalize">
-                  {activeTab === 'companies' ? 'Companies' : activeTab}
+                <h2 className="text-2xl font-light tracking-normal text-foreground capitalize leading-snug">
+                  {activeTab === 'companies' ? 'Companies' : activeTab === 'calendar' ? 'Calendar' : activeTab}
                 </h2>
                 <p className="text-xs text-muted-foreground/80 mt-0.5 hidden sm:block">
                   System oversight for reGen Innovations Inc.
@@ -436,6 +441,11 @@ export default function SuperAdminDashboard() {
           )}
           {activeTab === 'companies' && <TabCompanies dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
           {activeTab === 'users' && <TabUsers dbUsers={dbUsers} dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
+          {activeTab === 'calendar' && (
+            <div className="pb-10">
+              <CalendarModule userProfile={profileData} portalType="superadmin" />
+            </div>
+          )}
           {activeTab === 'payments' && <TabPayments dbCompanies={dbCompanies} dbUsers={dbUsers} />}
           {activeTab === 'analytics' && (
             <TabAnalytics 
@@ -2288,7 +2298,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             <Building2 className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <div className="text-2xl font-bold tracking-tight text-foreground">{companyGroups.length}</div>
+            <div className="text-2xl font-semibold tracking-normal text-foreground">{companyGroups.length}</div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Affiliated Companies</div>
           </div>
         </div>
@@ -2298,7 +2308,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             <Users className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <div className="text-2xl font-bold tracking-tight text-foreground">{dbUsers.length}</div>
+            <div className="text-2xl font-semibold tracking-normal text-foreground">{dbUsers.length}</div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Total System Users</div>
           </div>
         </div>
@@ -2308,7 +2318,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             <CheckCircle className="w-5 h-5" />
           </div>
           <div className="min-w-0">
-            <div className="text-2xl font-bold tracking-tight text-foreground">{activeCount}</div>
+            <div className="text-2xl font-semibold tracking-normal text-foreground">{activeCount}</div>
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Active Accounts</div>
           </div>
         </div>
@@ -3637,7 +3647,7 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-foreground tracking-tight">
+            <div className="text-3xl sm:text-4xl font-semibold text-foreground tracking-normal">
               ${billingStats.totalARR.toLocaleString()}
             </div>
             <p className="text-muted-foreground text-xs mt-2 font-medium flex items-center gap-1.5">
@@ -3655,10 +3665,10 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-foreground tracking-tight">
+            <div className="text-3xl sm:text-4xl font-semibold text-foreground tracking-normal">
               {billingStats.activeCompaniesCount} <span className="text-lg text-muted-foreground font-normal">Co.</span>
             </div>
-            <p className="text-muted-foreground text-xs mt-2 flex items-center gap-1">
+            <p className="text-muted-foreground text-xs mt-2 flex items-center gap-1 font-normal">
               <span>{billingStats.totalUsersCount} active registered users</span>
             </p>
           </CardContent>
@@ -3672,7 +3682,7 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-foreground tracking-tight">
+            <div className="text-3xl sm:text-4xl font-semibold text-foreground tracking-normal">
               ${billingStats.arpu} <span className="text-lg text-muted-foreground font-normal">/mo</span>
             </div>
             <p className="text-primary text-xs mt-2 font-medium flex items-center gap-1">
