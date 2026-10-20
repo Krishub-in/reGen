@@ -85,6 +85,14 @@ export default function PrivateChatModule({ userProfile }) {
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
+  const isRecordingVoice = isRecording;
+  const voiceDuration = recordDuration;
+  const formatVoiceDuration = useCallback((secs) => {
+    const s = Number(secs) || 0;
+    const m = Math.floor(s / 60);
+    const rem = s % 60;
+    return `${m}:${rem < 10 ? '0' : ''}${rem}`;
+  }, []);
   const [voiceError, setVoiceError] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
