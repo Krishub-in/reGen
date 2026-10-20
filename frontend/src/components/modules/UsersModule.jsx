@@ -804,7 +804,7 @@ export default function UsersModule({ userProfile }) {
                     {visibleUsers.map((user) => (
                       <TableRow 
                         key={(user.userId?.toText ? user.userId.toText() : String(user.userId || user.id))} 
-                        className="hover:bg-[#F8FAFC] dark:hover:bg-[#1D303B]/40 transition-colors"
+                        className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors"
                       >
                         <TableCell className="pl-6 py-3.5">
                           <div className="h-8 w-8 rounded-full bg-muted overflow-hidden border border-[#DFE8EC] dark:border-[#2A3D48]">

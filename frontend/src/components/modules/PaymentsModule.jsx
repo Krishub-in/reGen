@@ -167,67 +167,73 @@ export default function PaymentsModule({ userProfile }) {
       </div>
 
       {/* Trends Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border border-border shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Payroll</CardTitle>
-                <DollarSign className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">${stats.totalPayroll.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">Total distributed to date</p>
-            </CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Payroll</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <DollarSign className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">${stats.totalPayroll.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">Total distributed to date</p>
+          </div>
         </Card>
-        <Card className="border border-border shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Avg. Salary</CardTitle>
-                <TrendingUp className="h-4 w-4 text-[#0D9488]" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">${stats.avgSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                <p className="text-xs text-muted-foreground">Per employee average</p>
-            </CardContent>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg. Salary</span>
+            <div className="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">${stats.avgSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            <p className="text-xs text-muted-foreground mt-1">Per employee average</p>
+          </div>
         </Card>
-        <Card className="border border-border shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Active Employees</CardTitle>
-                <Users className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-                <div className="text-2xl font-bold">{stats.employeeCount}</div>
-                <p className="text-xs text-muted-foreground">Recipients of payments</p>
-            </CardContent>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
+          <div className="flex items-center justify-between pb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Employees</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Users className="h-4 w-4" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">{stats.employeeCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Recipients of payments</p>
+          </div>
         </Card>
       </div>
 
       {/* Quick Actions (Admin Only) */}
       {isAdmin && (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-             <Button variant="secondary" className="whitespace-nowrap" onClick={() => {
-                 setFormData(prev => ({ ...prev, recordType: 'bonus' }));
-                 handleOpenDialog();
-             }}>
-                 <Plus className="mr-2 h-4 w-4" /> Add Bonus
-             </Button>
-             <Button variant="secondary" className="whitespace-nowrap" onClick={() => {
-                 setFormData(prev => ({ ...prev, recordType: 'deduction' }));
-                 handleOpenDialog();
-             }}>
-                 <Plus className="mr-2 h-4 w-4" /> Add Deduction
-             </Button>
-             <Button variant="secondary" className="whitespace-nowrap" onClick={() => {
-                 setFormData(prev => ({ ...prev, recordType: 'salary' }));
-                 handleOpenDialog();
-             }}>
-                 <Plus className="mr-2 h-4 w-4" /> Record Salary
-             </Button>
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          <Button variant="outline" className="rounded-xl whitespace-nowrap h-9 text-xs font-semibold border-border hover:border-primary/40" onClick={() => {
+            setFormData(prev => ({ ...prev, recordType: 'bonus' }));
+            handleOpenDialog();
+          }}>
+            <Plus className="mr-1.5 h-3.5 w-3.5 text-primary" /> Add Bonus
+          </Button>
+          <Button variant="outline" className="rounded-xl whitespace-nowrap h-9 text-xs font-semibold border-border hover:border-primary/40" onClick={() => {
+            setFormData(prev => ({ ...prev, recordType: 'deduction' }));
+            handleOpenDialog();
+          }}>
+            <Plus className="mr-1.5 h-3.5 w-3.5 text-primary" /> Add Deduction
+          </Button>
+          <Button variant="outline" className="rounded-xl whitespace-nowrap h-9 text-xs font-semibold border-border hover:border-primary/40" onClick={() => {
+            setFormData(prev => ({ ...prev, recordType: 'salary' }));
+            handleOpenDialog();
+          }}>
+            <Plus className="mr-1.5 h-3.5 w-3.5 text-primary" /> Record Salary
+          </Button>
         </div>
       )}
 
       {/* Payments Table */}
-      <Card>
-        <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
+      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+        <CardHeader className="border-b border-border bg-card px-6 py-4">
+          <CardTitle className="text-base font-bold text-foreground">Recent Transactions</CardTitle>
         </CardHeader>
         <CardContent>
             <Table>
@@ -249,7 +255,7 @@ export default function PaymentsModule({ userProfile }) {
                     </TableRow>
                 ) : (
                     payments.map((payment) => (
-                    <TableRow key={payment.id} className="hover:bg-muted/50">
+                    <TableRow key={payment.id}>
                         <TableCell>{payment.date}</TableCell>
                         <TableCell>
                             <div className="flex flex-col">

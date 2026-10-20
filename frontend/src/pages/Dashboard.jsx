@@ -181,13 +181,13 @@ export default function Dashboard({ userProfile }) {
                 key={item.id}
                 onClick={() => navigateToModule(item.id)}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
+                  "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
                   isActive
-                    ? "bg-primary text-white font-semibold shadow-xs"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
+                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
                 )}
               >
-                <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-white" : "text-muted-foreground")} />
+                <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
                 <span>{item.label}</span>
               </button>
             );
@@ -338,13 +338,13 @@ export default function Dashboard({ userProfile }) {
                       setMobileNavOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
+                      "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
                       isActive
-                        ? "bg-primary text-white font-semibold shadow-xs"
-                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
+                        : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
                     )}
                   >
-                    <item.icon className="w-4 h-4" />
+                    <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
                     <span>{item.label}</span>
                   </button>
                 );

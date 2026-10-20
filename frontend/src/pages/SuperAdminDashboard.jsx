@@ -459,13 +459,13 @@ function SidebarItem({ active, icon: Icon, label, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 text-left ${
+      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 text-left select-none cursor-pointer ${
         active 
-          ? 'bg-primary text-white font-medium shadow-sm shadow-primary/25' 
-          : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-normal'
+          ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs' 
+          : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-medium'
       }`}
     >
-      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-white' : 'text-muted-foreground'}`} />
+      <Icon className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground'}`} />
       <span className="truncate">{label}</span>
     </button>
   );
@@ -1710,7 +1710,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
                 </TableHeader>
                 <TableBody>
                   {backups.map((b) => (
-                    <TableRow key={b.filename} className="border-b border-border/50 last:border-b-0 hover:bg-[#1A2A36]/50 transition-colors">
+                    <TableRow key={b.filename} className="border-b border-border/50 last:border-b-0 hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                       <TableCell className="pl-5 py-3 font-mono text-xs text-foreground/90 break-all">
                         {b.filename}
                       </TableCell>
@@ -2617,7 +2617,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
                     return (
                       <TableRow 
                         key={user.userId || user._id} 
-                        className="border-b border-border/50 last:border-b-0 hover:bg-muted/50 dark:hover:bg-[#1A2A36]/50 transition-colors"
+                        className="border-b border-border/50 last:border-b-0 hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors"
                       >
                         {/* User Info */}
                         <TableCell className="pl-5 py-3.5 max-w-[240px]">
@@ -3754,7 +3754,7 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
                 </TableRow>
               ) : (
                 billingStats.companyTransactions.map((tx) => (
-                  <TableRow key={tx.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                  <TableRow key={tx.id} className="border-b border-border hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                     <TableCell className="w-12 pr-0 pl-4">
                       {tx.status === 'active' ? (
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary" title="Active">

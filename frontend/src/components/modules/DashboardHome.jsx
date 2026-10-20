@@ -383,7 +383,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                     const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
 
                     return (
-                      <tr key={emp._id || emp.id || idx} className="hover:bg-secondary/30 transition-colors">
+                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                         <td className="py-3 px-5 flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
                             <img src={avatar} alt="" className="w-full h-full object-cover" />
@@ -487,7 +487,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                     const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
 
                     return (
-                      <tr key={emp._id || emp.id || idx} className="hover:bg-secondary/30 transition-colors">
+                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                         <td className="py-3 px-5 flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
                             <img src={avatar} alt="" className="w-full h-full object-cover" />

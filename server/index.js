@@ -912,6 +912,16 @@ const shutdown = (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\n[PORT CONFLICT] Port ${PORT} is already in use by another running backend process.`);
+    console.error(`Terminating conflicting process on port ${PORT}...\n`);
+  } else {
+    console.error('Server startup error:', err);
+  }
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT} (with WebSocket)`);
   pushLog('INFO', `Server listening on port ${PORT}`);

@@ -641,7 +641,7 @@ export default function AttendanceModule({ userProfile }) {
                     const outTime = getCheckOutTime(record);
                     const durationStr = calculateDuration(inTime, outTime, true);
                     return (
-                      <TableRow key={record.id || record._id} className="hover:bg-secondary/30 transition-colors border-b border-border/50">
+                      <TableRow key={record.id || record._id} className="border-b border-border/50">
                         <TableCell className="pl-6 py-3.5 font-medium text-foreground text-sm">
                           {record.date || (inTime ? format(new Date(inTime), 'yyyy-MM-dd') : '--')}
                         </TableCell>

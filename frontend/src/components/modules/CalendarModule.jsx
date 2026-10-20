@@ -656,9 +656,10 @@ export default function CalendarModule({ userProfile }) {
       </div>
 
       {/* 3. Two-Pane Calendar Dashboard Composition */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left: Centerpiece Monthly Calendar Card */}
-        <Card className="xl:col-span-8 2xl:col-span-9 border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full">
+        <div className="lg:col-span-8 w-full">
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full">
           {/* Calendar Header with Legend */}
           <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50">
             <div className="flex items-center gap-2">
@@ -839,9 +840,11 @@ export default function CalendarModule({ userProfile }) {
             </div>
           </CardContent>
         </Card>
-
-        {/* Right: Upcoming Events Agenda Side Panel */}
-        <Card className="xl:col-span-4 2xl:col-span-3 border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col justify-between">
+        </div>
+        {/* Right: Agenda & Leave Requests Column (~30% width) */}
+        <div className="lg:col-span-4 flex flex-col gap-6 w-full">
+          {/* Right: Upcoming Events Agenda Side Panel */}
+        <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
           <div>
             <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
               <div className="flex items-center gap-2">
@@ -872,7 +875,7 @@ export default function CalendarModule({ userProfile }) {
             </div>
 
             {/* Event List */}
-            <div className="space-y-2.5 max-h-[440px] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
               {filteredUpcomingEvents.length === 0 ? (
                 <div className="py-12 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
                   <p className="font-semibold text-foreground">No events found</p>
@@ -908,9 +911,414 @@ export default function CalendarModule({ userProfile }) {
             </div>
           </div>
         </Card>
+
+          {/* Bottom: Leave Requests Card */}
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
+            {/* Header: Title, Description, and Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Palmtree className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6] shrink-0" />
+                  <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                    Leave Requests
+                  </h3>
+                </div>
+                <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] mt-0.5 line-clamp-1">
+                  Review team applications or submit a request.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                {isAdmin && (
+                  <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenHolidayDialog()}
+                        className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-8 px-2.5 font-medium rounded-xl"
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Holiday
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                          {editingHoliday ? 'Edit Holiday' : 'Add Holiday'}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleHolidaySubmit} className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="name" className="text-xs font-semibold">Holiday Name *</Label>
+                          <Input
+                            id="name"
+                            value={holidayForm.name}
+                            onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                            placeholder="e.g., New Year's Day"
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="date" className="text-xs font-semibold">Date *</Label>
+                          <Input
+                            id="date"
+                            type="date"
+                            value={holidayForm.date}
+                            onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={addHoliday.isPending || updateHoliday.isPending}>
+                          {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm"
+                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-2.5 font-medium shadow-xs rounded-xl flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Apply Leave</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
+                        <select
+                          id="type"
+                          className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
+                          value={leaveForm.type}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
+                        >
+                          <option value="casual">Casual Leave</option>
+                          <option value="sick">Sick Leave</option>
+                          <option value="earned">Earned Leave</option>
+                          <option value="unpaid">Unpaid Leave</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
+                        <Input
+                          id="startDate"
+                          type="date"
+                          value={leaveForm.startDate}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
+                        <Input
+                          id="endDate"
+                          type="date"
+                          value={leaveForm.endDate}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
+                        <Textarea
+                          id="reason"
+                          value={leaveForm.reason}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                          placeholder="Reason for leave request..."
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          rows={3}
+                        />
+                      </div>
+                      <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
+                        {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            {/* Content: Admin Tabs vs Staff Direct View */}
+            {isAdmin ? (
+              <Tabs defaultValue="leaves" className="w-full space-y-3">
+                <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-full">
+                  <TabsTrigger 
+                    value="leaves" 
+                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                  >
+                    Leaves ({leaveRequests.length})
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="holidays" 
+                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                  >
+                    Holidays ({holidayList.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="leaves" className="space-y-3 mt-3">
+                  {leavesLoading ? (
+                    <p className="text-center py-6 text-muted-foreground text-xs">Loading leave requests...</p>
+                  ) : leaveRequests.length === 0 ? (
+                    <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                      <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
+                        <CalendarDays className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests found</h4>
+                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed">
+                          No employee has submitted a leave request yet.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                      {leaveRequests.map((leave) => {
+                        const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
+                        const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
+                        const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
+
+                        return (
+                          <div 
+                            key={leave.id} 
+                            className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
+                                  {leave.type || 'Leave'}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                                  leave.status === 'approved' 
+                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
+                                    : leave.status === 'rejected' 
+                                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
+                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                                }`}>
+                                  {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
+                                </span>
+                                <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0]">
+                                  ({daysCount} {daysCount === 1 ? 'day' : 'days'})
+                                </span>
+                              </div>
+
+                              {leave.status === 'pending' && (
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    size="sm" 
+                                    className="h-6 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] rounded-md shadow-xs flex items-center gap-1"
+                                    onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'approved' })}
+                                    disabled={updateLeaveReq.isPending}
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>Approve</span>
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="h-6 px-2 border-rose-300 dark:border-rose-800 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] rounded-md flex items-center gap-1"
+                                    onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'rejected' })}
+                                    disabled={updateLeaveReq.isPending}
+                                  >
+                                    <X className="w-3 h-3" />
+                                    <span>Reject</span>
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1 pt-0.5 text-xs">
+                              <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                                <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
+                                <span className="font-semibold text-[#172B3A] dark:text-[#E8F0F4] text-xs">
+                                  {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
+                                </span>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] line-clamp-2">
+                                  {leave.reason || 'No additional notes provided.'}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="w-4 h-4 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[9px] shrink-0">
+                                  {requesterName.slice(0, 2).toUpperCase()}
+                                </span>
+                                <span className="truncate">
+                                  {requesterName}
+                                </span>
+                              </div>
+                              {leave.createdAt && (
+                                <span className="text-[10px] shrink-0">
+                                  {formatDateTime(leave.createdAt)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="holidays" className="space-y-3 mt-3">
+                  <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                    {holidaysLoading ? (
+                      <p className="text-center py-6 text-muted-foreground text-xs">Loading holidays...</p>
+                    ) : holidayList.length === 0 ? (
+                      <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                        <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No holidays registered</p>
+                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Holiday" above to add official company holidays.</p>
+                      </div>
+                    ) : (
+                      holidayList.map((holiday) => (
+                        <div key={holiday.id} className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3 shadow-xs flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-base shrink-0">🏖️</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#172B3A] dark:text-[#E8F0F4] truncate">{holiday.name}</p>
+                              <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                                {new Date(holiday.date).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] rounded-lg"
+                                onClick={() => handleOpenHolidayDialog(holiday)}
+                                title="Edit Holiday"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#64748B] hover:text-rose-600 rounded-lg"
+                                onClick={() => handleDeleteHoliday(holiday.id)}
+                                title="Delete Holiday"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div className="space-y-3">
+                {myLeaves.length === 0 ? (
+                  <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
+                      <CalendarDays className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests submitted</h4>
+                      <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed">
+                        You have not submitted any leave requests yet. Click "Apply Leave" above to request time off.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                    {myLeaves.map((leave) => {
+                      const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
+                      const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
+                      const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
+
+                      return (
+                        <div 
+                          key={leave.id} 
+                          className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
+                                {leave.type || 'Leave'}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                                leave.status === 'approved' 
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
+                                  : leave.status === 'rejected' 
+                                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
+                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                              }`}>
+                                {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
+                              </span>
+                              <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0]">
+                                ({daysCount} {daysCount === 1 ? 'day' : 'days'})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 pt-0.5 text-xs">
+                            <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                              <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
+                              <span className="font-semibold text-[#172B3A] dark:text-[#E8F0F4] text-xs">
+                                {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
+                              </span>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] line-clamp-2">
+                                {leave.reason || 'No additional notes provided.'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-4 h-4 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[9px] shrink-0">
+                                {requesterName.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span className="truncate">
+                                {requesterName}
+                              </span>
+                            </div>
+                            {leave.createdAt && (
+                              <span className="text-[10px] shrink-0">
+                                {formatDateTime(leave.createdAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </Card>
+
+        </div>
       </div>
 
-      {/* 4. Cell Detail Dialog */}
+{/* 4. Cell Detail Dialog */}
       <Dialog open={isCellDialogOpen} onOpenChange={setIsCellDialogOpen}>
         <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground max-w-lg">
           <DialogHeader className="pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
@@ -966,419 +1374,6 @@ export default function CalendarModule({ userProfile }) {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* 5. Leave Requests & Company Holidays Section */}
-      <div className="space-y-4 pt-4 border-t border-[#DFE8EC] dark:border-[#2A3D48]">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
-          <div>
-            <h3 className="text-xl md:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
-              Leave Requests
-            </h3>
-            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
-              Review team leave applications, check statuses, or submit a new leave request.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
-            {isAdmin && (
-              <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button 
-                    variant="outline"
-                    onClick={() => handleOpenHolidayDialog()}
-                    className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-9 font-medium"
-                  >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" />
-                    Add Holiday
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
-                  <DialogHeader>
-                    <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
-                      {editingHoliday ? 'Edit Holiday' : 'Add Holiday'}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleHolidaySubmit} className="space-y-4 pt-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name" className="text-xs font-semibold">Holiday Name *</Label>
-                      <Input
-                        id="name"
-                        value={holidayForm.name}
-                        onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
-                        placeholder="e.g., New Year's Day"
-                        className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date" className="text-xs font-semibold">Date *</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={holidayForm.date}
-                        onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
-                        className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                        required
-                      />
-                    </div>
-                    <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={addHoliday.isPending || updateHoliday.isPending}>
-                      {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-
-            <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-9 font-medium shadow-sm px-3.5">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Apply Leave
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
-                <DialogHeader>
-                  <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
-                    <select
-                      id="type"
-                      className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
-                      value={leaveForm.type}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
-                    >
-                      <option value="casual">Casual Leave</option>
-                      <option value="sick">Sick Leave</option>
-                      <option value="earned">Earned Leave</option>
-                      <option value="unpaid">Unpaid Leave</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={leaveForm.startDate}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                      className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={leaveForm.endDate}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                      className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
-                    <Textarea
-                      id="reason"
-                      value={leaveForm.reason}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
-                      placeholder="Reason for leave request..."
-                      className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                      rows={3}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
-                    {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-
-        {/* Admin Tabs vs Staff Direct View */}
-        {isAdmin ? (
-          <Tabs defaultValue="leaves" className="w-full space-y-4">
-            <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-fit">
-              <TabsTrigger 
-                value="leaves" 
-                className="text-xs sm:text-sm font-medium px-4 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
-              >
-                Leave Requests ({leaveRequests.length})
-              </TabsTrigger>
-              <TabsTrigger 
-                value="holidays" 
-                className="text-xs sm:text-sm font-medium px-4 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
-              >
-                Company Holidays ({holidayList.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="leaves" className="space-y-4">
-              {leavesLoading ? (
-                <p className="text-center py-8 text-muted-foreground">Loading leave requests...</p>
-              ) : leaveRequests.length === 0 ? (
-                <div className="bg-white dark:bg-[#15232D] border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-2xl p-8 text-center space-y-3">
-                  <div className="w-12 h-12 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
-                    <CalendarDays className="w-6 h-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests found</h4>
-                    <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0]">
-                      No employee has submitted a leave request yet.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {leaveRequests.map((leave) => {
-                    const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
-                    const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
-                    const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
-
-                    return (
-                      <div 
-                        key={leave.id} 
-                        className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-4 sm:p-5 shadow-xs transition-all space-y-3"
-                      >
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
-                              {leave.type || 'Leave'}
-                            </span>
-                            <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium border ${
-                              leave.status === 'approved' 
-                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
-                                : leave.status === 'rejected' 
-                                ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
-                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
-                            }`}>
-                              {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
-                            </span>
-                            <span className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">
-                              ({daysCount} {daysCount === 1 ? 'day' : 'days'})
-                            </span>
-                          </div>
-
-                          {leave.status === 'pending' && (
-                            <div className="flex items-center gap-1.5">
-                              <Button 
-                                size="sm" 
-                                className="h-7 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded-lg shadow-sm flex items-center gap-1"
-                                onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'approved' })}
-                                disabled={updateLeaveReq.isPending}
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Approve</span>
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="h-7 px-2.5 border-rose-300 dark:border-rose-800 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-xs rounded-lg flex items-center gap-1"
-                                onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'rejected' })}
-                                disabled={updateLeaveReq.isPending}
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                <span>Reject</span>
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                              <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
-                              <span>Date Range:</span>
-                            </div>
-                            <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">
-                              {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
-                            </p>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                              <FileText className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
-                              <span>Reason:</span>
-                            </div>
-                            <p className="text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] line-clamp-2">
-                              {leave.reason || 'No additional notes provided.'}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                          <div className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[10px]">
-                              {requesterName.slice(0, 2).toUpperCase()}
-                            </span>
-                            <span>
-                              Requested by <strong className="text-foreground">{requesterName}</strong>
-                            </span>
-                          </div>
-                          {leave.createdAt && (
-                            <span className="text-[11px]">
-                              {formatDateTime(leave.createdAt)}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="holidays" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {holidaysLoading ? (
-                  <p className="col-span-full text-center py-8 text-muted-foreground">Loading holidays...</p>
-                ) : holidayList.length === 0 ? (
-                  <div className="col-span-full bg-white dark:bg-[#15232D] border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-2xl p-8 text-center space-y-2">
-                    <p className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No holidays registered</p>
-                    <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Add Holiday" above to add official company holidays.</p>
-                  </div>
-                ) : (
-                  holidayList.map((holiday) => (
-                    <Card key={holiday.id} className="bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl shadow-xs overflow-hidden">
-                      <CardHeader className="p-4 pb-2">
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2">
-                            <span className="text-lg">🏖️</span>
-                            <CardTitle className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4]">{holiday.name}</CardTitle>
-                          </div>
-                          {isAdmin && (
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6]"
-                                onClick={() => handleOpenHolidayDialog(holiday)}
-                                title="Edit Holiday"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-[#64748B] hover:text-rose-600"
-                                onClick={() => handleDeleteHoliday(holiday.id)}
-                                title="Delete Holiday"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-4 pt-1">
-                        <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0]">
-                          {new Date(holiday.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        ) : (
-          <div className="space-y-4">
-            {myLeaves.length === 0 ? (
-              <div className="bg-white dark:bg-[#15232D] border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-2xl p-8 text-center space-y-3">
-                <div className="w-12 h-12 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
-                  <CalendarDays className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests submitted</h4>
-                  <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0]">
-                    You have not submitted any leave requests yet. Click "Apply Leave" above to request time off.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {myLeaves.map((leave) => {
-                  const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
-                  const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
-                  const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
-
-                  return (
-                    <div 
-                      key={leave.id} 
-                      className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-4 sm:p-5 shadow-xs transition-all space-y-3"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
-                            {leave.type || 'Leave'}
-                          </span>
-                          <span className={`px-2.5 py-0.5 rounded-md text-xs font-medium border ${
-                            leave.status === 'approved' 
-                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
-                              : leave.status === 'rejected' 
-                              ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
-                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
-                          }`}>
-                            {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
-                          </span>
-                          <span className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">
-                            ({daysCount} {daysCount === 1 ? 'day' : 'days'})
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                            <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
-                            <span>Date Range:</span>
-                          </div>
-                          <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">
-                            {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
-                          </p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                            <FileText className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
-                            <span>Reason:</span>
-                          </div>
-                          <p className="text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] line-clamp-2">
-                            {leave.reason || 'No additional notes provided.'}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[10px]">
-                            {requesterName.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span>
-                            Submitted by <strong className="text-foreground">{requesterName}</strong>
-                          </span>
-                        </div>
-                        {leave.createdAt && (
-                          <span className="text-[11px]">
-                            {formatDateTime(leave.createdAt)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
