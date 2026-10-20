@@ -88,6 +88,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   }, [activeCompanyEmployees]);
   const totalDepartments = departmentsList.length;
 
+  const myIdStr = toIdText(currentUserId);
+
   // Real Today's Attendance Stats
   const todayDate = new Date().toISOString().split('T')[0];
   const todayAttendance = useMemo(() => {
@@ -98,7 +100,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     });
   }, [allAttendance, todayDate]);
 
-  const presentCount = useMemo(() => {
+  const activeUsersToday = useMemo(() => {
     const presentUsers = todayAttendance
       .filter(a => a.status === 'present' || a.status === 'late' || a.status === 'half_day')
       .map(a => toIdText(a.userId));
@@ -108,26 +110,111 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return new Set(matched).size;
   }, [todayAttendance, employeeIdSet, toIdText]);
 
-  const lateCount = useMemo(() => {
-    const lateUsers = todayAttendance
-      .filter(a => a.status === 'late')
-      .map(a => toIdText(a.userId));
-    const matched = employeeIdSet.size > 0
-      ? lateUsers.filter(id => employeeIdSet.has(id))
-      : lateUsers;
-    return new Set(matched).size;
-  }, [todayAttendance, employeeIdSet, toIdText]);
+  // Today's check-in status for user dashboard
+  const userTodayStatus = useMemo(() => {
+    const source = allAttendance.length > 0 ? allAttendance : attendance;
+    const todayRec = source.find(a => {
+      if (!a.date) return false;
+      const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+      return aDate === todayDate && toIdText(a.userId) === myIdStr;
+    });
+    if (!todayRec) return 'Not Checked In';
+    if (todayRec.status === 'present') return 'Present';
+    if (todayRec.status === 'late') return 'Late';
+    if (todayRec.status === 'half_day') return 'Half Day';
+    if (todayRec.status === 'absent') return 'Absent';
+    return 'Checked In';
+  }, [allAttendance, attendance, todayDate, myIdStr, toIdText]);
 
-  const absentCount = Math.max(0, totalEmployeesCount - presentCount);
-  const activeUsersToday = presentCount;
+  // Dynamic Attendance Breakdown (Present, Absent, Late, Rate) for Week, Month, Year
+  // - In Company dashboard: calculates across ALL company employees (excluding owner)
+  // - In User dashboard: calculates specifically for THAT employee
+  const rateBreakdown = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const currentDate = now.getDate();
 
-  const attendanceRate = totalEmployeesCount > 0 
-    ? Math.min(100, Math.round((presentCount / totalEmployeesCount) * 100))
-    : 0;
+    let targetDates = [];
+    if (trendRange === 'week') {
+      const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dayOfWeek);
+      monday.setHours(0, 0, 0, 0);
+
+      for (let i = 0; i <= dayOfWeek; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        if (d.getDay() !== 0) { // Exclude Sunday
+          targetDates.push(d.toISOString().split('T')[0]);
+        }
+      }
+    } else if (trendRange === 'month') {
+      for (let day = 1; day <= currentDate; day++) {
+        const d = new Date(currentYear, currentMonth, day);
+        if (d.getDay() !== 0) {
+          targetDates.push(d.toISOString().split('T')[0]);
+        }
+      }
+    } else { // year
+      const cur = new Date(currentYear, 0, 1);
+      const endDay = new Date(now);
+      endDay.setHours(0, 0, 0, 0);
+      while (cur <= endDay) {
+        if (cur.getDay() !== 0) {
+          targetDates.push(cur.toISOString().split('T')[0]);
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+
+    const targetDatesSet = new Set(targetDates);
+    const totalWorkingDays = targetDates.length || 1;
+
+    if (isCompanyLogin) {
+      // Company view: all non-owner employees
+      const relevantRecords = allAttendance.filter(a => {
+        if (!a.date) return false;
+        const dIso = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+        if (!targetDatesSet.has(dIso)) return false;
+        const uid = toIdText(a.userId);
+        return employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true;
+      });
+
+      const present = relevantRecords.filter(r => r.status === 'present' || r.status === 'half_day').length;
+      const late = relevantRecords.filter(r => r.status === 'late').length;
+      const attended = present + late;
+      const totalExpected = (totalEmployeesCount || 1) * totalWorkingDays;
+      const absent = Math.max(0, totalExpected - attended);
+      const rate = totalExpected > 0 ? Math.min(100, Math.round((attended / totalExpected) * 100)) : 0;
+
+      return { present, absent, late, rate };
+    } else {
+      // User view: only this employee
+      const mySourceAttendance = allAttendance.length > 0 ? allAttendance : attendance;
+      const myRecords = mySourceAttendance.filter(a => {
+        const uid = toIdText(a.userId);
+        return uid === myIdStr;
+      });
+
+      const recordsInRange = myRecords.filter(a => {
+        if (!a.date) return false;
+        const dIso = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+        return targetDatesSet.has(dIso);
+      });
+
+      const present = recordsInRange.filter(r => r.status === 'present' || r.status === 'half_day').length;
+      const late = recordsInRange.filter(r => r.status === 'late').length;
+      const attended = present + late;
+      const absent = Math.max(0, totalWorkingDays - attended);
+      const rate = totalWorkingDays > 0 ? Math.min(100, Math.round((attended / totalWorkingDays) * 100)) : 0;
+
+      return { present, absent, late, rate };
+    }
+  }, [trendRange, isCompanyLogin, allAttendance, attendance, employeeIdSet, totalEmployeesCount, myIdStr, toIdText]);
 
   // Real Attendance Trend computed from actual records
   const trendData = useMemo(() => {
-    // 1. Week trend (Mon-Sun of current week)
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const now = new Date();
     const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
@@ -135,29 +222,37 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     startOfWeek.setDate(now.getDate() - dayOfWeek);
     startOfWeek.setHours(0, 0, 0, 0);
 
+    const sourceRecords = isCompanyLogin
+      ? allAttendance.filter(a => {
+          const uid = toIdText(a.userId);
+          return employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true;
+        })
+      : (allAttendance.length > 0 ? allAttendance : attendance).filter(a => toIdText(a.userId) === myIdStr);
+
+    const divisor = isCompanyLogin ? (totalEmployeesCount || 1) : 1;
+
+    // 1. Week trend (Mon-Sun of current week)
     const weekList = days.map((name, i) => {
       const d = new Date(startOfWeek);
       d.setDate(startOfWeek.getDate() + i);
       const dIso = d.toISOString().split('T')[0];
 
-      const recordsOnDay = allAttendance.filter(a => {
+      const recordsOnDay = sourceRecords.filter(a => {
         if (!a.date) return false;
         const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
         return aDate === dIso;
       });
 
-      const presentUsersOnDay = new Set(
-        recordsOnDay
-          .filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day')
-          .map(r => toIdText(r.userId))
-          .filter(id => (employeeIdSet.size > 0 ? employeeIdSet.has(id) : true))
-      );
+      const attendedCount = isCompanyLogin
+        ? new Set(
+            recordsOnDay
+              .filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day')
+              .map(r => toIdText(r.userId))
+          ).size
+        : recordsOnDay.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
 
-      const rate = totalEmployeesCount > 0
-        ? Math.min(100, Math.round((presentUsersOnDay.size / totalEmployeesCount) * 100))
-        : 0;
-
-      return { name, rate, date: dIso, present: presentUsersOnDay.size };
+      const rate = Math.min(100, Math.round((attendedCount / divisor) * 100));
+      return { name, rate, date: dIso, present: attendedCount };
     });
 
     // 2. Month trend (Weeks 1 to 4 of current month)
@@ -172,7 +267,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     ];
 
     const monthList = monthWeeks.map(w => {
-      const recordsInWeek = allAttendance.filter(a => {
+      const recordsInWeek = sourceRecords.filter(a => {
         if (!a.date) return false;
         const d = new Date(a.date);
         return d.getFullYear() === year && d.getMonth() === month && d.getDate() >= w.start && d.getDate() <= w.end;
@@ -181,15 +276,10 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       const dateSet = new Set(
         recordsInWeek.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
       );
-      const totalPossible = (dateSet.size || 1) * (totalEmployeesCount || 1);
+      const totalPossible = (dateSet.size || 1) * divisor;
 
-      const presentRecords = recordsInWeek.filter(r => {
-        const isPresent = r.status === 'present' || r.status === 'late' || r.status === 'half_day';
-        const uid = toIdText(r.userId);
-        return isPresent && (employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true);
-      }).length;
-
-      const rate = totalPossible > 0 ? Math.min(100, Math.round((presentRecords / totalPossible) * 100)) : 0;
+      const attended = recordsInWeek.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
+      const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
       return { name: w.name, rate };
     });
 
@@ -202,7 +292,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     ];
 
     const yearList = quarters.map(q => {
-      const recordsInQuarter = allAttendance.filter(a => {
+      const recordsInQuarter = sourceRecords.filter(a => {
         if (!a.date) return false;
         const d = new Date(a.date);
         return d.getFullYear() === year && q.months.includes(d.getMonth());
@@ -211,15 +301,10 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       const dateSet = new Set(
         recordsInQuarter.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
       );
-      const totalPossible = (dateSet.size || 1) * (totalEmployeesCount || 1);
+      const totalPossible = (dateSet.size || 1) * divisor;
 
-      const presentRecords = recordsInQuarter.filter(r => {
-        const isPresent = r.status === 'present' || r.status === 'late' || r.status === 'half_day';
-        const uid = toIdText(r.userId);
-        return isPresent && (employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true);
-      }).length;
-
-      const rate = totalPossible > 0 ? Math.min(100, Math.round((presentRecords / totalPossible) * 100)) : 0;
+      const attended = recordsInQuarter.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
+      const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
       return { name: q.name, rate };
     });
 
@@ -228,7 +313,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       month: monthList,
       year: yearList,
     };
-  }, [allAttendance, totalEmployeesCount, employeeIdSet, toIdText]);
+  }, [allAttendance, attendance, isCompanyLogin, totalEmployeesCount, employeeIdSet, myIdStr, toIdText]);
 
   const currentTrendData = trendData[trendRange] || trendData.week;
 
@@ -382,15 +467,19 @@ export default function DashboardHome({ userProfile, onNavigate }) {
           </div>
         </Card>
 
-        {/* Active Staff Today */}
+        {/* Active Staff Today / User Check-in Status */}
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-muted-foreground">Active Staff Today</p>
-              <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{activeUsersToday}</h3>
+              <p className="text-xs font-medium text-muted-foreground">
+                {isCompanyLogin ? 'Active Staff Today' : 'Today\'s Status'}
+              </p>
+              <h3 className="text-2xl font-bold tracking-tight text-foreground mt-2">
+                {isCompanyLogin ? activeUsersToday : userTodayStatus}
+              </h3>
               <div className="mt-3 flex items-center gap-1.5">
                 <span className="text-[11px] font-medium text-muted-foreground">
-                  <strong className="text-foreground font-semibold">{attendanceRate}%</strong> attendance
+                  <strong className="text-foreground font-semibold">{rateBreakdown.rate}%</strong> {isCompanyLogin ? `${trendRange} team rate` : `${trendRange} rate`}
                 </span>
               </div>
             </div>
@@ -400,49 +489,79 @@ export default function DashboardHome({ userProfile, onNavigate }) {
           </div>
         </Card>
 
-        {/* Attendance Rate (Circular Donut with Legend) */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex items-center justify-between gap-4">
-          <div className="relative w-24 h-24 flex items-center justify-center shrink-0">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-              <path
-                className="text-secondary stroke-current"
-                strokeWidth="3.5"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-              <path
-                className="text-primary stroke-current transition-all duration-700"
-                strokeDasharray={`${attendanceRate}, 100`}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                fill="none"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-xl font-bold tracking-tight text-foreground">{attendanceRate}%</span>
+        {/* Attendance Rate (Circular Donut with Week, Month, Year breakdown) */}
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {isCompanyLogin ? 'Attendance Rate' : 'My Attendance'}
+            </p>
+            <div className="flex items-center gap-0.5 bg-secondary/80 p-0.5 rounded-lg border border-border text-[10px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setTrendRange('week')}
+                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'week' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                Week
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendRange('month')}
+                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'month' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                Month
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrendRange('year')}
+                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'year' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+              >
+                Year
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 text-xs flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Attendance Rate</p>
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
-                <span className="w-2 h-2 rounded-full bg-primary" /> Present
-              </span>
-              <span className="font-semibold text-foreground text-[11px]">{presentCount}</span>
+          <div className="flex items-center justify-between gap-3 mt-1">
+            <div className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                <path
+                  className="text-secondary stroke-current"
+                  strokeWidth="3.5"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+                <path
+                  className="text-primary stroke-current transition-all duration-700"
+                  strokeDasharray={`${rateBreakdown.rate}, 100`}
+                  strokeWidth="3.5"
+                  strokeLinecap="round"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-lg sm:text-xl font-bold tracking-tight text-foreground">{rateBreakdown.rate}%</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
-                <span className="w-2 h-2 rounded-full bg-rose-500" /> Absent
-              </span>
-              <span className="font-semibold text-foreground text-[11px]">{absentCount}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
-                <span className="w-2 h-2 rounded-full bg-amber-500" /> Late
-              </span>
-              <span className="font-semibold text-foreground text-[11px]">{lateCount}</span>
+
+            <div className="flex flex-col gap-1.5 text-xs flex-1 min-w-0">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" /> Present
+                </span>
+                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.present}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> Absent
+                </span>
+                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.absent}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" /> Late
+                </span>
+                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.late}</span>
+              </div>
             </div>
           </div>
         </Card>
