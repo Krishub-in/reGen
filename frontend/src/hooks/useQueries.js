@@ -123,6 +123,7 @@ export function useGetAllTasks() {
       return actor.getAllTasks();
     },
     enabled: !!actor && !isFetching,
+    refetchInterval: 3000,
   });
 }
 

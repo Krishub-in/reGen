@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useGetCompanyInfo, useGetAllCompanies, useCreateCompany, useUpdateCompany, useGetAllUsers } from '../../hooks/useQueries';
+import { hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -77,8 +78,8 @@ export default function CompanyModule({ userProfile }) {
     policies: DEFAULT_TERMS,
   });
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
 
   // Policy management state
   const [policyForm, setPolicyForm] = useState(null); // null = hidden, object = form data
@@ -263,7 +264,10 @@ export default function CompanyModule({ userProfile }) {
           return uid && String(uid) === String(selectedCompanyId);
         })
       : users;
-    const allCompanyUsers = companyUsers.filter(u => u.role && (u.role.hasOwnProperty('staff') || u.role.hasOwnProperty('intern') || u.role.hasOwnProperty('freelancer') || u.role.hasOwnProperty('admin') || u.role.hasOwnProperty('owner')));
+    const allCompanyUsers = companyUsers.filter(u => {
+      const rk = getUserRoleKey(u);
+      return rk !== 'owner' && rk !== 'param';
+    });
     const deptMap = new Map();
 
     allCompanyUsers.forEach(u => {
@@ -392,7 +396,7 @@ export default function CompanyModule({ userProfile }) {
           </TabsContent>
         
         <TabsContent value="profile" className="space-y-6 mt-4">
-          {userProfile.role.hasOwnProperty('param') && companies.length > 1 && (
+          {hasUserRole(userProfile, 'param') && companies.length > 1 && (
             <div className="space-y-3">
               <Label className="text-xs uppercase tracking-widest text-muted-foreground font-bold">Managed Companies ({companies.length})</Label>
               <div className="flex flex-wrap gap-3">

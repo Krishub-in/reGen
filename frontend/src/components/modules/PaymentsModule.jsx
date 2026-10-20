@@ -18,10 +18,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Pencil, Trash2, Download, TrendingUp, Users, DollarSign, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Principal } from '@dfinity/principal';
+import { hasUserRole } from '@/lib/utils';
 
 export default function PaymentsModule({ userProfile }) {
   const { identity } = useCustomAuth();
-  const isAdmin = userProfile.role.hasOwnProperty('admin') || userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   
   const { data: allPayments = [] } = useGetAllPayments();
   const { data: userPayments = [] } = useGetUserPayments(identity?.getPrincipal() || null);

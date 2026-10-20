@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useCustomAuth } from './useCustomAuth';
 import { Principal } from '@dfinity/principal';
+import { hasUserRole } from '../lib/utils';
 
 // Helper to handle BigInt serialization
 const JSON_stringify = (data) => {
@@ -394,7 +395,7 @@ export const createMockActor = (identity) => {
     saveCompanyInfo: async () => {},
     isCallerAdmin: async () => {
         const profile = await createMockActor(identity).getCallerUserProfile();
-        return profile?.role.hasOwnProperty('admin') || profile?.role.hasOwnProperty('param') || false;
+        return hasUserRole(profile, 'admin') || hasUserRole(profile, 'param') || false;
     },
   };
 };
@@ -440,8 +441,14 @@ export const createHttpActor = (identity) => {
   };
 
   const handleResponse = async (res) => {
+    if (res.status === 503) {
+      if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: res.statusText }));
+      if (err.maintenance || String(err.message || '').toLowerCase().includes('maintenance')) {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+      }
       throw new Error(err.message || 'API Error');
     }
     return res.json();
@@ -452,6 +459,9 @@ export const createHttpActor = (identity) => {
       return await handleResponse(res);
     } catch (e) {
       const msg = String(e?.message || '').toLowerCase();
+      if (msg.includes('maintenance') || msg.includes('failed to fetch')) {
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
+      }
       if (msg.includes('abort') || msg.includes('err_aborted') || msg.includes('failed to fetch')) {
         return fallback;
       }

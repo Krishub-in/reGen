@@ -17,7 +17,7 @@ import CompanyModule from '../components/modules/CompanyModule';
 import DashboardHome from '../components/modules/DashboardHome';
 import StaffProfileModule from '../components/modules/StaffProfileModule';
 import { useIsMobile } from '../hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import { cn, hasUserRole } from '@/lib/utils';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ModeToggle } from '@/components/mode-toggle';
 import { useGetUserNotifications } from '../hooks/useQueries';
@@ -107,9 +107,9 @@ export default function Dashboard({ userProfile }) {
     });
   }, [myNotifications]);
 
-  const isAdmin = userProfile?.role?.hasOwnProperty('admin');
-  const isOwner = userProfile?.role?.hasOwnProperty('owner') || userProfile?.role?.hasOwnProperty('param');
-  const isStaff = userProfile?.role?.hasOwnProperty('staff') || userProfile?.role?.hasOwnProperty('intern') || userProfile?.role?.hasOwnProperty('freelancer');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
   const handleLogout = async () => {
     if (typeof window !== 'undefined' && (window.location.pathname === '/settings' || window.location.pathname === '/profile')) {
@@ -121,7 +121,7 @@ export default function Dashboard({ userProfile }) {
 
   const menuItems = [
     { id: 'home', label: 'Dashboard', icon: Home, show: true },
-    { id: 'users', label: 'Users', icon: Users, show: isAdmin || isOwner },
+    { id: 'users', label: isOwner ? 'Staff / Employees' : 'Users', icon: Users, show: isAdmin || isOwner },
     { id: 'attendance', label: 'Attendance', icon: Clock, show: true },
     { id: 'schedules', label: 'Schedules', icon: ClipboardList, show: true },
     { id: 'messenger', label: 'Messenger', icon: MessageSquare, show: true },

@@ -12,7 +12,7 @@ import {
   Camera, Upload, ShieldCheck, Lock, User, Briefcase, Calendar, 
   Phone, MapPin, Building, Key, CheckCircle2, AlertTriangle, Shield
 } from 'lucide-react';
-import { authFetch, cn } from '@/lib/utils';
+import { authFetch, cn, hasUserRole } from '@/lib/utils';
 
 export default function StaffProfileModule({ userProfile }) {
   const normalizeDateForInput = (value) => {
@@ -46,7 +46,7 @@ export default function StaffProfileModule({ userProfile }) {
 
   const saveProfile = useSaveCallerUserProfile();
   const queryClient = useQueryClient();
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
   const needsPasswordChange = !!userProfile.mustChangePassword;
 
   const [currentPassword, setCurrentPassword] = useState('');

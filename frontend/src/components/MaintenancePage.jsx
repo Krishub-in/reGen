@@ -25,7 +25,7 @@ export default function MaintenancePage() {
         <div className="space-y-2">
           <h1 className="text-4xl font-extrabold tracking-tighter text-white">Server Under Maintenance</h1>
           <p className="text-zinc-300 text-sm leading-relaxed">
-            Our services are currently undergoing maintenance or required services are offline.
+            Our services are currently undergoing maintenance to enhance performance and security.
             <br />
             We appreciate your patience and will be back online shortly.
           </p>

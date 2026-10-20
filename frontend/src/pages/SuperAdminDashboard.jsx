@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { authFetch, cn } from '@/lib/utils';
+import { authFetch, cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,7 +107,7 @@ export default function SuperAdminDashboard() {
         const resp = await authFetch(`/api/users/${saId}`);
         if (!resp.ok) throw new Error('Token invalid');
         const dbUser = await resp.json();
-        if (dbUser.role !== 'param') throw new Error('Not a superadmin');
+        if (dbUser.role !== 'param' && dbUser.role !== 'admin') throw new Error('Not an admin');
         setProfileData({
           userId: dbUser.userId,
           name: dbUser.name || dbUser.username || '',
@@ -185,7 +185,7 @@ export default function SuperAdminDashboard() {
         throw new Error(err.message || 'Verification failed');
       }
       const user = await resp.json();
-      if (user.role === 'param') {
+      if (user.role === 'param' || user.role === 'admin') {
         // Store JWT token for superadmin session
         if (user.token) {
           localStorage.setItem('sa_auth_token', user.token);
@@ -199,7 +199,7 @@ export default function SuperAdminDashboard() {
           const profileResp = await authFetch(`/api/users/${user.userId}`);
           if (profileResp.ok) {
             const dbUser = await profileResp.json();
-            if (dbUser.role === 'param') {
+            if (dbUser.role === 'param' || dbUser.role === 'admin') {
               setProfileData({
                 userId: dbUser.userId,
                 name: dbUser.name || dbUser.username || '',
@@ -1876,6 +1876,35 @@ function renderRoleBadge(role) {
 function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [togglingId, setTogglingId] = useState(null);
+
+  const handleQuickToggle = async (targetUser, action) => {
+    const targetUserId = targetUser.userId || targetUser._id || targetUser.id;
+    setTogglingId(targetUserId);
+    try {
+      let payload = { action };
+      if (action === 'activate' && targetUser.companyId) {
+        payload.companyId = String(targetUser.companyId?._id || targetUser.companyId);
+        payload.company = targetUser.company || '';
+      }
+      const resp = await authFetch(`/api/users/${encodeURIComponent(targetUserId)}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update user status');
+      }
+      const resData = await resp.json();
+      toast.success(resData.message || (action === 'suspend' ? 'User suspended successfully' : 'User access restored'));
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Operation failed');
+    } finally {
+      setTogglingId(null);
+    }
+  };
 
   // Synchronize local search with external search term prop if updated
   useEffect(() => {
@@ -2650,7 +2679,36 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
 
                         {/* Actions Column */}
                         <TableCell className="py-3.5 pr-5 text-right">
-                          <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                          <div className="flex items-center justify-end gap-2">
+                            {!hasUserRole(user, 'param') && (
+                              user.status === 'active' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={togglingId === (user.userId || user._id || user.id)}
+                                  onClick={() => handleQuickToggle(user, 'suspend')}
+                                  className="h-8 px-2.5 rounded-xl border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-semibold"
+                                  title="Suspend User"
+                                >
+                                  <Ban className="w-3.5 h-3.5 mr-1" />
+                                  {togglingId === (user.userId || user._id || user.id) ? 'Updating…' : 'Suspend'}
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={togglingId === (user.userId || user._id || user.id)}
+                                  onClick={() => handleQuickToggle(user, 'activate')}
+                                  className="h-8 px-2.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 text-xs font-semibold"
+                                  title="Restore / Add Back"
+                                >
+                                  <Unlock className="w-3.5 h-3.5 mr-1" />
+                                  {togglingId === (user.userId || user._id || user.id) ? 'Updating…' : 'Add Back'}
+                                </Button>
+                              )
+                            )}
+                            <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -3167,11 +3225,14 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
         department: user.department || '',
         phone: user.phone || user.contact || '',
         companyId: cId,
+        status: user.status === 'inactive' ? 'inactive' : 'active',
       });
       setSelectedCompanyId(cId !== 'none' ? cId : (dbCompanies[0]?._id ? String(dbCompanies[0]._id) : 'none'));
       setIsEditing(false);
     }
   }, [open, user, dbCompanies]);
+
+  const targetUserId = user.userId || user._id || user.id;
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -3332,6 +3393,21 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
                       onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} 
                       className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary" 
                     />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Account Access / Status</label>
+                    <Select
+                      value={editForm.status}
+                      onValueChange={(val) => setEditForm({ ...editForm, status: val })}
+                    >
+                      <SelectTrigger className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border text-foreground text-xs">
+                        <SelectItem value="active">Active (Full System Access)</SelectItem>
+                        <SelectItem value="inactive">Suspended / Inactive (Revoke Login Access)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="col-span-2">
                     <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Affiliated Company</label>

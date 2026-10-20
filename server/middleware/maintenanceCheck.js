@@ -28,7 +28,8 @@ export const maintenanceCheck = async (req, res, next) => {
       }
       return res.status(503).json({ 
         message: 'Server Under Maintenance',
-        maintenance: true 
+        maintenance: true,
+        portDown: true
       });
     }
 

@@ -1,8 +1,17 @@
 import ReactDOM from 'react-dom/client';
 import { CustomAuthProvider } from './hooks/useCustomAuth';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 import './index.css';
+
+// Intercept global unhandled network rejections when port is down
+window.addEventListener('unhandledrejection', (event) => {
+    const msg = String(event?.reason?.message || event?.reason || '').toLowerCase();
+    if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('maintenance') || msg.includes('connection refused')) {
+        window.dispatchEvent(new CustomEvent('server-maintenance'));
+    }
+});
 
 const __origConsoleError = console.error;
 console.error = (...args) => {
@@ -32,9 +41,11 @@ const queryClient = new QueryClient({
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-    <QueryClientProvider client={queryClient}>
-        <CustomAuthProvider>
-            <App />
-        </CustomAuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+            <CustomAuthProvider>
+                <App />
+            </CustomAuthProvider>
+        </QueryClientProvider>
+    </ErrorBoundary>
 );

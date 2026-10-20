@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGetAllUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../../hooks/useQueries';
-import { authFetch, cn } from '@/lib/utils';
+import { authFetch, cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -57,11 +57,11 @@ export default function UsersModule({ userProfile }) {
     freelancer: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25 font-semibold',
   };
   const roleOrder = { param: 0, owner: 1, admin: 2, staff: 3, intern: 4, freelancer: 5 };
-  const getRoleKey = (user) => Object.keys(user.role)[0] || 'staff';
+  const getRoleKey = (user) => getUserRoleKey(user);
   const getRoleBadge = (roleKey) => roleBadgeStyles[roleKey] || roleBadgeStyles.staff;
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val || '')));
   
   // Gender-aware avatar generator (mirrors backend logic)
@@ -94,7 +94,7 @@ export default function UsersModule({ userProfile }) {
   const visibleUsers = users
     .filter(user => {
       if (isAdmin) return true;
-      if (isOwner) return ['staff','intern','freelancer','admin','owner','param'].some(r => user.role.hasOwnProperty(r));
+      if (isOwner) return ['staff','intern','freelancer','admin','owner','param'].some(r => hasUserRole(user, r));
       return false;
     })
     .filter(user => filterRole === 'all' || getRoleKey(user) === filterRole)
@@ -107,7 +107,7 @@ export default function UsersModule({ userProfile }) {
 
   // Count users per role for filter badges
   const roleCounts = users.reduce((acc, user) => {
-    if (isAdmin || (isOwner && ['staff','intern','freelancer','admin','owner','param'].some(r => user.role.hasOwnProperty(r)))) {
+    if (isAdmin || (isOwner && ['staff','intern','freelancer','admin','owner','param'].some(r => hasUserRole(user, r)))) {
       const rk = getRoleKey(user);
       acc[rk] = (acc[rk] || 0) + 1;
       acc.all = (acc.all || 0) + 1;
@@ -374,7 +374,7 @@ export default function UsersModule({ userProfile }) {
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
-              {isOwner ? 'Staff Management' : 'User Management'}
+              {isOwner ? 'Staff & Employee Management' : 'User Management'}
             </h2>
             <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
               Manage organization team members, roles, and system credentials
@@ -388,13 +388,13 @@ export default function UsersModule({ userProfile }) {
               className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-medium text-xs sm:text-sm rounded-xl px-4 h-9 sm:h-10 shadow-xs transition-all flex items-center gap-2 shrink-0 self-start sm:self-auto"
             >
               <Plus className="h-4 w-4" />
-              <span>{isOwner ? 'Add Staff Member' : 'Add User'}</span>
+              <span>{isOwner ? 'Add Employee' : 'Add User'}</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xl p-6">
             <DialogHeader>
               <DialogTitle className="text-base md:text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
-                {editingUser ? 'Edit User Profile' : 'Add New User'}
+                {editingUser ? (isOwner ? 'Edit Employee' : 'Edit User Profile') : (isOwner ? 'Add New Employee' : 'Add New User')}
               </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">

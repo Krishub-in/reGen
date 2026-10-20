@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import archiver from 'archiver';
 import { TOTP } from 'otpauth';
 import { sendCompanyCredentials } from '../utils/mailer.js';
+import { syncMongoUserToPg } from '../auth-integration/pgSyncService.js';
 import { emitToCompany } from '../socket.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -100,6 +101,11 @@ export const superAdminCreateCompany = async (req, res) => {
     // Link companyId back to user
     ownerUser.companyId = company._id;
     await ownerUser.save();
+
+    // Synchronize company owner to PostgreSQL Auth Service asynchronously and safely
+    syncMongoUserToPg(ownerUser, tempPassword).catch(err => {
+      console.warn('[AUTH-INTEGRATION] PG sync for company owner failed:', err.message);
+    });
 
     // Send credentials email
     const loginUrl = process.env.FRONTEND_BASE_URL || 'https://regen.krishub.in';

@@ -17,13 +17,26 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:5006',  // your backend
         changeOrigin: true,
-        secure: false
+        secure: false,
+        timeout: 2500,
+        proxyTimeout: 2500,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            if (res && !res.headersSent && typeof res.writeHead === 'function') {
+              res.writeHead(503, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ maintenance: true, portDown: true, message: 'Server Under Maintenance' }));
+            }
+          });
+        }
       },
       '/ws': {
         target: 'http://127.0.0.1:5006',
         changeOrigin: true,
         secure: false,
-        ws: true
+        ws: true,
+        configure: (proxy) => {
+          proxy.on('error', () => {});
+        }
       },
       '/socket.io': {
         target: 'http://127.0.0.1:5006',

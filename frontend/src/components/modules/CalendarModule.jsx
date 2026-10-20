@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { safeRandomUUID, cn } from '@/lib/utils';
+import { safeRandomUUID, cn, hasUserRole } from '@/lib/utils';
 
 export default function CalendarModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -56,7 +56,7 @@ export default function CalendarModule({ userProfile }) {
   const isMobile = useIsMobile();
   const touchStartX = useRef(null);
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin') || userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
+  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   const visibleHolidays = useMemo(() => holidays, [holidays]);
   const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
   const formatUserLabel = (u) => {
