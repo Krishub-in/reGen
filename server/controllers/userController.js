@@ -301,6 +301,8 @@ export const updateUser = async (req, res) => {
     }
     // Remove skills if present (no longer supported)
     delete body.skills;
+    // Status can only be changed by Super Admin via toggleUserStatus
+    delete body.status;
 
     // FIND EXISTING USER TO CHECK AVATAR CHANGE
     const isPrivileged = ['admin', 'owner', 'param'].includes(req.user?.role);

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { 
   Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, 
-  LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User,
+  LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search,
   Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck
 } from 'lucide-react';
 import UsersModule from '../components/modules/UsersModule';
@@ -20,7 +20,7 @@ import StaffProfileModule from '../components/modules/StaffProfileModule';
 import NotificationsModule from '../components/modules/NotificationsModule';
 import CallManager from '../components/CallManager';
 import { useIsMobile } from '../hooks/use-mobile';
-import { cn } from '@/lib/utils';
+import { cn, hasUserRole } from '@/lib/utils';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ModeToggle } from '@/components/mode-toggle';
 import { 
@@ -33,19 +33,37 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
 
-import { hasUserRole } from '../lib/utils';
+const getInitialModule = () => {
+  if (typeof window === 'undefined') return 'home';
+
+  const pathname = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+  if (pathname === '/settings' || pathname === '/profile') {
+    return 'profile';
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const tab = (params.get('tab') || params.get('module') || '').toLowerCase();
+  if (tab === 'settings' || tab === 'profile') {
+    return 'profile';
+  }
+  if (tab) {
+    return tab;
+  }
+
+  const pathSegment = pathname.replace(/^\/+/, '');
+  if (pathSegment && pathSegment !== 'superadmin') {
+    return pathSegment;
+  }
+
+  return 'home';
+};
 
 
 export default function Dashboard({ userProfile }) {
   const { logout } = useCustomAuth();
   const queryClient = useQueryClient();
-  const [activeModule, setActiveModule] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || params.get('module') || 'home';
-  });
+  const [activeModule, setActiveModule] = useState(getInitialModule);
   const isMobile = useIsMobile();
-  const [logoError, setLogoError] = useState(false);
-  const [logoSrc, setLogoSrc] = useState('/logo.jpeg');
   const [showNotif, setShowNotif] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const notifDropdownRef = useRef(null);
@@ -71,6 +89,35 @@ export default function Dashboard({ userProfile }) {
     }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showNotif]);
+
+  const navigateToModule = (moduleId, replace = false) => {
+    const targetModule = moduleId === 'settings' ? 'profile' : moduleId;
+    setActiveModule(targetModule);
+
+    let newUrl = '/';
+    if (targetModule === 'profile' || targetModule === 'settings') {
+      newUrl = '/settings';
+    } else if (targetModule && targetModule !== 'home') {
+      newUrl = `/?tab=${targetModule}`;
+    }
+
+    const currentUrl = window.location.pathname + window.location.search;
+    if (currentUrl !== newUrl) {
+      if (replace) {
+        window.history.replaceState(null, '', newUrl);
+      } else {
+        window.history.pushState(null, '', newUrl);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveModule(getInitialModule());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (userProfile?.mustChangePassword) {
@@ -212,6 +259,9 @@ export default function Dashboard({ userProfile }) {
   const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
   const handleLogout = async () => {
+    if (typeof window !== 'undefined' && (window.location.pathname === '/settings' || window.location.pathname === '/profile')) {
+      window.history.replaceState(null, '', '/');
+    }
     await logout();
     queryClient.clear();
   };
@@ -232,7 +282,7 @@ export default function Dashboard({ userProfile }) {
   const renderModule = () => {
     switch (activeModule) {
       case 'home':
-        return <DashboardHome userProfile={userProfile} onNavigate={setActiveModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
       case 'users':
         return <UsersModule userProfile={userProfile} />;
       case 'attendance':
@@ -250,329 +300,384 @@ export default function Dashboard({ userProfile }) {
       case 'company':
         return <CompanyModule userProfile={userProfile} />;
       case 'profile':
+      case 'settings':
         return <StaffProfileModule userProfile={userProfile} />;
       case 'notifications':
         return <NotificationsModule userProfile={userProfile} onNavigate={setActiveModule} />;
       default:
-        return <DashboardHome userProfile={userProfile} onNavigate={setActiveModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
     }
   };
 
   return (
-    <div className="bg-background text-foreground flex min-h-svh flex-col">
-      <header className="sticky top-[env(safe-area-inset-top,0px)] z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center gap-3 px-3 md:px-6 flex-wrap md:flex-nowrap">
-          <div className="flex items-center gap-3">
-            <button
-              className="md:hidden inline-flex items-center justify-center rounded-md p-2 hover:bg-accent"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open menu"
+    <div className="bg-background text-foreground flex min-h-svh w-full">
+      {/* Desktop Left Sidebar (Matching Reference Image) */}
+      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
+        {/* Brand Logo */}
+        <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
+          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigateToModule('home')}>
+            <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+            <span className="w-2 h-2 rounded-full bg-primary" />
+          </div>
+        </div>
+
+        {/* Sidebar Nav Items */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {menuItems.filter(item => item.show).map((item) => {
+            const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
+            return (
+              <button
+                key={item.id}
+                onClick={() => navigateToModule(item.id)}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
+                  isActive
+                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
+                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
+                )}
+              >
+                <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Superadmin button if param */}
+        {userProfile?.role === 'param' && (
+          <div className="p-3 border-t border-border">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.href = '/superadmin'}
+              className="w-full text-xs font-semibold justify-start gap-2 border-primary/30 text-primary hover:bg-primary/10 rounded-xl"
             >
-              <Menu className="h-5 w-5" />
+              <ShieldCheck className="w-4 h-4" />
+              <span>Super Admin Console</span>
+            </Button>
+          </div>
+        )}
+
+        {/* Sidebar Logout */}
+        <div className="p-3 border-t border-border">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar Header (Matching Reference Image) */}
+        <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-4">
+          {/* Mobile hamburger + brand */}
+          <div className="flex items-center gap-3 md:hidden">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="p-2 rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
             </button>
-            {logoError ? (
-              <div className="h-8 w-8 md:h-10 md:w-10" />
-            ) : (
-              <img
-                src={logoSrc}
-                alt="reGen"
-                className="h-8 w-8 md:h-10 md:w-10"
-                onError={() => {
-                  if (logoSrc === '/logo.jpeg') {
-                    setLogoSrc('/logo.png');
-                  } else {
-                    setLogoError(true);
-                  }
-                }}
-              />
-            )}
-            <div className="hidden md:block">
-              <h2 className="font-bold text-lg">reGen</h2>
-              <p className="text-xs text-muted-foreground">{userProfile?.name}</p>
-            </div>
-            <div className="md:hidden">
-              <h2 className="font-semibold text-base">reGen</h2>
+            <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
+              <span className="text-lg font-bold tracking-tight text-foreground">reGen</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>
-          <nav className="hidden md:flex md:flex-1 md:overflow-x-auto md:no-scrollbar">
-            <div className="flex items-center gap-1">
-              {menuItems.filter(item => item.show).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveModule(item.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-md transition-colors flex-shrink-0",
-                    activeModule === item.id 
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="text-sm">{item.label}</span>
-                </button>
-              ))}
+
+          {/* Search Box (Matching Reference Image) */}
+          <div className="hidden sm:flex items-center flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search employees, departments..."
+                className="w-full h-10 pl-10 pr-4 rounded-xl bg-background border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary transition-all"
+              />
             </div>
-          </nav>
-          <div className="flex items-center gap-2 pl-2 relative ml-auto">
-            <button
-              className="relative rounded-md p-2 hover:bg-accent focus:outline-none"
-              onClick={() => setShowNotif(v => !v)}
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            {showNotif && (
-              <div 
-                ref={notifDropdownRef}
-                className="absolute right-0 sm:right-2 top-12 z-50 w-80 sm:w-96 max-w-[90vw] border border-border bg-popover text-popover-foreground rounded-xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+          </div>
+
+          {/* Right Action Icons: Notification, Theme Switcher, Profile Badge */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotif(v => !v)}
+                className="relative w-9 h-9 rounded-xl border border-border bg-card hover:bg-secondary text-foreground flex items-center justify-center transition-colors shadow-xs"
+                aria-label="Notifications"
               >
-                <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-sm">Notifications</span>
+                <Bell className="w-4 h-4 text-muted-foreground" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotif && (
+                <div 
+                  ref={notifDropdownRef}
+                  className="absolute right-0 top-12 z-50 w-80 sm:w-96 max-w-[90vw] border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs uppercase tracking-wider text-foreground">Notifications</span>
+                      {unreadCount > 0 && (
+                        <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                          {unreadCount} unread
+                        </span>
+                      )}
+                    </div>
                     {unreadCount > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                        {unreadCount} unread
-                      </span>
+                      <button
+                        onClick={() => markAllRead.mutate(myUserId)}
+                        className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+                      >
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        Mark all read
+                      </button>
                     )}
                   </div>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={() => markAllRead.mutate(myUserId)}
-                      className="text-xs text-primary hover:underline flex items-center gap-1 font-medium transition-colors"
-                    >
-                      <CheckCheck className="h-3.5 w-3.5" />
-                      Mark all read
-                    </button>
-                  )}
-                </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-border/40">
-                  {myNotifications.map((n) => {
-                    const isCall = n.type === 'voice_call' || n.type === 'video_call';
-                    const isMeeting = n.type === 'team_meeting';
-                    const isVoice = n.type === 'voice_message';
-                    const isText = n.type === 'text_message';
+                  <div className="max-h-80 overflow-y-auto divide-y divide-border/60">
+                    {myNotifications.map((n) => {
+                      const isCall = n.type === 'voice_call' || n.type === 'video_call';
+                      const isMeeting = n.type === 'team_meeting';
+                      const isVoice = n.type === 'voice_message';
+                      const isText = n.type === 'text_message';
 
-                    return (
-                      <div
-                        key={n.id}
-                        onClick={() => handleNotificationClick(n)}
-                        className={cn(
-                          "p-3.5 transition-colors cursor-pointer flex gap-3 text-sm relative group",
-                          !n.read ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-accent/40"
-                        )}
-                      >
-                        {/* Icon */}
-                        <div className="shrink-0 mt-0.5">
-                          {isCall ? (
-                            <div className={cn(
-                              "h-9 w-9 rounded-full flex items-center justify-center",
-                              n.type === 'video_call' 
-                                ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
-                                : "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
-                            )}>
-                              {n.type === 'video_call' ? <Video className="h-4 w-4" /> : <PhoneCall className="h-4 w-4" />}
-                            </div>
-                          ) : isMeeting ? (
-                            <div className="h-9 w-9 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center">
-                              <Users className="h-4 w-4" />
-                            </div>
-                          ) : isVoice ? (
-                            <div className="h-9 w-9 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400 flex items-center justify-center">
-                              <Mic className="h-4 w-4" />
-                            </div>
-                          ) : isText ? (
-                            <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 flex items-center justify-center">
-                              <MessageSquare className="h-4 w-4" />
-                            </div>
-                          ) : (
-                            <div className="h-9 w-9 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
-                              <Bell className="h-4 w-4" />
-                            </div>
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={cn(
+                            "p-3.5 transition-colors cursor-pointer flex gap-3 text-sm relative group",
+                            !n.read ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-secondary/40"
                           )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-semibold text-xs truncate text-foreground">
-                              {n.title}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
-                              {formatNotifTime(n.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                            {n.message}
-                          </p>
-
-                          {/* Action Buttons for Call */}
-                          {isCall && n.actionStatus === 'pending' && (
-                            <div className="flex items-center gap-2 pt-1.5" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium flex items-center gap-1 shadow-sm"
-                                onClick={(e) => handleAcceptCallFromNotif(e, n)}
-                              >
-                                <PhoneCall className="h-3 w-3" />
-                                Accept
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 px-3 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
-                                onClick={(e) => handleRejectCallFromNotif(e, n)}
-                              >
-                                <PhoneOff className="h-3 w-3" />
-                                Decline
-                              </Button>
-                            </div>
-                          )}
-
-                          {isCall && n.actionStatus !== 'pending' && n.actionStatus !== 'none' && (
-                            <div className="pt-1">
-                              <span className={cn(
-                                "text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full",
-                                n.actionStatus === 'accepted' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" :
-                                n.actionStatus === 'rejected' ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" :
-                                "bg-muted text-muted-foreground"
+                        >
+                          <div className="shrink-0 mt-0.5">
+                            {isCall ? (
+                              <div className={cn(
+                                "h-8 w-8 rounded-full flex items-center justify-center",
+                                n.type === 'video_call' 
+                                  ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400"
+                                  : "bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400"
                               )}>
-                                {n.actionStatus}
+                                {n.type === 'video_call' ? <Video className="h-4 w-4" /> : <PhoneCall className="h-4 w-4" />}
+                              </div>
+                            ) : isMeeting ? (
+                              <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center">
+                                <Users className="h-4 w-4" />
+                              </div>
+                            ) : isVoice ? (
+                              <div className="h-8 w-8 rounded-full bg-purple-100 text-purple-600 dark:bg-purple-950/60 dark:text-purple-400 flex items-center justify-center">
+                                <Mic className="h-4 w-4" />
+                              </div>
+                            ) : isText ? (
+                              <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 flex items-center justify-center">
+                                <MessageSquare className="h-4 w-4" />
+                              </div>
+                            ) : (
+                              <div className="h-8 w-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
+                                <Bell className="h-4 w-4" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-semibold text-xs truncate text-foreground">
+                                {n.title}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
+                                {formatNotifTime(n.createdAt)}
                               </span>
                             </div>
-                          )}
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                              {n.message}
+                            </p>
 
-                          {/* Action Button for Team Meeting */}
-                          {isMeeting && (
-                            <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium flex items-center gap-1.5 shadow-sm"
-                                onClick={(e) => handleJoinMeetingFromNotif(e, n)}
+                            {/* Action Buttons for Call */}
+                            {isCall && n.actionStatus === 'pending' && (
+                              <div className="flex items-center gap-2 pt-1.5" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium flex items-center gap-1 shadow-sm"
+                                  onClick={(e) => handleAcceptCallFromNotif(e, n)}
+                                >
+                                  <PhoneCall className="h-3 w-3" />
+                                  Accept
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-3 text-xs text-destructive hover:bg-destructive/10 border-destructive/30"
+                                  onClick={(e) => handleRejectCallFromNotif(e, n)}
+                                >
+                                  <PhoneOff className="h-3 w-3" />
+                                  Decline
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* Action Button for Team Meeting */}
+                            {isMeeting && (
+                              <div className="pt-1.5" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="sm"
+                                  className="h-7 px-3 text-xs bg-amber-600 hover:bg-amber-700 text-white font-medium flex items-center gap-1.5 shadow-sm"
+                                  onClick={(e) => handleJoinMeetingFromNotif(e, n)}
+                                >
+                                  <Video className="h-3 w-3" />
+                                  Join Meeting
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="shrink-0 flex flex-col items-end justify-between self-stretch pl-1">
+                            {!n.read && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  markRead.mutate(n.id);
+                                }}
+                                title="Mark as read"
+                                className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 p-0.5 transition-opacity"
                               >
-                                <Video className="h-3 w-3" />
-                                Join Meeting
-                              </Button>
-                            </div>
-                          )}
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                            {!n.read && (
+                              <span className="h-2 w-2 rounded-full bg-primary mt-auto" />
+                            )}
+                          </div>
                         </div>
+                      );
+                    })}
 
-                        {/* Unread dot and individual mark read button */}
-                        <div className="shrink-0 flex flex-col items-end justify-between self-stretch pl-1">
-                          {!n.read && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                markRead.mutate(n.id);
-                              }}
-                              title="Mark as read"
-                              className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100 p-0.5 transition-opacity"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                          {!n.read && (
-                            <span className="h-2 w-2 rounded-full bg-primary mt-auto" />
-                          )}
-                        </div>
+                    {myNotifications.length === 0 && (
+                      <div className="px-4 py-8 text-center text-muted-foreground">
+                        <Bell className="h-6 w-6 mx-auto mb-1.5 opacity-30" />
+                        <p className="text-xs font-medium">No notifications yet</p>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
 
-                  {myNotifications.length === 0 && (
-                    <div className="px-4 py-10 text-center text-muted-foreground">
-                      <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm font-medium">No notifications yet</p>
-                      <p className="text-xs text-muted-foreground/80 mt-0.5">
-                        Messages, calls, and meetings will appear here
-                      </p>
-                    </div>
-                  )}
+                  <div className="p-2 border-t border-border bg-secondary/30 text-center">
+                    <button
+                      onClick={() => {
+                        setShowNotif(false);
+                        setActiveModule('notifications');
+                      }}
+                      className="text-xs text-primary hover:underline font-semibold py-1 px-3 w-full"
+                    >
+                      View all notifications
+                    </button>
+                  </div>
                 </div>
+              )}
+            </div>
 
-                <div className="p-2 border-t bg-muted/20 text-center">
-                  <button
-                    onClick={() => {
-                      setShowNotif(false);
-                      setActiveModule('notifications');
-                    }}
-                    className="text-xs text-primary hover:underline font-semibold py-1 px-3 w-full"
-                  >
-                    View all notifications
-                  </button>
-                </div>
-              </div>
-            )}
+            {/* Super Admin Console Button */}
             {userProfile?.role === 'param' && (
               <Button 
                 variant="default" 
                 size="sm" 
                 onClick={() => window.location.href = '/superadmin'}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-sm px-3"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-xs px-3 h-9 rounded-xl text-xs"
               >
                 <ShieldCheck className="h-4 w-4" />
                 <span className="hidden sm:inline">Super Admin Console</span>
               </Button>
             )}
+
+            {/* Theme Toggle (Sun/Moon Switcher) */}
             <ModeToggle />
-            <Button variant="outline" onClick={handleLogout} className="hidden md:inline-flex">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+
+            {/* User Profile Badge (Rightmost Topbar matching Reference Image) */}
+            <div 
+              onClick={() => navigateToModule('profile')}
+              className="hidden sm:flex items-center gap-2.5 pl-2 py-1 pr-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 transition-all cursor-pointer"
+              title="View Account / Settings"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 bg-muted">
+                <img 
+                  src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
+                <p className="text-[10px] text-muted-foreground font-medium capitalize">
+                  {isAdmin ? 'Admin' : (isOwner ? 'Owner' : 'Staff')}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </header>
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72">
-          <SheetHeader>
-            <SheetTitle>Navigation</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 flex flex-col gap-1">
-            {menuItems.filter(item => item.show).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveModule(item.id);
-                  setMobileNavOpen(false);
-                }}
-                className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  activeModule === item.id
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </button>
-            ))}
-            <div className="mt-2 border-t border-border pt-2">
+        </header>
+
+        {/* Mobile Navigation Drawer Sheet */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="w-72 bg-card border-r border-border p-0 flex flex-col">
+            <SheetHeader className="p-6 border-b border-border">
+              <SheetTitle className="flex items-center gap-2">
+                <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+                <span className="w-2 h-2 rounded-full bg-primary" />
+              </SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+              {menuItems.filter(item => item.show).map((item) => {
+                const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      navigateToModule(item.id);
+                      setMobileNavOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
+                      isActive
+                        ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
+                        : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
+                    )}
+                  >
+                    <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 border-t border-border">
               <button
                 onClick={async () => {
                   await handleLogout();
                   setMobileNavOpen(false);
                 }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+                className="flex w-full items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
             </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+          </SheetContent>
+        </Sheet>
 
-      <main className={cn("flex-1 bg-background text-foreground", isMobile ? "p-4 pb-6" : "p-12")}>
-        <ErrorBoundary key={activeModule}>
-          {renderModule()}
-        </ErrorBoundary>
-      </main>
-      <Footer />
+        {/* Main Body */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full min-w-0">
+          <ErrorBoundary key={activeModule}>
+            {renderModule()}
+          </ErrorBoundary>
+        </main>
+
+        <Footer />
+      </div>
       <CallManager userProfile={userProfile} />
     </div>
   );

@@ -9,10 +9,28 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Plus, 
+  Pencil, 
+  Trash2, 
+  Calendar as CalendarIcon, 
+  CalendarDays,
+  ChevronLeft, 
+  ChevronRight, 
+  Check, 
+  X, 
+  CheckCircle2, 
+  Clock, 
+  AlertCircle, 
+  User, 
+  Palmtree, 
+  Cake, 
+  FileText 
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { safeRandomUUID, hasUserRole } from '@/lib/utils';
+import { safeRandomUUID, cn, hasUserRole } from '@/lib/utils';
 
 export default function CalendarModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -34,6 +52,7 @@ export default function CalendarModule({ userProfile }) {
   const [holidayForm, setHolidayForm] = useState({ name: '', date: '' });
   const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
   const [monthDate, setMonthDate] = useState(new Date());
+  const [agendaFilter, setAgendaFilter] = useState('all');
   const isMobile = useIsMobile();
   const touchStartX = useRef(null);
 
@@ -56,13 +75,60 @@ export default function CalendarModule({ userProfile }) {
     const diff = Math.floor((ed.getTime() - sd.getTime()) / (1000 * 60 * 60 * 24));
     return diff >= 0 ? diff + 1 : 0;
   };
+  const formatFriendlyDate = (dateStr) => {
+    if (!dateStr) return '--';
+    try {
+      const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00'));
+      if (isNaN(d.getTime())) return dateStr;
+      return format(d, 'MMM d, yyyy');
+    } catch {
+      return dateStr;
+    }
+  };
+  const formatDateTime = (dateVal) => {
+    if (!dateVal) return '';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return String(dateVal);
+      return format(d, 'MMM d, yyyy, h:mm a');
+    } catch {
+      return String(dateVal);
+    }
+  };
   const holidaySet = useMemo(() => new Set(visibleHolidays.map(h => h.date)), [visibleHolidays]);
+  const holidayMap = useMemo(() => {
+    const map = new Map();
+    visibleHolidays.forEach(h => {
+      if (h.date) map.set(h.date, h.name || 'Company Holiday');
+    });
+    return map;
+  }, [visibleHolidays]);
   const holidayList = useMemo(
     () => visibleHolidays.filter(h => String(h.name || '').toLowerCase() !== 'sunday'),
     [visibleHolidays]
   );
   const approvedLeaveDays = useMemo(() => {
     const list = (isAdmin ? leaveRequests : myLeaves).filter(l => l.status === 'approved');
+    const ranges = [];
+    for (const l of list) {
+      let d = new Date(l.startDate);
+      const end = new Date(l.endDate);
+      while (d <= end) {
+        const uid = toIdText(l.userId);
+        const staff = users.find(u => toIdText(u.userId || u.id) === uid);
+        const label = formatUserLabel(staff) || (l.displayId || l.userId);
+        ranges.push({ iso: format(d, 'yyyy-MM-dd'), name: label });
+        d = addDays(d, 1);
+      }
+    }
+    const map = new Map();
+    for (const r of ranges) {
+      map.set(r.iso, r.name);
+    }
+    return map;
+  }, [isAdmin, leaveRequests, myLeaves, users]);
+  const pendingLeaveDays = useMemo(() => {
+    const list = (isAdmin ? leaveRequests : myLeaves).filter(l => l.status === 'pending');
     const ranges = [];
     for (const l of list) {
       let d = new Date(l.startDate);
@@ -130,16 +196,169 @@ export default function CalendarModule({ userProfile }) {
       const inMonth = d.getMonth() === monthDate.getMonth();
       const iso = format(d, 'yyyy-MM-dd');
       const leaveName = approvedLeaveDays.get(iso);
+      const pendingLeaveName = pendingLeaveDays.get(iso);
+      const holidayName = holidayMap.get(iso);
       const bdays = birthdayDays.get(iso);
       const birthdayLabel = bdays && bdays.length ? bdays.join(', ') : '';
-      days.push({ date: d, iso, inMonth, isHoliday: holidaySet.has(iso), leaveName, birthdayLabel });
+      days.push({
+        date: d,
+        iso,
+        inMonth,
+        isHoliday: !!holidayName,
+        holidayName,
+        leaveName,
+        pendingLeaveName,
+        birthdayLabel
+      });
     }
     const weeks = [];
     for (let w = 0; w < 6; w++) {
       weeks.push(days.slice(w * 7, (w + 1) * 7));
     }
     return weeks;
-  }, [monthDate, holidaySet, approvedLeaveDays, birthdayDays]);
+  }, [monthDate, holidayMap, approvedLeaveDays, pendingLeaveDays, birthdayDays]);
+
+  // Real event counts for active month
+  const monthlyMetrics = useMemo(() => {
+    const currentMonthNum = monthDate.getMonth();
+    const currentYear = monthDate.getFullYear();
+
+    // 1. Birthdays in this month
+    let bdayCount = 0;
+    users.forEach(u => {
+      if (!u.dateOfBirth) return;
+      const s = String(u.dateOfBirth).trim();
+      const m = s.match(/^(\d{4})\D(\d{2})\D(\d{2})/);
+      let month = 0;
+      if (m) month = Number(m[2]);
+      else {
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) month = d.getMonth() + 1;
+      }
+      if (month === currentMonthNum + 1) bdayCount++;
+    });
+
+    // 2. Company Holidays in this month
+    let holidayCount = 0;
+    visibleHolidays.forEach(h => {
+      if (!h.date) return;
+      if (String(h.name || '').toLowerCase() === 'sunday') return;
+      const d = new Date(h.date + 'T00:00:00');
+      if (!isNaN(d.getTime()) && d.getMonth() === currentMonthNum && d.getFullYear() === currentYear) {
+        holidayCount++;
+      }
+    });
+
+    // 3. Approved & Pending Leaves in this month
+    const relevantLeaves = isAdmin ? leaveRequests : myLeaves;
+    let approvedCount = 0;
+    let pendingCount = 0;
+    const monthStart = startOfMonth(monthDate);
+    const monthEnd = endOfMonth(monthDate);
+
+    relevantLeaves.forEach(l => {
+      const s = new Date(l.startDate + 'T00:00:00');
+      const e = new Date(l.endDate + 'T00:00:00');
+      if (isNaN(s.getTime()) || isNaN(e.getTime())) return;
+      if (s <= monthEnd && e >= monthStart) {
+        if (l.status === 'approved') approvedCount++;
+        else if (l.status === 'pending') pendingCount++;
+      }
+    });
+
+    return {
+      birthdays: bdayCount,
+      holidays: holidayCount,
+      approvedLeaves: approvedCount,
+      pendingLeaves: pendingCount,
+    };
+  }, [monthDate, users, visibleHolidays, leaveRequests, myLeaves, isAdmin]);
+
+  // Chronological upcoming events for active month
+  const upcomingEvents = useMemo(() => {
+    const list = [];
+    const start = startOfMonth(monthDate);
+    const end = endOfMonth(monthDate);
+
+    let cur = new Date(start);
+    while (cur <= end) {
+      const iso = format(cur, 'yyyy-MM-dd');
+      
+      // Birthday
+      const bdays = birthdayDays.get(iso);
+      if (bdays && bdays.length) {
+        list.push({
+          id: `bday-${iso}`,
+          date: new Date(cur),
+          iso,
+          title: bdays.join(', '),
+          type: 'birthday',
+          typeLabel: 'Birthday',
+          icon: '🎂',
+          badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25',
+          dotClass: 'bg-rose-500',
+        });
+      }
+
+      // Holiday
+      const holidayName = holidayMap.get(iso);
+      if (holidayName && holidayName.toLowerCase() !== 'sunday') {
+        list.push({
+          id: `holiday-${iso}`,
+          date: new Date(cur),
+          iso,
+          title: holidayName,
+          type: 'holiday',
+          typeLabel: 'Holiday',
+          icon: '🏖️',
+          badgeClass: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25',
+          dotClass: 'bg-blue-500',
+        });
+      }
+
+      // Approved Leave
+      const appLeave = approvedLeaveDays.get(iso);
+      if (appLeave) {
+        list.push({
+          id: `leave-${iso}`,
+          date: new Date(cur),
+          iso,
+          title: `Leave: ${appLeave}`,
+          type: 'approved',
+          typeLabel: 'Approved Leave',
+          icon: '🌴',
+          badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
+          dotClass: 'bg-emerald-500',
+        });
+      }
+
+      // Pending Leave
+      const pendLeave = pendingLeaveDays.get(iso);
+      if (pendLeave) {
+        list.push({
+          id: `pending-${iso}`,
+          date: new Date(cur),
+          iso,
+          title: `Pending: ${pendLeave}`,
+          type: 'pending',
+          typeLabel: 'Pending Leave',
+          icon: '⏳',
+          badgeClass: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
+          dotClass: 'bg-amber-500',
+        });
+      }
+
+      cur = addDays(cur, 1);
+    }
+
+    return list.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [monthDate, birthdayDays, holidayMap, approvedLeaveDays, pendingLeaveDays]);
+
+  const filteredUpcomingEvents = useMemo(() => {
+    if (agendaFilter === 'all') return upcomingEvents;
+    if (agendaFilter === 'leave') return upcomingEvents.filter(e => e.type === 'approved' || e.type === 'pending');
+    return upcomingEvents.filter(e => e.type === agendaFilter);
+  }, [upcomingEvents, agendaFilter]);
 
   // Auto-adjust leave dates to skip holidays and approved leaves
   useEffect(() => {
@@ -346,403 +565,815 @@ export default function CalendarModule({ userProfile }) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Office Calendar</h2>
-      <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="text-lg">Monthly Calendar</CardTitle>
-          <div className="flex flex-col sm:flex-row items-center gap-2">
+      {/* 1. Page Header with Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
+            Office Calendar
+          </h2>
+          <p className="text-sm md:text-base text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
+            Your team's schedule, celebrations, and time off.
+          </p>
+        </div>
+
+        {/* Global Navigation Controls */}
+        <div className="flex items-center gap-2 self-start sm:self-auto bg-white dark:bg-[#15232D] p-1.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMonthDate(new Date())}
+            className="h-8 px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
+            title="Jump to current date"
+          >
+            Today
+          </Button>
+          <div className="h-4 w-px bg-[#DFE8EC] dark:bg-[#2A3D48]" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+            onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+            title="Previous Month"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <span className="text-xs sm:text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4] px-2 min-w-[125px] text-center">
+            {format(monthDate, 'MMMM yyyy')}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+            onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+            title="Next Month"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* 2. Compact Event Summary Cards (Real Month Data) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Birthdays</p>
+            <p className="text-2xl font-bold text-rose-600 dark:text-rose-400">{monthlyMetrics.birthdays}</p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+            <Cake className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Holidays</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{monthlyMetrics.holidays}</p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+            <Palmtree className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Approved Leaves</p>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{monthlyMetrics.approvedLeaves}</p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 shadow-xs flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium text-[#64748B] dark:text-[#A6B5C0]">Pending Leaves</p>
+            <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">{monthlyMetrics.pendingLeaves}</p>
+          </div>
+          <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <Clock className="w-4 h-4" />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Two-Pane Calendar Dashboard Composition */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left: Centerpiece Monthly Calendar Card */}
+        <div className="lg:col-span-8 w-full">
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full">
+          {/* Calendar Header with Legend */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-4 sm:p-5 border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50">
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              >
-                Prev
-              </Button>
-              <span className="text-sm text-muted-foreground">
-                {format(monthDate, 'MMMM yyyy')}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              >
-                Next
-              </Button>
+              <CalendarIcon className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
+              <span className="text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Schedule</span>
+            </div>
+
+            {/* Event Legend */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#FFE4E6] text-[#9F1239] border border-[#E11D48]/30 dark:bg-rose-950/70 dark:text-rose-200 dark:border-rose-500/60 font-medium text-[11px]">
+                <span>🎂</span>
+                <span>Birthday</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#DBEAFE] text-[#1E40AF] border border-[#2563EB]/30 dark:bg-blue-950/70 dark:text-blue-200 dark:border-blue-500/60 font-medium text-[11px]">
+                <span>🏖️</span>
+                <span>Holiday</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#D1FAE5] text-[#065F46] border border-[#059669]/30 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-500/60 font-medium text-[11px]">
+                <span>🌴</span>
+                <span>Leave</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#FEF3C7] text-[#92400E] border border-[#D97706]/30 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-500/60 font-medium text-[11px]">
+                <span>⏳</span>
+                <span>Pending</span>
+              </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-7 gap-1 sm:gap-2 text-xs text-muted-foreground w-full max-w-[800px] mx-auto min-w-[320px] sm:min-w-[420px]">
-            <div className="text-center font-medium">Sun</div>
-            <div className="text-center font-medium">Mon</div>
-            <div className="text-center font-medium">Tue</div>
-            <div className="text-center font-medium">Wed</div>
-            <div className="text-center font-medium">Thu</div>
-            <div className="text-center font-medium">Fri</div>
-            <div className="text-center font-medium">Sat</div>
-          </div>
-          <div
-            className="overflow-x-auto flex justify-center w-full"
-            onTouchStart={
-              isMobile
-                ? (e) => {
-                    touchStartX.current = e.touches?.[0]?.clientX ?? null;
-                  }
-                : undefined
-            }
-            onTouchEnd={
-              isMobile
-                ? (e) => {
-                    const startX = touchStartX.current;
-                    const endX = e.changedTouches?.[0]?.clientX ?? null;
-                    touchStartX.current = null;
-                    if (startX === null || endX === null) return;
-                    const delta = endX - startX;
-                    if (Math.abs(delta) < 40) return;
-                    if (delta < 0) {
-                      setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-                    } else {
-                      setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            {/* Weekday Header - Subtle Weekend Distinction */}
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-1 text-center">
+              <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sun</div>
+              <div>Mon</div>
+              <div>Tue</div>
+              <div>Wed</div>
+              <div>Thu</div>
+              <div>Fri</div>
+              <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sat</div>
+            </div>
+
+            {/* Month Matrix Grid */}
+            <div
+              className="overflow-x-auto w-full"
+              onTouchStart={
+                isMobile
+                  ? (e) => {
+                      touchStartX.current = e.touches?.[0]?.clientX ?? null;
                     }
+                  : undefined
+              }
+              onTouchEnd={
+                isMobile
+                  ? (e) => {
+                      const startX = touchStartX.current;
+                      const endX = e.changedTouches?.[0]?.clientX ?? null;
+                      touchStartX.current = null;
+                      if (startX === null || endX === null) return;
+                      const delta = endX - startX;
+                      if (Math.abs(delta) < 40) return;
+                      if (delta < 0) {
+                        setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+                      } else {
+                        setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+                      }
+                    }
+                  : undefined
+              }
+            >
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5 w-full min-w-[340px]">
+                {monthMatrix.flat().map((cell, idx) => {
+                  const isToday = format(cell.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                  const hasBirthday = Boolean(cell.birthdayLabel);
+                  const hasHoliday = Boolean(cell.isHoliday);
+                  const hasApprovedLeave = Boolean(cell.leaveName);
+                  const hasPendingLeave = Boolean(cell.pendingLeaveName);
+                  const dayOfWeek = cell.date.getDay();
+                  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+                  // Build event badges list
+                  const events = [];
+                  if (hasBirthday) {
+                    events.push({
+                      type: 'birthday',
+                      label: `B'Day: ${cell.birthdayLabel}`,
+                      title: `Birthday: ${cell.birthdayLabel}`,
+                      icon: '🎂',
+                      className: 'bg-[#FFE4E6] text-[#9F1239] border-[#E11D48]/30 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-500/60'
+                    });
                   }
-                : undefined
-            }
-          >
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 w-full max-w-[800px] mx-auto min-w-[320px] sm:min-w-[420px]">
-              {monthMatrix.flat().map((cell, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleCellClick(cell)}
-                  role="button"
-                  tabIndex={0}
-                  className={`rounded-md p-1 sm:p-2 h-14 sm:h-20 flex flex-col justify-between overflow-hidden relative cursor-pointer focus:outline focus:outline-2 focus:outline-primary ${cell.inMonth ? '' : 'opacity-40'} ${cell.isHoliday ? 'bg-muted text-muted-foreground' : 'bg-background border'}`}
-                  style={
-                    cell.leaveName
-                      ? { backgroundColor: 'rgb(15 21 65)', color: 'rgb(219 228 231)' }
-                      : (cell.birthdayLabel ? { backgroundColor: 'rgb(255 215 0)', color: 'rgb(0 0 0)' } : undefined)
+                  if (hasHoliday) {
+                    events.push({
+                      type: 'holiday',
+                      label: cell.holidayName || 'Holiday',
+                      title: cell.holidayName || 'Holiday',
+                      icon: '🏖️',
+                      className: 'bg-[#DBEAFE] text-[#1E40AF] border-[#2563EB]/30 dark:bg-blue-950/80 dark:text-blue-200 dark:border-blue-500/60'
+                    });
                   }
+                  if (hasApprovedLeave) {
+                    events.push({
+                      type: 'approved',
+                      label: `Leave: ${cell.leaveName}`,
+                      title: `Approved Leave: ${cell.leaveName}`,
+                      icon: '🌴',
+                      className: 'bg-[#D1FAE5] text-[#065F46] border-[#059669]/30 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-500/60'
+                    });
+                  }
+                  if (hasPendingLeave) {
+                    events.push({
+                      type: 'pending',
+                      label: `Pending: ${cell.pendingLeaveName}`,
+                      title: `Pending Leave: ${cell.pendingLeaveName}`,
+                      icon: '⏳',
+                      className: 'bg-[#FEF3C7] text-[#92400E] border-[#D97706]/30 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-500/60'
+                    });
+                  }
+
+                  const maxEventsShow = isMobile ? 1 : 2;
+                  const visibleEvents = events.slice(0, maxEventsShow);
+                  const overflowCount = events.length - maxEventsShow;
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleCellClick(cell)}
+                      role="button"
+                      tabIndex={0}
+                      className={cn(
+                        "rounded-xl p-1.5 sm:p-2.5 min-h-[85px] sm:min-h-[105px] flex flex-col justify-between overflow-hidden relative cursor-pointer border transition-all text-left group",
+                        !cell.inMonth && "opacity-35 bg-muted/15 border-[#DFE8EC]/40 dark:border-[#2A3D48]/40",
+                        cell.inMonth && "bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 hover:shadow-xs",
+                        isWeekend && cell.inMonth && "bg-[#F4F8FA]/40 dark:bg-[#1D303B]/30",
+                        hasBirthday && "border-rose-300 dark:border-rose-500/50 bg-rose-50/20 dark:bg-rose-950/15",
+                        hasHoliday && !hasBirthday && "border-blue-300 dark:border-blue-500/50 bg-blue-50/20 dark:bg-blue-950/15",
+                        isToday && "ring-2 ring-[#0D9488] ring-offset-1 ring-offset-background"
+                      )}
+                    >
+                      <div className="w-full flex items-center justify-between">
+                        <span className={cn(
+                          "text-xs sm:text-sm font-semibold inline-flex items-center justify-center transition-transform group-hover:scale-105",
+                          isToday 
+                            ? "h-6 w-6 rounded-lg bg-[#0D9488] text-white font-bold shadow-xs" 
+                            : cell.inMonth 
+                            ? (isWeekend ? "text-[#64748B] dark:text-[#A6B5C0]" : "text-[#172B3A] dark:text-[#E8F0F4]") 
+                            : "text-muted-foreground/50"
+                        )}>
+                          {cell.date.getDate()}
+                        </span>
+                        {events.length > 0 && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488]" />
+                        )}
+                      </div>
+
+                      <div className="mt-1 w-full flex flex-col gap-1 items-start">
+                        {visibleEvents.map((evt, eIdx) => (
+                          <div
+                            key={eIdx}
+                            className={cn(
+                              "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold border truncate w-full shadow-2xs",
+                              evt.className
+                            )}
+                            title={evt.title}
+                          >
+                            <span className="shrink-0 text-[10px]">{evt.icon}</span>
+                            <span className="truncate">{evt.label}</span>
+                          </div>
+                        ))}
+                        {overflowCount > 0 && (
+                          <span className="text-[10px] font-medium text-[#0D9488] dark:text-[#14B8A6] px-1 bg-[#0D9488]/10 rounded">
+                            +{overflowCount} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        </div>
+        {/* Right: Agenda & Leave Requests Column (~30% width) */}
+        <div className="lg:col-span-4 flex flex-col gap-6 w-full">
+          {/* Right: Upcoming Events Agenda Side Panel */}
+        <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
+          <div>
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
+                <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Agenda</h3>
+              </div>
+              <Badge variant="outline" className="text-[11px] px-2 font-medium">
+                {filteredUpcomingEvents.length} event{filteredUpcomingEvents.length === 1 ? '' : 's'}
+              </Badge>
+            </div>
+
+            {/* Quick Type Filter Pills */}
+            <div className="flex items-center gap-1.5 pb-3 overflow-x-auto">
+              {['all', 'holiday', 'birthday', 'leave'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setAgendaFilter(type)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-lg text-xs font-medium transition-all capitalize shrink-0",
+                    agendaFilter === type 
+                      ? "bg-[#0D9488] text-white shadow-xs" 
+                      : "bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] hover:text-foreground"
+                  )}
                 >
-                  <div className="w-full flex items-start justify-center sm:justify-between">
-                    <div className="text-[11px] sm:text-sm font-semibold text-center sm:text-left w-full sm:w-auto">{cell.date.getDate()}</div>
-                  </div>
-                  <div className="mt-0.5 w-full flex flex-col gap-0.5 items-center sm:items-start text-center sm:text-left">
-                    {cell.isHoliday && (
-                      <div className="text-[9px] sm:text-[10px] truncate w-full">Holiday</div>
-                    )}
-                    {cell.leaveName && (
-                      <div className="text-[9px] sm:text-[10px] font-semibold truncate w-full">Leave: {String(cell.leaveName)}</div>
-                    )}
-                    {cell.birthdayLabel && (
-                      <div className="text-[9px] sm:text-[10px] font-semibold truncate w-full">B'Day: {String(cell.birthdayLabel)}</div>
-                    )}
-                  </div>
-                </div>
+                  {type === 'all' ? 'All' : type === 'holiday' ? 'Holidays' : type === 'birthday' ? 'Birthdays' : 'Leaves'}
+                </button>
               ))}
             </div>
-          </div>
-          {/* Cell detail dialog shown on tap/click (mobile friendly) */}
-          <Dialog open={isCellDialogOpen} onOpenChange={setIsCellDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{selectedCell ? format(selectedCell.date, 'MMMM dd, yyyy') : 'Details'}</DialogTitle>
-              </DialogHeader>
-              {selectedCell && (
-                <div className="space-y-2">
-                  {selectedCell.isHoliday && <p className="font-medium">Holiday</p>}
-                  {selectedCell.leaveName && <p className="font-medium">Leave: {selectedCell.leaveName}</p>}
-                  {selectedCell.birthdayLabel && (
-                    <div>
-                      <p className="font-medium">Birthdays:</p>
-                      <p className="text-sm text-muted-foreground">{String(selectedCell.birthdayLabel)}</p>
-                    </div>
-                  )}
-                  {!selectedCell.isHoliday && !selectedCell.leaveName && !selectedCell.birthdayLabel && (
-                    <p className="text-sm text-muted-foreground">No events</p>
-                  )}
+
+            {/* Event List */}
+            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {filteredUpcomingEvents.length === 0 ? (
+                <div className="py-12 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
+                  <p className="font-semibold text-foreground">No events found</p>
+                  <p>No celebrations or leaves match this filter in {format(monthDate, 'MMMM')}.</p>
                 </div>
-              )}
-            </DialogContent>
-          </Dialog>
-          <p className="text-xs text-muted-foreground">
-            Grey-shaded dates indicate official company holidays.
-          </p>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue={isAdmin ? 'holidays' : 'leaves'} className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-          {isAdmin && <TabsTrigger value="holidays">Holidays</TabsTrigger>}
-          <TabsTrigger value="leaves">Leave Requests</TabsTrigger>
-        </TabsList>
-
-        {isAdmin && (
-        <TabsContent value="holidays" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Company Holidays</h3>
-            {isAdmin && (
-              <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => handleOpenHolidayDialog()}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Holiday
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>{editingHoliday ? 'Edit Holiday' : 'Add Holiday'}</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleHolidaySubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Holiday Name *</Label>
-                      <Input
-                        id="name"
-                        value={holidayForm.name}
-                        onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
-                        placeholder="e.g., New Year's Day"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date">Date *</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        value={holidayForm.date}
-                        onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={addHoliday.isPending || updateHoliday.isPending}>
-                      {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {holidaysLoading ? (
-              <p className="col-span-full text-center py-8 text-muted-foreground">Loading holidays...</p>
-            ) : holidayList.length === 0 ? (
-              <p className="col-span-full text-center py-8 text-muted-foreground">No holidays found</p>
-            ) : (
-              holidayList.map((holiday) => (
-                <Card key={holiday.id}>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5 text-primary" />
-                        <CardTitle className="text-base">{holiday.name}</CardTitle>
-                      </div>
-                      {isAdmin && (
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleOpenHolidayDialog(holiday)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleDeleteHoliday(holiday.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(holiday.date).toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </TabsContent>
-        )}
-
-        <TabsContent value="leaves" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Leave Requests</h3>
-            <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Apply Leave
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Apply for Leave</DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleLeaveSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Type *</Label>
-                    <select
-                      id="type"
-                      className="h-10 w-full border rounded-md bg-background"
-                      value={leaveForm.type}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
-                    >
-                      <option value="casual">Casual</option>
-                      <option value="sick">Sick</option>
-                      <option value="earned">Earned</option>
-                      <option value="unpaid">Unpaid</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Start Date *</Label>
-                    <Input
-                      id="startDate"
-                      type="date"
-                      value={leaveForm.startDate}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">End Date *</Label>
-                    <Input
-                      id="endDate"
-                      type="date"
-                      value={leaveForm.endDate}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reason">Reason</Label>
-                    <Textarea
-                      id="reason"
-                      value={leaveForm.reason}
-                      onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
-                      placeholder="Reason for leave..."
-                      rows={3}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={applyLeave.isPending}>
-                    {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </div>
-          <p className="text-sm text-muted-foreground">Submitted: {myLeaves.length}</p>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>All Leave Requests</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isAdmin ? (leavesLoading ? (
-                <p className="text-center py-8 text-muted-foreground">Loading leave requests...</p>
-              ) : leaveRequests.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">No leave requests found</p>
               ) : (
-                <div className="space-y-3">
-                  {leaveRequests.map((leave) => (
-                            <div key={leave.id} className="p-3 border rounded-lg hover:bg-accent transition-colors">
-                              <div className="flex items-start justify-between">
-                                <div className="space-y-1">
-                                  <p className="font-medium">
-                                    {leave.startDate} to {leave.endDate}{' '}
-                                    <span className="font-bold">({daysBetweenInclusive(leave.startDate, leave.endDate)} days)</span>
-                                  </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {leave.reason || 'No notes'}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    Requested by: {(() => {
-                                      const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
-                                      const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
-                                      const first = staff?.firstName || '';
-                                      const last = staff?.lastName || '';
-                                      const name = [first, last].filter(Boolean).join(' ').trim();
-                                      return name || staff?.username || staff?.name || (leave.displayId || leave.userId);
-                                    })()} - {new Date(leave.createdAt).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                  </p>
+                filteredUpcomingEvents.map((evt) => (
+                  <div
+                    key={evt.id}
+                    onClick={() => {
+                      const matchingCell = monthMatrix.flat().find(c => c.iso === evt.iso);
+                      if (matchingCell) handleCellClick(matchingCell);
+                    }}
+                    className="p-3 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/60 transition-all cursor-pointer flex items-center justify-between gap-3 group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-base shrink-0">{evt.icon}</span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#172B3A] dark:text-[#E8F0F4] group-hover:text-[#0D9488] dark:group-hover:text-[#14B8A6] truncate transition-colors">
+                          {evt.title}
+                        </p>
+                        <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                          {format(evt.date, 'EEE, MMM d')}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge className={cn("text-[10px] px-1.5 py-0.5 rounded border shrink-0", evt.badgeClass)}>
+                      {evt.typeLabel}
+                    </Badge>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Card>
+
+          {/* Bottom: Leave Requests Card */}
+          <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-4 sm:p-5 flex flex-col">
+            {/* Header: Title, Description, and Actions */}
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 pb-3 mb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Palmtree className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6] shrink-0" />
+                  <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                    Leave Requests
+                  </h3>
+                </div>
+                <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] mt-0.5 line-clamp-1">
+                  Review team applications or submit a request.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                {isAdmin && (
+                  <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleOpenHolidayDialog()}
+                        className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-8 px-2.5 font-medium rounded-xl"
+                      >
+                        <Plus className="mr-1 h-3 w-3" />
+                        Holiday
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+                      <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                          {editingHoliday ? 'Edit Holiday' : 'Add Holiday'}
+                        </DialogTitle>
+                      </DialogHeader>
+                      <form onSubmit={handleHolidaySubmit} className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="name" className="text-xs font-semibold">Holiday Name *</Label>
+                          <Input
+                            id="name"
+                            value={holidayForm.name}
+                            onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                            placeholder="e.g., New Year's Day"
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="date" className="text-xs font-semibold">Date *</Label>
+                          <Input
+                            id="date"
+                            type="date"
+                            value={holidayForm.date}
+                            onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
+                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                            required
+                          />
+                        </div>
+                        <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={addHoliday.isPending || updateHoliday.isPending}>
+                          {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
+
+                <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm"
+                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-2.5 font-medium shadow-xs rounded-xl flex items-center gap-1"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Apply Leave</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
+                        <select
+                          id="type"
+                          className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
+                          value={leaveForm.type}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
+                        >
+                          <option value="casual">Casual Leave</option>
+                          <option value="sick">Sick Leave</option>
+                          <option value="earned">Earned Leave</option>
+                          <option value="unpaid">Unpaid Leave</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
+                        <Input
+                          id="startDate"
+                          type="date"
+                          value={leaveForm.startDate}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
+                        <Input
+                          id="endDate"
+                          type="date"
+                          value={leaveForm.endDate}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
+                        <Textarea
+                          id="reason"
+                          value={leaveForm.reason}
+                          onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                          placeholder="Reason for leave request..."
+                          className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                          rows={3}
+                        />
+                      </div>
+                      <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
+                        {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
+
+            {/* Content: Admin Tabs vs Staff Direct View */}
+            {isAdmin ? (
+              <Tabs defaultValue="leaves" className="w-full space-y-3">
+                <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-full">
+                  <TabsTrigger 
+                    value="leaves" 
+                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                  >
+                    Leaves ({leaveRequests.length})
+                  </TabsTrigger>
+                  <TabsTrigger 
+                    value="holidays" 
+                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                  >
+                    Holidays ({holidayList.length})
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="leaves" className="space-y-3 mt-3">
+                  {leavesLoading ? (
+                    <p className="text-center py-6 text-muted-foreground text-xs">Loading leave requests...</p>
+                  ) : leaveRequests.length === 0 ? (
+                    <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                      <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
+                        <CalendarDays className="w-5 h-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests found</h4>
+                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed">
+                          No employee has submitted a leave request yet.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                      {leaveRequests.map((leave) => {
+                        const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
+                        const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
+                        const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
+
+                        return (
+                          <div 
+                            key={leave.id} 
+                            className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
+                                  {leave.type || 'Leave'}
+                                </span>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                                  leave.status === 'approved' 
+                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
+                                    : leave.status === 'rejected' 
+                                    ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
+                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                                }`}>
+                                  {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
+                                </span>
+                                <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0]">
+                                  ({daysCount} {daysCount === 1 ? 'day' : 'days'})
+                                </span>
+                              </div>
+
+                              {leave.status === 'pending' && (
+                                <div className="flex items-center gap-1">
+                                  <Button 
+                                    size="sm" 
+                                    className="h-6 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] rounded-md shadow-xs flex items-center gap-1"
+                                    onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'approved' })}
+                                    disabled={updateLeaveReq.isPending}
+                                  >
+                                    <Check className="w-3 h-3" />
+                                    <span>Approve</span>
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline" 
+                                    className="h-6 px-2 border-rose-300 dark:border-rose-800 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-[11px] rounded-md flex items-center gap-1"
+                                    onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'rejected' })}
+                                    disabled={updateLeaveReq.isPending}
+                                  >
+                                    <X className="w-3 h-3" />
+                                    <span>Reject</span>
+                                  </Button>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    leave.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                                    leave.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                                  }`}>
-                                    {leave.status}
-                                  </span>
-                                  {isAdmin && leave.status === 'pending' && (
-                                    <>
-                                      <Button size="sm" variant="outline" onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'approved' })}>
-                                        Approve
-                                      </Button>
-                                      <Button size="sm" variant="destructive" onClick={() => updateLeaveReq.mutateAsync({ id: leave.id, status: 'rejected' })}>
-                                        Reject
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-1 pt-0.5 text-xs">
+                              <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                                <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
+                                <span className="font-semibold text-[#172B3A] dark:text-[#E8F0F4] text-xs">
+                                  {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
+                                </span>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] line-clamp-2">
+                                  {leave.reason || 'No additional notes provided.'}
+                                </p>
                               </div>
                             </div>
-                  ))}
-                </div>
-              )) : (
-                myLeaves.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">No leave requests found</p>
-                ) : (
-                  <div className="space-y-3">
-                    {myLeaves.map((leave) => (
-                      <div key={leave.id} className="p-3 border rounded-lg hover:bg-accent transition-colors">
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <p className="font-medium">
-                              {leave.startDate} to {leave.endDate}{' '}
-                              <span className="font-bold">({daysBetweenInclusive(leave.startDate, leave.endDate)} days)</span>
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {leave.reason || 'No notes'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Requested by: {(() => {
-                                const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
-                                const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
-                                const first = staff?.firstName || '';
-                                const last = staff?.lastName || '';
-                                const name = [first, last].filter(Boolean).join(' ').trim();
-                                return name || staff?.username || staff?.name || (leave.displayId || leave.userId);
-                              })()} - {new Date(leave.createdAt).toLocaleString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </p>
+
+                            <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="w-4 h-4 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[9px] shrink-0">
+                                  {requesterName.slice(0, 2).toUpperCase()}
+                                </span>
+                                <span className="truncate">
+                                  {requesterName}
+                                </span>
+                              </div>
+                              {leave.createdAt && (
+                                <span className="text-[10px] shrink-0">
+                                  {formatDateTime(leave.createdAt)}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              leave.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                              leave.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                            }`}>
-                              {leave.status}
-                            </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="holidays" className="space-y-3 mt-3">
+                  <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                    {holidaysLoading ? (
+                      <p className="text-center py-6 text-muted-foreground text-xs">Loading holidays...</p>
+                    ) : holidayList.length === 0 ? (
+                      <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                        <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No holidays registered</p>
+                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Holiday" above to add official company holidays.</p>
+                      </div>
+                    ) : (
+                      holidayList.map((holiday) => (
+                        <div key={holiday.id} className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3 shadow-xs flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-base shrink-0">🏖️</span>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-[#172B3A] dark:text-[#E8F0F4] truncate">{holiday.name}</p>
+                              <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                                {new Date(holiday.date).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                          {isAdmin && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] rounded-lg"
+                                onClick={() => handleOpenHolidayDialog(holiday)}
+                                title="Edit Holiday"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-[#64748B] hover:text-rose-600 rounded-lg"
+                                onClick={() => handleDeleteHoliday(holiday.id)}
+                                title="Delete Holiday"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <div className="space-y-3">
+                {myLeaves.length === 0 ? (
+                  <div className="bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
+                      <CalendarDays className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests submitted</h4>
+                      <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed">
+                        You have not submitted any leave requests yet. Click "Apply Leave" above to request time off.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
+                    {myLeaves.map((leave) => {
+                      const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
+                      const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
+                      const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
+
+                      return (
+                        <div 
+                          key={leave.id} 
+                          className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-[#F4F8FA] dark:bg-[#1D303B] text-[#172B3A] dark:text-[#E8F0F4] border border-[#DFE8EC] dark:border-[#2A3D48]">
+                                {leave.type || 'Leave'}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                                leave.status === 'approved' 
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25' 
+                                  : leave.status === 'rejected' 
+                                  ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25' 
+                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+                              }`}>
+                                {leave.status === 'approved' ? 'Approved' : leave.status === 'rejected' ? 'Rejected' : 'Pending Approval'}
+                              </span>
+                              <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0]">
+                                ({daysCount} {daysCount === 1 ? 'day' : 'days'})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 pt-0.5 text-xs">
+                            <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                              <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
+                              <span className="font-semibold text-[#172B3A] dark:text-[#E8F0F4] text-xs">
+                                {formatFriendlyDate(leave.startDate)} — {formatFriendlyDate(leave.endDate)}
+                              </span>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] line-clamp-2">
+                                {leave.reason || 'No additional notes provided.'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-2 border-t border-[#DFE8EC]/70 dark:border-[#2A3D48]/70 flex items-center justify-between text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="w-4 h-4 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center font-bold text-[9px] shrink-0">
+                                {requesterName.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span className="truncate">
+                                {requesterName}
+                              </span>
+                            </div>
+                            {leave.createdAt && (
+                              <span className="text-[10px] shrink-0">
+                                {formatDateTime(leave.createdAt)}
+                              </span>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )
-              )}
-            </CardContent>
+                )}
+              </div>
+            )}
           </Card>
-        </TabsContent>
-      </Tabs>
+
+        </div>
+      </div>
+
+{/* 4. Cell Detail Dialog */}
+      <Dialog open={isCellDialogOpen} onOpenChange={setIsCellDialogOpen}>
+        <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground max-w-lg">
+          <DialogHeader className="pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+            <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4] flex items-center gap-2">
+              <CalendarIcon className="w-5 h-5 text-[#0D9488] dark:text-[#14B8A6]" />
+              <span>{selectedCell ? format(selectedCell.date, 'EEEE, MMMM d, yyyy') : 'Event Details'}</span>
+            </DialogTitle>
+          </DialogHeader>
+          {selectedCell && (
+            <div className="space-y-3 pt-2">
+              {selectedCell.isHoliday && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#DBEAFE] text-[#1E40AF] border border-[#2563EB]/30 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-500/50">
+                  <span className="text-xl">🏖️</span>
+                  <div>
+                    <p className="font-bold text-sm">Official Company Holiday</p>
+                    <p className="text-xs">{selectedCell.holidayName || 'Company Holiday'}</p>
+                  </div>
+                </div>
+              )}
+              {selectedCell.birthdayLabel && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FFE4E6] text-[#9F1239] border border-[#E11D48]/30 dark:bg-rose-950/60 dark:text-rose-200 dark:border-rose-500/50">
+                  <span className="text-xl">🎂</span>
+                  <div>
+                    <p className="font-bold text-sm">Team Birthdays</p>
+                    <p className="text-xs">{String(selectedCell.birthdayLabel)}</p>
+                  </div>
+                </div>
+              )}
+              {selectedCell.leaveName && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#D1FAE5] text-[#065F46] border border-[#059669]/30 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-500/50">
+                  <span className="text-xl">🌴</span>
+                  <div>
+                    <p className="font-bold text-sm">Approved Leave</p>
+                    <p className="text-xs">{selectedCell.leaveName}</p>
+                  </div>
+                </div>
+              )}
+              {selectedCell.pendingLeaveName && (
+                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FEF3C7] text-[#92400E] border border-[#D97706]/30 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-500/50">
+                  <span className="text-xl">⏳</span>
+                  <div>
+                    <p className="font-bold text-sm">Pending Leave Request</p>
+                    <p className="text-xs">{selectedCell.pendingLeaveName}</p>
+                  </div>
+                </div>
+              )}
+              {!selectedCell.isHoliday && !selectedCell.leaveName && !selectedCell.pendingLeaveName && !selectedCell.birthdayLabel && (
+                <div className="py-8 text-center text-sm text-[#64748B] dark:text-[#A6B5C0]">
+                  No company events, birthdays, or leaves scheduled on this day.
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

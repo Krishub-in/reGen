@@ -1,5 +1,5 @@
 import express from 'express';
-import { createCompany, superAdminCreateCompany, getAllCompanies, updateCompany, superAdminUpdateCompany, deleteCompany, toggleCompanyStatus, getTotpQr, listBackups, downloadBackup, deleteBackup, restoreCompany } from '../controllers/companyController.js';
+import { createCompany, superAdminCreateCompany, getAllCompanies, updateCompany, superAdminUpdateCompany, deleteCompany, toggleCompanyStatus, getTotpQr, listBackups, downloadBackup, deleteBackup, restoreCompany, replaceCompany } from '../controllers/companyController.js';
 
 const router = express.Router();
 
@@ -13,6 +13,8 @@ router.delete('/backups/:filename', deleteBackup);
 router.post('/restore', restoreCompany);
 router.put('/:id', updateCompany);
 router.put('/admin/:id', superAdminUpdateCompany);
+router.post('/admin/:id/replace', replaceCompany);
+router.post('/:id/replace', replaceCompany);
 router.post('/:id/toggle-status', toggleCompanyStatus);
 router.delete('/:id', deleteCompany);
 

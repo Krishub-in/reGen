@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { authFetch, hasUserRole, getUserRoleKey } from '@/lib/utils';
+import { authFetch, cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,11 +9,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area 
 } from 'recharts';
+import { useTheme } from 'next-themes';
 import { 
   Building2, Users, CreditCard, TrendingUp, Settings, ShieldAlert, LogOut, 
   CheckCircle, XCircle, Search, Filter, ShieldCheck, Activity, Database, Plus,
-  UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download, Home, Eye, EyeOff
+  UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download, Home, Eye, EyeOff, Sun, Moon,
+  ArrowLeft, ChevronRight, MoreVertical, ArrowLeftRight, AlertTriangle
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -60,6 +69,8 @@ export const COMPANY_CATEGORIES = {
 };
 
 export default function SuperAdminDashboard() {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === 'dark';
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ id: 'Vyshwa', password: 'admin123' });
   const [showSaPassword, setShowSaPassword] = useState(false);
@@ -216,40 +227,52 @@ export default function SuperAdminDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(30,30,60,0.5),transparent)] pointer-events-none" />
-        <Card className="w-full max-w-md border-zinc-800 bg-zinc-900/50 backdrop-blur-xl shadow-2xl">
+      <div className="super-admin-layout min-h-screen flex items-center justify-center bg-background text-foreground px-4 transition-colors duration-300 relative overflow-hidden">
+        {/* Isolated Super Admin theme toggle */}
+        <div className="absolute top-4 right-4 z-20">
+          <button
+            type="button"
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
+            className="h-10 px-3.5 rounded-xl border border-border bg-card hover:bg-muted flex items-center gap-2 text-xs font-semibold text-foreground transition-all shadow-xs"
+            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          >
+            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-primary" />}
+            <span className="hidden sm:inline">{isDark ? "Dark Mode" : "Light Mode"}</span>
+          </button>
+        </div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+        <Card className="w-full max-w-md border border-border bg-card shadow-2xl rounded-2xl relative z-10 transition-all">
           <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mb-4">
-              <ShieldCheck className="w-10 h-10 text-primary" />
+            <div className="mx-auto bg-primary/10 border border-primary/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 text-primary shadow-xs">
+              <ShieldCheck className="w-10 h-10" />
             </div>
-            <CardTitle className="text-3xl font-bold tracking-tight text-white">Super Admin Access</CardTitle>
-            <p className="text-sm text-zinc-400">Enter your credentials to manage the platform</p>
+            <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Super Admin Access</CardTitle>
+            <p className="text-sm text-muted-foreground">Enter your credentials to manage the platform</p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-2">
-                <label htmlFor="saAdminId" className="text-sm font-medium text-zinc-300">Admin ID</label>
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="saAdminId" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin ID</label>
                 <Input 
                   id="saAdminId"
                   name="adminId"
-                  placeholder="ID" 
-                  className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500"
+                  placeholder="Enter Admin ID" 
+                  className="bg-background border-border text-foreground placeholder:text-muted-foreground h-11 rounded-xl focus-visible:ring-primary"
                   value={loginForm.id}
                   onChange={(e) => setLoginForm({ ...loginForm, id: e.target.value })}
                   autoComplete="username"
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <label htmlFor="saPassword" className="text-sm font-medium text-zinc-300">Security Password</label>
+              <div className="space-y-1.5 text-left">
+                <label htmlFor="saPassword" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Security Password</label>
                 <div className="relative">
                   <Input 
                     id="saPassword"
                     name="password"
                     type={showSaPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className="bg-zinc-800/50 border-zinc-700 text-white placeholder:text-zinc-500 pr-10"
+                    className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 h-11 rounded-xl focus-visible:ring-primary"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     autoComplete="current-password"
@@ -259,13 +282,13 @@ export default function SuperAdminDashboard() {
                     type="button"
                     tabIndex={-1}
                     onClick={() => setShowSaPassword(prev => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showSaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full py-6 text-lg font-semibold shadow-lg shadow-primary/20">
+              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20 bg-primary hover:bg-emerald-700 text-white rounded-xl transition-all">
                 Authenticate & Connect
               </Button>
             </form>
@@ -276,61 +299,62 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 font-sans text-zinc-100 flex overflow-hidden">
+    <div className="super-admin-layout min-h-screen bg-background font-sans text-foreground flex overflow-hidden transition-colors duration-300">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-72 border-r border-zinc-800 bg-zinc-900/30 flex-col pt-8">
-        <div className="px-6 mb-10 flex items-center gap-3">
-          <div className="bg-primary p-2 rounded-xl">
-            <ShieldCheck className="w-6 h-6 text-black" />
+      <aside className="hidden lg:flex w-72 border-r border-border bg-card/95 backdrop-blur-md flex-col pt-7 shrink-0 transition-colors">
+        <div className="px-6 mb-7 flex items-center gap-3">
+          <div className="bg-primary/10 border border-primary/25 p-2 rounded-xl text-primary flex items-center justify-center shadow-xs">
+            <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-bold text-xl tracking-tight">reGen Central</h1>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">Platform Control</p>
+            <h1 className="font-bold text-base tracking-tight text-foreground leading-none">reGen Central</h1>
+            <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
           </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-2">
+        <nav className="flex-1 px-4 space-y-1">
           <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
           <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
           <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
           <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
           <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
           <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
-          <div className="pt-4 mt-4 border-t border-zinc-800/50 space-y-1">
+          <div className="pt-3 mt-3 border-t border-border/80 space-y-1">
             <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
             <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={() => window.location.href = '/?view=ems'} />
           </div>
         </nav>
 
-        <div className="p-6 border-t border-zinc-800">
-          <Button variant="ghost" className="w-full flex justify-start gap-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/10" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
+        <div className="p-4 border-t border-border/80">
+          <Button variant="ghost" className="w-full flex justify-start gap-2.5 h-10 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg text-sm font-medium transition-colors" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
             <LogOut className="w-4 h-4" />
-            Sign Out
+            <span>Sign Out</span>
           </Button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen">
-        <main className="flex-1 overflow-y-auto bg-[radial-gradient(ellipse_at_top,rgba(24,24,27,1),rgba(9,9,11,1))] p-6 lg:p-10 pb-0">
-          <header className="flex justify-between items-center mb-10">
-            <div className="flex items-center gap-4">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+        <main className="flex-1 overflow-y-auto bg-background p-6 lg:p-10 pb-0 transition-colors duration-300">
+          <header className="flex justify-between items-center mb-6 pb-4 border-b border-border/40">
+            <div className="flex items-center gap-3.5">
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="lg:hidden text-zinc-400">
-                    <Menu className="w-6 h-6" />
+                  <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground">
+                    <Menu className="w-5 h-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 bg-zinc-950 border-r-zinc-800 p-0 flex flex-col">
-                  <div className="px-6 py-8 mb-4 flex items-center gap-3 border-b border-zinc-800/50">
-                    <div className="bg-primary p-2 rounded-xl">
-                      <ShieldCheck className="w-6 h-6 text-black" />
+                <SheetContent side="left" className="w-72 bg-card border-r-border p-0 flex flex-col">
+                  <div className="px-6 py-6 mb-2 flex items-center gap-3 border-b border-border">
+                    <div className="bg-primary/10 border border-primary/25 p-2 rounded-xl text-primary">
+                      <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h1 className="font-bold text-xl tracking-tight text-white">reGen Central</h1>
+                      <h1 className="font-bold text-base tracking-tight text-foreground leading-none">reGen Central</h1>
+                      <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
                     </div>
                   </div>
-                  <nav className="flex-1 px-4 space-y-2">
+                  <nav className="flex-1 px-4 space-y-1 pt-3">
                     <SheetClose asChild>
                       <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
                     </SheetClose>
@@ -349,37 +373,53 @@ export default function SuperAdminDashboard() {
                     <SheetClose asChild>
                       <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
                     </SheetClose>
-                    <div className="pt-4 mt-4 border-t border-zinc-800/50">
+                    <div className="pt-3 mt-3 border-t border-border space-y-1">
                       <SheetClose asChild>
                         <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
                       </SheetClose>
                     </div>
                   </nav>
-                  <div className="p-6 border-t border-zinc-800">
+                  <div className="p-4 border-t border-border">
                     <SheetClose asChild>
-                      <Button variant="ghost" className="w-full flex justify-start gap-3 text-zinc-400 hover:text-red-400 hover:bg-red-400/10" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
+                      <Button variant="ghost" className="w-full flex justify-start gap-2.5 h-10 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg text-sm font-medium" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
                         <LogOut className="w-4 h-4" />
-                        Sign Out
+                        <span>Sign Out</span>
                       </Button>
                     </SheetClose>
                   </div>
                 </SheetContent>
               </Sheet>
               <div>
-                <h2 className="text-2xl lg:text-3xl font-bold tracking-tight text-white capitalize">{activeTab}</h2>
-                <p className="text-zinc-500 text-sm hidden lg:block">System oversight for reGen Innovations Inc.</p>
+                <h2 className="text-2xl font-bold tracking-tight text-foreground capitalize">
+                  {activeTab === 'companies' ? 'Companies' : activeTab}
+                </h2>
+                <p className="text-xs text-muted-foreground/80 mt-0.5 hidden sm:block">
+                  System oversight for reGen Innovations Inc.
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="h-10 px-4 rounded-xl border border-zinc-800 bg-zinc-900/50 flex items-center gap-2 hidden md:flex">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider">System Live</span>
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                className="h-9 px-3 rounded-lg border border-border/80 bg-card hover:bg-muted/80 flex items-center gap-2 text-xs font-medium text-foreground transition-colors shadow-xs"
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-primary" />}
+                <span className="hidden sm:inline">{isDark ? "Dark Mode" : "Light Mode"}</span>
+              </button>
+              <div className="h-9 px-3 rounded-lg border border-border/80 bg-card flex items-center gap-2 hidden md:flex shadow-xs">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                </span>
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">System Live</span>
               </div>
-              <div className="bg-zinc-800 h-10 w-10 rounded-xl overflow-hidden border border-zinc-700 flex items-center justify-center">
+              <div className="bg-card h-9 w-9 rounded-lg overflow-hidden border border-border/80 flex items-center justify-center shadow-xs">
                  {profileData.avatar ? (
                    <img src={profileData.avatar} alt="Super Admin" className="w-full h-full object-cover" />
                  ) : (
-                   <User className="w-5 h-5 text-zinc-500" />
+                   <User className="w-4 h-4 text-muted-foreground" />
                  )}
               </div>
             </div>
@@ -419,14 +459,14 @@ function SidebarItem({ active, icon: Icon, label, onClick }) {
   return (
     <button 
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 text-left select-none cursor-pointer ${
         active 
-          ? 'bg-primary text-black font-semibold shadow-lg shadow-primary/20' 
-          : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+          ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs' 
+          : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-medium'
       }`}
     >
-      <Icon className={`w-5 h-5 ${active ? 'text-black' : 'text-inherit'}`} />
-      <span className="text-sm">{label}</span>
+      <Icon className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground'}`} />
+      <span className="truncate">{label}</span>
     </button>
   );
 }
@@ -582,14 +622,14 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <Card className="lg:col-span-2 border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
+        <Card className="lg:col-span-2 border border-border bg-card shadow-xs">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
+              <CardTitle className="text-lg flex items-center gap-2 text-foreground">
                 <TrendingUp className="w-5 h-5 text-primary" />
                 Revenue Trends
               </CardTitle>
-              <div className="text-xs text-zinc-400">
+              <div className="text-xs text-muted-foreground">
                 Live calculated from company plans & active user seats
               </div>
             </div>
@@ -599,16 +639,16 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
               <AreaChart data={revenueTrendsData}>
                 <defs>
                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#0D9488" stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="month" stroke="#71717a" fontSize={12} />
-                <YAxis stroke="#71717a" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#2A3D48" opacity={0.4} vertical={false} />
+                <XAxis dataKey="month" stroke="#A6B5C0" fontSize={12} />
+                <YAxis stroke="#A6B5C0" fontSize={12} tickFormatter={(v) => `$${v}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                  itemStyle={{ color: '#fff' }}
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '12px', color: 'hsl(var(--foreground))' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
                   formatter={(val, name, item) => [
                     `$${Number(val).toLocaleString()}`, 
                     'Monthly Revenue'
@@ -621,48 +661,48 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
                     return label;
                   }}
                 />
-                <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2} />
+                <Area type="monotone" dataKey="revenue" stroke="#0D9488" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30 backdrop-blur-sm">
+        <Card className="border border-border bg-card shadow-xs">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Activity className="w-5 h-5 text-emerald-400" />
+              <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                <Activity className="w-5 h-5 text-primary" />
                 Weekly Usage
               </CardTitle>
-              <span className="text-[11px] font-mono text-zinc-500">Current Week</span>
+              <span className="text-[11px] font-mono text-muted-foreground">Current Week</span>
             </div>
           </CardHeader>
           <CardContent className="h-[300px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyUsageData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="day" stroke="#71717a" fontSize={11} />
-                <YAxis stroke="#71717a" fontSize={10} allowDecimals={false} width={25} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#2A3D48" opacity={0.4} vertical={false} />
+                <XAxis dataKey="day" stroke="#A6B5C0" fontSize={11} />
+                <YAxis stroke="#A6B5C0" fontSize={10} allowDecimals={false} width={25} />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  cursor={{ fill: 'hsl(var(--muted)/0.4)' }}
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       const data = payload[0].payload;
                       return (
-                        <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-lg shadow-xl text-xs space-y-1">
-                          <div className="font-semibold text-white flex items-center justify-between gap-4">
+                        <div className="bg-card border border-border p-3 rounded-xl shadow-xl text-xs space-y-1 text-foreground">
+                          <div className="font-semibold flex items-center justify-between gap-4">
                             <span>{data.day} ({data.date})</span>
-                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">Today</span>}
+                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono font-bold">Today</span>}
                           </div>
-                          <div className="text-emerald-400 font-bold text-sm">
+                          <div className="text-primary font-bold text-sm">
                             {data.active} Active User{data.active !== 1 ? 's' : ''}
                           </div>
                           {data.users && data.users.length > 0 ? (
-                            <div className="text-zinc-400 text-[11px] pt-1 border-t border-zinc-800">
+                            <div className="text-muted-foreground text-[11px] pt-1 border-t border-border">
                               Active: {data.users.slice(0, 3).join(', ')}{data.users.length > 3 ? ` +${data.users.length - 3} more` : ''}
                             </div>
                           ) : (
-                            <div className="text-zinc-500 text-[11px] pt-1 border-t border-zinc-800">
+                            <div className="text-muted-foreground text-[11px] pt-1 border-t border-border">
                               No active users recorded
                             </div>
                           )}
@@ -672,7 +712,7 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
                     return null;
                   }}
                 />
-                <Bar dataKey="active" fill="#10b981" radius={[4, 4, 0, 0]} barSize={22} />
+                <Bar dataKey="active" fill="#0D9488" radius={[6, 6, 0, 0]} barSize={24} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -684,27 +724,27 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
 
 function StatCard({ title, value, icon: Icon, trend, color }) {
   const colors = {
-    emerald: 'text-emerald-400 bg-emerald-400/10',
-    blue: 'text-blue-400 bg-blue-400/10',
-    purple: 'text-purple-400 bg-purple-400/10',
-    amber: 'text-amber-400 bg-amber-400/10',
+    emerald: 'text-primary bg-primary/10 border border-primary/20',
+    blue: 'text-sky-500 bg-sky-500/10 border border-sky-500/20',
+    purple: 'text-violet-500 bg-violet-500/10 border border-violet-500/20',
+    amber: 'text-amber-500 bg-amber-500/10 border border-amber-500/20',
   };
 
   return (
-    <Card className="border-zinc-800 bg-zinc-900/30 backdrop-blur-sm group hover:border-zinc-700 transition-colors">
+    <Card className="border border-border bg-card shadow-xs group hover:border-primary/40 transition-all duration-200">
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-4">
-          <div className={`p-3 rounded-xl ${colors[color]}`}>
+          <div className={`p-3 rounded-xl ${colors[color] || colors.emerald}`}>
             <Icon className="w-6 h-6" />
           </div>
-          <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">Metrics</span>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Metrics</span>
         </div>
         <div className="space-y-1">
-          <h3 className="text-sm font-medium text-zinc-400">{title}</h3>
-          <div className="text-3xl font-bold text-white">{value}</div>
+          <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+          <div className="text-3xl font-bold text-foreground">{value}</div>
         </div>
-        <p className="mt-4 text-xs text-zinc-500 flex items-center gap-1">
-          <TrendingUp className="w-3 h-3 text-emerald-400" />
+        <p className="mt-4 text-xs text-muted-foreground flex items-center gap-1">
+          <TrendingUp className="w-3.5 h-3.5 text-primary" />
           {trend}
         </p>
       </CardContent>
@@ -714,91 +754,119 @@ function StatCard({ title, value, icon: Icon, trend, color }) {
 
 function CompanyFormFields({ data, setData }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
       <div className="relative group">
-        <Input 
-          placeholder="GST No (Optional)" 
-          value={data.gst}
-          onChange={(e) => setData({...data, gst: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl pr-20 focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <button 
-          type="button"
-          onClick={() => {
-            if (!data.gst) return;
-            toast.success('GST validated successfully');
-          }}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-primary font-semibold text-sm hover:text-primary/80 transition-colors"
-        >
-          Validate
-        </button>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">GST Number (Optional)</label>
+        <div className="relative">
+          <Input 
+            placeholder="e.g. 29ABCDE1234F1Z5" 
+            value={data.gst}
+            onChange={(e) => setData({...data, gst: e.target.value})}
+            className="h-10 bg-background/80 border-border/80 rounded-lg pr-20 focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+          />
+          <button 
+            type="button"
+            onClick={() => {
+              if (!data.gst) return;
+              toast.success('GST validated successfully');
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-primary font-semibold text-xs hover:text-emerald-500 transition-colors cursor-pointer"
+          >
+            Validate
+          </button>
+        </div>
       </div>
-      <Input 
-        placeholder="Company Name *" 
-        value={data.name}
-        onChange={(e) => setData({...data, name: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Input 
-        placeholder="Phone Number *" 
-        value={data.phoneNumber}
-        onChange={(e) => setData({...data, phoneNumber: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Input 
-        placeholder="Email (Optional)" 
-        value={data.email}
-        onChange={(e) => setData({...data, email: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
-      <Select 
-        onValueChange={(val) => setData({...data, category: val})}
-        value={data.category}
-      >
-        <SelectTrigger className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all text-zinc-300">
-          <SelectValue placeholder="Select Category *" />
-        </SelectTrigger>
-        <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
-          <SelectItem value="it">IT Solutions</SelectItem>
-          <SelectItem value="logistics">Logistics</SelectItem>
-          <SelectItem value="manufacturing">Manufacturing</SelectItem>
-          <SelectItem value="retail">Retail</SelectItem>
-          <SelectItem value="healthcare">Healthcare</SelectItem>
-        </SelectContent>
-      </Select>
-      <Input 
-        placeholder="Brief Description (Optional)" 
-        value={data.about}
-        onChange={(e) => setData({...data, about: e.target.value})}
-        className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-      />
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Company Name *</label>
+        <Input 
+          placeholder="e.g. Acme Innovations Inc." 
+          value={data.name}
+          onChange={(e) => setData({...data, name: e.target.value})}
+          className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Phone Number *</label>
+        <Input 
+          placeholder="e.g. +91 98765 43210" 
+          value={data.phoneNumber}
+          onChange={(e) => setData({...data, phoneNumber: e.target.value})}
+          className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Email Address</label>
+        <Input 
+          placeholder="admin@company.com" 
+          value={data.email}
+          onChange={(e) => setData({...data, email: e.target.value})}
+          className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Category *</label>
+        <Select 
+          onValueChange={(val) => setData({...data, category: val})}
+          value={data.category}
+        >
+          <SelectTrigger className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all text-foreground">
+            <SelectValue placeholder="Select Category *" />
+          </SelectTrigger>
+          <SelectContent className="bg-card border-border text-foreground">
+            <SelectItem value="it">IT Solutions</SelectItem>
+            <SelectItem value="logistics">Logistics</SelectItem>
+            <SelectItem value="manufacturing">Manufacturing</SelectItem>
+            <SelectItem value="retail">Retail</SelectItem>
+            <SelectItem value="healthcare">Healthcare</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Description (Optional)</label>
+        <Input 
+          placeholder="Brief description of operations" 
+          value={data.about}
+          onChange={(e) => setData({...data, about: e.target.value})}
+          className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
       <div className="md:col-span-2">
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Full Street Address</label>
         <Textarea 
-          placeholder="Full Street Address (Optional)" 
+          placeholder="Street address, building, suite..." 
           value={data.address}
           onChange={(e) => setData({...data, address: e.target.value})}
-          className="min-h-[120px] bg-zinc-900/40 border-zinc-800/50 rounded-2xl resize-none p-4 focus:border-primary/40 focus:bg-zinc-900/60 transition-all placeholder:text-zinc-600 outline-none ring-0"
+          className="min-h-[70px] bg-background/80 border-border/80 rounded-lg resize-none p-2.5 text-sm focus:border-primary transition-all placeholder:text-muted-foreground/50 text-foreground outline-none ring-0"
         />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-4">
-        <Input 
-          placeholder="City *" 
-          value={data.city}
-          onChange={(e) => setData({...data, city: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <Input 
-          placeholder="State" 
-          value={data.state}
-          onChange={(e) => setData({...data, state: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
-        <Input 
-          placeholder="Zip Code" 
-          value={data.zip}
-          onChange={(e) => setData({...data, zip: e.target.value})}
-          className="h-14 bg-zinc-900/50 border-zinc-800 rounded-xl focus:border-primary/50 transition-all placeholder:text-zinc-600"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-3 md:col-span-2 gap-3.5">
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">City *</label>
+          <Input 
+            placeholder="City" 
+            value={data.city}
+            onChange={(e) => setData({...data, city: e.target.value})}
+            className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">State</label>
+          <Input 
+            placeholder="State" 
+            value={data.state}
+            onChange={(e) => setData({...data, state: e.target.value})}
+            className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground block mb-1">Zip Code</label>
+          <Input 
+            placeholder="Zip Code" 
+            value={data.zip}
+            onChange={(e) => setData({...data, zip: e.target.value})}
+            className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+          />
+        </div>
       </div>
     </div>
   );
@@ -808,6 +876,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [otpDialogOpen, setOtpDialogOpen] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpTarget, setOtpTarget] = useState(null); // company to block/unblock
@@ -838,6 +907,10 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
       if (resp.ok) setBackups(await resp.json());
     } catch {} finally { setBackupsLoading(false); }
   };
+
+  useEffect(() => {
+    fetchBackups();
+  }, []);
 
   const handleResetOwnerPassword = async (company) => {
     const ownerId = company.ownerId;
@@ -933,14 +1006,22 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   const [isValidating, setIsValidating] = useState(false);
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
 
-  const filtered = dbCompanies.filter(co => {
-    const term = localSearch.toLowerCase();
-    return !term || 
-      co.name?.toLowerCase().includes(term) || 
-      co._id?.toLowerCase().includes(term) ||
-      co.category?.toLowerCase().includes(term) ||
-      co.city?.toLowerCase().includes(term);
-  });
+  const filtered = useMemo(() => {
+    return dbCompanies.filter(co => {
+      const term = (localSearch || '').toLowerCase().trim();
+      if (!term) return true;
+      return (
+        co.name?.toLowerCase().includes(term) || 
+        co._id?.toLowerCase().includes(term) ||
+        co.gst?.toLowerCase().includes(term) ||
+        co.category?.toLowerCase().includes(term) ||
+        co.city?.toLowerCase().includes(term) ||
+        co.state?.toLowerCase().includes(term) ||
+        co.phoneNumber?.toLowerCase().includes(term) ||
+        co.email?.toLowerCase().includes(term)
+      );
+    });
+  }, [dbCompanies, localSearch]);
 
   const openEdit = (company) => {
     setEditingCompany(company);
@@ -1143,41 +1224,50 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/50 p-6 rounded-2xl border border-zinc-800">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* Search and Actions Toolbar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/70 backdrop-blur-xs p-3 sm:p-3.5 rounded-xl border border-border/80 shadow-xs">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 pointer-events-none" />
           <Input 
-            placeholder="Search companies by name, ID, category..." 
-            className="pl-10 bg-zinc-950 border-zinc-800"
+            placeholder="Search companies by name, ID, category, city..." 
+            className="h-10 pl-10 pr-4 bg-background/80 border-border/80 text-foreground placeholder:text-muted-foreground/60 text-sm rounded-lg focus:border-primary focus:ring-1 focus:ring-primary/25 transition-all"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-muted-foreground hidden md:inline">
+            Showing <strong className="text-foreground font-semibold">{filtered.length}</strong> {filtered.length === 1 ? 'organization' : 'organizations'}
+          </span>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary text-black hover:bg-primary/90 font-bold shadow-lg shadow-primary/20">
-                <Plus className="w-4 h-4 mr-2" /> Add Company
+              <Button className="h-10 px-4 bg-primary hover:bg-[#0f766e] text-white font-medium text-sm rounded-lg shadow-sm shadow-primary/20 flex items-center gap-2 transition-all cursor-pointer">
+                <Plus className="w-4 h-4" />
+                <span>Add Company</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-zinc-800/50 bg-zinc-950/80 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-              <div className="bg-gradient-to-b from-primary/5 to-transparent px-8 py-10">
-                <DialogHeader>
-                  <DialogTitle className="text-4xl font-extrabold text-center mb-12 tracking-tighter bg-gradient-to-br from-white to-zinc-500 bg-clip-text text-transparent">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+              <div className="p-6 sm:p-8">
+                <DialogHeader className="mb-5 text-left">
+                  <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                    <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+                      <Building2 className="w-5 h-5" />
+                    </div>
                     Company Registration
                   </DialogTitle>
+                  <p className="text-xs text-muted-foreground mt-1">Register a new enterprise organization and provision its tenant credentials.</p>
                 </DialogHeader>
                 <CompanyFormFields data={formData} setData={setFormData} />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-                  <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-14 rounded-2xl text-zinc-400 hover:bg-white/5 font-semibold">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 mt-6 pt-4 border-t border-border/80">
+                  <Button variant="ghost" onClick={() => setIsDialogOpen(false)} className="h-10 rounded-lg text-muted-foreground hover:bg-muted font-medium text-sm">
                     Cancel
                   </Button>
-                  <Button variant="outline" onClick={(e) => handleSubmit(e, true)} className="h-14 border-zinc-800 bg-white/5 text-zinc-300 font-semibold rounded-2xl hover:bg-white/10">
+                  <Button variant="outline" onClick={(e) => handleSubmit(e, true)} className="h-10 border-border/80 bg-background/60 text-foreground font-medium text-sm rounded-lg hover:bg-muted">
                     Add & Continue
                   </Button>
-                  <Button onClick={(e) => handleSubmit(e, false)} className="h-14 bg-primary text-black font-extrabold text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-                    Add Company
+                  <Button onClick={(e) => handleSubmit(e, false)} className="h-10 px-5 bg-primary text-white hover:bg-[#0f766e] font-semibold text-sm rounded-lg shadow-sm shadow-primary/20 transition-all">
+                    Register Company
                   </Button>
                 </div>
               </div>
@@ -1188,19 +1278,23 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* Edit Company Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingCompany(null); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto border-zinc-800/50 bg-zinc-950/80 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <div className="bg-gradient-to-b from-blue-500/5 to-transparent px-8 py-10">
-            <DialogHeader>
-              <DialogTitle className="text-4xl font-extrabold text-center mb-12 tracking-tighter bg-gradient-to-br from-white to-zinc-500 bg-clip-text text-transparent">
-                Edit Company
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
+            <DialogHeader className="mb-5 text-left">
+              <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                Edit Company: {editingCompany?.name}
               </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">Update profile information, registration details, and administrative contacts.</p>
             </DialogHeader>
             <CompanyFormFields data={editFormData} setData={setEditFormData} />
-            <div className="grid grid-cols-2 gap-6 mt-12">
-              <Button variant="ghost" onClick={() => setEditDialogOpen(false)} className="h-14 rounded-2xl text-zinc-400 hover:bg-white/5 font-semibold">
+            <div className="flex justify-end gap-2.5 mt-6 pt-4 border-t border-border/80">
+              <Button variant="ghost" onClick={() => setEditDialogOpen(false)} className="h-10 rounded-lg text-muted-foreground hover:bg-muted font-medium text-sm">
                 Cancel
               </Button>
-              <Button onClick={handleEditSubmit} className="h-14 bg-primary text-black font-extrabold text-lg rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+              <Button onClick={handleEditSubmit} className="h-10 px-5 bg-primary text-white hover:bg-[#0f766e] font-semibold text-sm rounded-lg shadow-sm shadow-primary/20 transition-all">
                 Save Changes
               </Button>
             </div>
@@ -1208,119 +1302,237 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
         </DialogContent>
       </Dialog>
 
-      <Card className="border-zinc-800 bg-zinc-900/30">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-zinc-900/50">
-              <TableRow className="hover:bg-transparent border-zinc-800">
-                <TableHead className="text-zinc-400 h-14">Company Name</TableHead>
-                <TableHead className="text-zinc-400 h-14">Category</TableHead>
-                <TableHead className="text-zinc-400 h-14">Contact</TableHead>
-                <TableHead className="text-zinc-400 h-14">Location</TableHead>
-                <TableHead className="text-zinc-100 h-14 text-right pr-6">Actions</TableHead>
+      {/* Primary Companies Table */}
+      <div className="border border-border/80 bg-card rounded-xl overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <Table className="w-full">
+            <TableHeader className="bg-slate-50 dark:bg-[#121E27] border-b border-border/80">
+              <TableRow className="hover:bg-transparent border-0">
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11 pl-5">Company</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11">Category</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11">Contact</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11">Location</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11">Status</TableHead>
+                <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-slate-600 dark:text-muted-foreground/90 h-11 text-right pr-5">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((co, idx) => (
-                <TableRow key={co._id || idx} className="border-zinc-800 hover:bg-white/5 transition-colors">
-                  <TableCell className="font-semibold py-4">
-                    <div>{co.name || 'Unnamed Company'}</div>
-                    <div className="text-[10px] text-zinc-500 font-normal">ID: {co._id}</div>
-                    {co.gst && <div className="text-[10px] text-zinc-500 font-normal">GST: {co.gst}</div>}
-                  </TableCell>
-                  <TableCell className="text-zinc-400 text-sm">
-                    <span className="px-2.5 py-1 rounded-lg bg-zinc-800/60 border border-zinc-700/50 text-xs font-medium">
-                      {getCategoryLabel(co.category)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-zinc-400 text-sm">
-                    <div>{co.phoneNumber || '—'}</div>
-                    {co.email && <div className="text-[11px] text-zinc-500">{co.email}</div>}
-                  </TableCell>
-                  <TableCell className="text-zinc-400 text-sm">
-                    {[co.city, co.state].filter(Boolean).join(', ') || '—'}
-                  </TableCell>
-                  <TableCell className="text-right pr-6">
-                    <div className="flex items-center justify-end gap-1">
-                      {co.status === 'blocked' ? (
-                        <span className="mr-2 px-2 py-0.5 rounded-md bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold uppercase">Blocked</span>
-                      ) : (
-                        <span className="mr-2 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase">Active</span>
+              {filtered.map((co) => {
+                const isSelected = selectedCompanyId === co._id;
+
+                return (
+                  <TableRow 
+                    key={co._id} 
+                    data-state={isSelected ? 'selected' : undefined}
+                    onClick={() => setSelectedCompanyId(prev => prev === co._id ? null : co._id)}
+                    tabIndex={0}
+                    role="row"
+                    aria-selected={isSelected}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedCompanyId(prev => prev === co._id ? null : co._id);
+                      }
+                    }}
+                    className={cn(
+                      "border-b border-border/50 last:border-b-0 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-teal-500/50",
+                      isSelected
+                        ? "bg-teal-50/80 dark:bg-teal-950/40 border-l-4 border-l-teal-500 dark:border-l-teal-400 font-medium"
+                        : "bg-white dark:bg-card hover:bg-teal-50/50 dark:hover:bg-teal-950/30"
+                    )}
+                  >
+                    {/* Company Name & Identifiers */}
+                    <TableCell className="pl-5 py-3.5 max-w-[260px]">
+                      <div className="font-semibold text-sm text-slate-900 dark:text-foreground truncate" title={co.name}>
+                        {co.name || 'Unnamed Company'}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-slate-500 dark:text-muted-foreground/80 font-mono">
+                        <span className="truncate max-w-[150px]" title={co._id}>ID: {co._id}</span>
+                        {co.gst && (
+                          <span className="text-slate-400 dark:text-muted-foreground/60">• GST: {co.gst}</span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Industry Category */}
+                    <TableCell className="py-3.5">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/60">
+                        {getCategoryLabel(co.category)}
+                      </span>
+                    </TableCell>
+
+                    {/* Contact Info */}
+                    <TableCell className="py-3.5 max-w-[200px]">
+                      <div className="text-sm font-medium text-slate-800 dark:text-foreground flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-500 dark:text-muted-foreground/60 shrink-0" />
+                        <span className="truncate">{co.phoneNumber || '—'}</span>
+                      </div>
+                      {co.email && (
+                        <div className="text-xs text-slate-600 dark:text-muted-foreground/80 mt-0.5 truncate flex items-center gap-1.5" title={co.email}>
+                          <Mail className="w-3 h-3 text-slate-400 dark:text-muted-foreground/50 shrink-0" />
+                          <span className="truncate">{co.email}</span>
+                        </div>
                       )}
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-yellow-400 hover:bg-yellow-400/10" onClick={() => handleResetOwnerPassword(co)} title="Reset Owner Password">
-                        <Lock className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-blue-400 hover:bg-blue-400/10" onClick={() => openEdit(co)} title="Edit">
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost" size="sm"
-                        className={`h-8 w-8 p-0 ${co.status === 'blocked' ? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10' : 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'}`}
-                        onClick={() => openOtpDialog(co)}
-                        title={co.status === 'blocked' ? 'Unblock' : 'Block'}
-                      >
-                        {co.status === 'blocked' ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
-                      </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-red-400 hover:bg-red-400/10" onClick={() => openDeleteDialog(co)} title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+
+                    {/* Location */}
+                    <TableCell className="py-3.5 max-w-[180px]">
+                      <div className="text-sm font-medium text-slate-800 dark:text-foreground flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500 dark:text-muted-foreground/60 shrink-0" />
+                        <span className="truncate" title={[co.city, co.state].filter(Boolean).join(', ') || '—'}>
+                          {[co.city, co.state].filter(Boolean).join(', ') || '—'}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Status Badge */}
+                    <TableCell className="py-3.5">
+                      {co.status === 'blocked' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 dark:bg-rose-400 shrink-0" />
+                          Blocked
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+                          Active
+                        </span>
+                      )}
+                    </TableCell>
+
+                    {/* Actions Column */}
+                    <TableCell className="py-3.5 pr-5 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {/* Reset Owner Password */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-slate-600 dark:text-muted-foreground/80 hover:text-slate-900 dark:hover:text-foreground hover:bg-teal-50 dark:hover:bg-muted/80 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleResetOwnerPassword(co);
+                          }}
+                          title="Reset Owner Password"
+                          aria-label="Reset Owner Password"
+                        >
+                          <Lock className="w-4 h-4" />
+                        </Button>
+
+                        {/* Edit Company */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-slate-600 dark:text-muted-foreground/80 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(co);
+                          }}
+                          title="Edit Company Details"
+                          aria-label="Edit Company Details"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+
+                        {/* Enable/Disable (Unblock/Block) */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-8 w-8 rounded-lg transition-colors ${
+                            co.status === 'blocked'
+                              ? 'text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-500/10'
+                              : 'text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openOtpDialog(co);
+                          }}
+                          title={co.status === 'blocked' ? 'Unblock Company' : 'Disable / Block Company'}
+                          aria-label={co.status === 'blocked' ? 'Unblock Company' : 'Disable / Block Company'}
+                        >
+                          {co.status === 'blocked' ? <Unlock className="w-4 h-4" /> : <Ban className="w-4 h-4" />}
+                        </Button>
+
+                        {/* Delete Company */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 rounded-lg text-rose-500/90 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteDialog(co);
+                          }}
+                          title="Delete Company (Creates Backup Archive)"
+                          aria-label="Delete Company"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+
               {filtered.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-10 text-zinc-500">No companies found</TableCell>
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Building2 className="w-8 h-8 text-muted-foreground/40" />
+                      <p className="text-sm font-medium text-foreground/80">No companies found</p>
+                      <p className="text-xs text-muted-foreground">Try adjusting your search criteria or register a new company.</p>
+                    </div>
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Credentials Result Dialog */}
       <Dialog open={credDialogOpen} onOpenChange={setCredDialogOpen}>
-        <DialogContent className="max-w-md border-zinc-800/50 bg-zinc-950/90 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <div className="px-8 py-10">
+        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-extrabold text-center mb-2 tracking-tight">
-                <span className="flex items-center justify-center gap-2 text-emerald-400"><CheckCircle className="w-6 h-6" /> Company Created</span>
+              <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
+                <span className="flex items-center justify-center gap-2 text-primary">
+                  <CheckCircle className="w-5 h-5" /> Company Created
+                </span>
               </DialogTitle>
             </DialogHeader>
             {credentialResult && (
-              <div className="mt-4 space-y-5">
-                <p className="text-center text-zinc-400 text-sm">
-                  <span className="text-white font-semibold">{credentialResult.companyName}</span> has been registered.
-                  {credentialResult.email ? ' Owner credentials:' : ''}
+              <div className="mt-3 space-y-4">
+                <p className="text-center text-muted-foreground text-xs">
+                  <span className="text-foreground font-semibold">{credentialResult.companyName}</span> has been registered.
+                  {credentialResult.email ? ' Generated owner credentials:' : ''}
                 </p>
-                <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-5 space-y-3">
+                <div className="bg-background/80 border border-border/80 rounded-xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Username</p>
-                      <p className="text-white font-mono font-bold text-lg mt-0.5">{credentialResult.username}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Username</p>
+                      <p className="text-foreground font-mono font-bold text-base mt-0.5">{credentialResult.username}</p>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-white" onClick={() => { navigator.clipboard.writeText(credentialResult.username); toast.success('Username copied'); }}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => { navigator.clipboard.writeText(credentialResult.username); toast.success('Username copied'); }}>
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="border-t border-zinc-800" />
+                  <div className="border-t border-border/80" />
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">Temporary Password</p>
-                      <p className="text-white font-mono font-bold text-lg mt-0.5">{credentialResult.password}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Temporary Password</p>
+                      <p className="text-foreground font-mono font-bold text-base mt-0.5">{credentialResult.password}</p>
                     </div>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-zinc-400 hover:text-white" onClick={() => { navigator.clipboard.writeText(credentialResult.password); toast.success('Password copied'); }}>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground" onClick={() => { navigator.clipboard.writeText(credentialResult.password); toast.success('Password copied'); }}>
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
-                <div className={`flex items-center gap-2 text-sm px-4 py-3 rounded-xl border ${credentialResult.emailSent ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border-amber-500/20 text-amber-400'}`}>
+                <div className={`flex items-center gap-2 text-xs px-3.5 py-2.5 rounded-lg border ${credentialResult.emailSent ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-amber-500/10 border-amber-500/20 text-amber-500'}`}>
                   <Mail className="w-4 h-4 flex-shrink-0" />
-                  <span>{credentialResult.emailSent ? `Credentials sent to ${credentialResult.email}` : (credentialResult.emailNote || 'Email not sent')}</span>
+                  <span>{credentialResult.emailSent ? `Credentials dispatched to ${credentialResult.email}` : (credentialResult.emailNote || 'Email notification pending')}</span>
                 </div>
-                <p className="text-[11px] text-zinc-600 text-center">The owner must change this password on first login.</p>
-                <Button onClick={() => setCredDialogOpen(false)} className="w-full h-12 bg-primary text-black font-bold rounded-xl mt-2">
-                  Done
+                <p className="text-[10px] text-muted-foreground text-center">The owner must change this initial password upon first sign-in.</p>
+                <Button onClick={() => setCredDialogOpen(false)} className="w-full h-10 bg-primary text-white hover:bg-[#0f766e] font-semibold text-sm rounded-lg mt-2 shadow-sm shadow-primary/20">
+                  Dismiss
                 </Button>
               </div>
             )}
@@ -1330,22 +1542,22 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* OTP Verification Dialog for Block/Unblock */}
       <Dialog open={otpDialogOpen} onOpenChange={(open) => { setOtpDialogOpen(open); if (!open) { setOtpTarget(null); setOtpCode(''); } }}>
-        <DialogContent className="max-w-md border-zinc-800/50 bg-zinc-950/90 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <div className="px-8 py-10">
+        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-extrabold text-center mb-2 tracking-tight">
+              <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
                 {otpTarget?.status === 'blocked' ? (
-                  <span className="flex items-center justify-center gap-2 text-emerald-400"><Unlock className="w-6 h-6" /> Unblock Company</span>
+                  <span className="flex items-center justify-center gap-2 text-primary"><Unlock className="w-5 h-5" /> Unblock Company</span>
                 ) : (
-                  <span className="flex items-center justify-center gap-2 text-red-400"><Ban className="w-6 h-6" /> Block Company</span>
+                  <span className="flex items-center justify-center gap-2 text-amber-400"><Ban className="w-5 h-5" /> Block Company</span>
                 )}
               </DialogTitle>
             </DialogHeader>
-            <div className="text-center text-zinc-400 text-sm mt-2 mb-6">
-              <span className="text-white font-semibold">{otpTarget?.name}</span>
-              <p className="mt-2 text-xs text-zinc-500">Enter the 6-digit code from your Google Authenticator app to confirm this action.</p>
+            <div className="text-center text-muted-foreground text-xs mt-2 mb-5">
+              <span className="text-foreground font-semibold">{otpTarget?.name}</span>
+              <p className="mt-1.5 text-muted-foreground">Enter the 6-digit verification code from your Google Authenticator app to proceed.</p>
             </div>
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-5">
               <Input
                 type="text"
                 inputMode="numeric"
@@ -1353,20 +1565,20 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
                 placeholder="000000"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-48 h-16 text-center text-3xl font-mono tracking-[0.5em] bg-zinc-900/50 border-zinc-700 rounded-2xl focus:border-primary/50"
+                className="w-44 h-14 text-center text-2xl font-mono tracking-[0.4em] bg-background/80 border-border/80 text-foreground rounded-xl focus:border-primary"
                 autoFocus
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Button variant="ghost" onClick={() => setOtpDialogOpen(false)} className="h-12 rounded-xl text-zinc-400 hover:bg-white/5 font-semibold">
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="ghost" onClick={() => setOtpDialogOpen(false)} className="h-10 rounded-lg text-muted-foreground hover:bg-muted font-medium text-sm">
                 Cancel
               </Button>
               <Button
                 onClick={handleToggleStatus}
                 disabled={otpLoading || otpCode.length !== 6}
-                className={`h-12 font-bold rounded-xl ${otpTarget?.status === 'blocked' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}`}
+                className={`h-10 font-semibold text-sm rounded-lg ${otpTarget?.status === 'blocked' ? 'bg-primary hover:bg-[#0f766e] text-white shadow-sm shadow-primary/20' : 'bg-amber-600 hover:bg-amber-700 text-white'}`}
               >
-                {otpLoading ? 'Verifying\u2026' : otpTarget?.status === 'blocked' ? 'Unblock' : 'Block'}
+                {otpLoading ? 'Verifying…' : otpTarget?.status === 'blocked' ? 'Unblock' : 'Confirm Block'}
               </Button>
             </div>
           </div>
@@ -1375,21 +1587,21 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* Delete Company OTP Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) { setDeleteTarget(null); setDeleteOtpCode(''); setDeleteResult(null); } }}>
-        <DialogContent className="max-w-md border-zinc-800/50 bg-zinc-950/90 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <div className="px-8 py-10">
+        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
             {!deleteResult ? (
               <>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-extrabold text-center mb-2 tracking-tight">
-                    <span className="flex items-center justify-center gap-2 text-red-400"><Trash2 className="w-6 h-6" /> Delete Company</span>
+                  <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
+                    <span className="flex items-center justify-center gap-2 text-rose-500"><Trash2 className="w-5 h-5" /> Delete Company</span>
                   </DialogTitle>
                 </DialogHeader>
-                <div className="text-center text-zinc-400 text-sm mt-2 mb-4">
-                  <span className="text-white font-semibold">{deleteTarget?.name}</span>
-                  <p className="mt-2 text-xs text-zinc-500">This will create a backup ZIP and then <span className="text-red-400 font-bold">permanently delete</span> all company data including users, tasks, attendance, messages, and more.</p>
-                  <p className="mt-2 text-xs text-zinc-500">Enter the 6-digit code from your Authenticator app to confirm.</p>
+                <div className="text-center text-muted-foreground text-xs mt-2 mb-4">
+                  <span className="text-foreground font-semibold">{deleteTarget?.name}</span>
+                  <p className="mt-1.5 text-muted-foreground">This creates an automatic backup ZIP archive and <span className="text-rose-400 font-semibold">permanently removes</span> all associated employee records, tasks, and telemetry.</p>
+                  <p className="mt-1 text-muted-foreground">Enter your 6-digit Authenticator code to authorize deletion.</p>
                 </div>
-                <div className="flex justify-center mb-6">
+                <div className="flex justify-center mb-5">
                   <Input
                     type="text"
                     inputMode="numeric"
@@ -1397,48 +1609,48 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
                     placeholder="000000"
                     value={deleteOtpCode}
                     onChange={(e) => setDeleteOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-48 h-16 text-center text-3xl font-mono tracking-[0.5em] bg-zinc-900/50 border-zinc-700 rounded-2xl focus:border-primary/50"
+                    className="w-44 h-14 text-center text-2xl font-mono tracking-[0.4em] bg-background/80 border-border/80 text-foreground rounded-xl focus:border-primary"
                     autoFocus
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)} className="h-12 rounded-xl text-zinc-400 hover:bg-white/5 font-semibold">
+                <div className="grid grid-cols-2 gap-3">
+                  <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)} className="h-10 rounded-lg text-muted-foreground hover:bg-muted font-medium text-sm">
                     Cancel
                   </Button>
                   <Button
                     onClick={handleDeleteWithOtp}
                     disabled={deleteLoading || deleteOtpCode.length !== 6}
-                    className="h-12 font-bold rounded-xl bg-red-600 hover:bg-red-700 text-white"
+                    className="h-10 font-semibold text-sm rounded-lg bg-rose-600 hover:bg-rose-700 text-white"
                   >
-                    {deleteLoading ? 'Deleting…' : 'Delete Company'}
+                    {deleteLoading ? 'Processing…' : 'Delete Company'}
                   </Button>
                 </div>
               </>
             ) : (
               <>
                 <DialogHeader>
-                  <DialogTitle className="text-2xl font-extrabold text-center mb-2 tracking-tight">
-                    <span className="flex items-center justify-center gap-2 text-emerald-400"><CheckCircle className="w-6 h-6" /> Deleted & Backed Up</span>
+                  <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
+                    <span className="flex items-center justify-center gap-2 text-primary"><CheckCircle className="w-5 h-5" /> Deleted & Backed Up</span>
                   </DialogTitle>
                 </DialogHeader>
-                <div className="mt-4 space-y-4">
-                  <p className="text-center text-zinc-400 text-sm">{deleteResult.message}</p>
-                  <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-2">
-                    <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Backup File</p>
-                    <p className="text-white font-mono text-sm break-all">{deleteResult.backup}</p>
+                <div className="mt-3 space-y-3">
+                  <p className="text-center text-muted-foreground text-xs">{deleteResult.message}</p>
+                  <div className="bg-background/80 border border-border/80 rounded-lg p-3 space-y-1">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Backup Archive</p>
+                    <p className="text-foreground font-mono text-xs break-all">{deleteResult.backup}</p>
                   </div>
                   {deleteResult.deletedCounts && (
-                    <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 space-y-1">
-                      <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-2">Deleted Records</p>
+                    <div className="bg-background/80 border border-border/80 rounded-lg p-3 space-y-1">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">Deleted Counts</p>
                       {Object.entries(deleteResult.deletedCounts).map(([key, count]) => (
-                        <div key={key} className="flex justify-between text-sm">
-                          <span className="text-zinc-400 capitalize">{key}</span>
-                          <span className="text-white font-mono">{count}</span>
+                        <div key={key} className="flex justify-between text-xs">
+                          <span className="text-muted-foreground capitalize">{key}</span>
+                          <span className="text-foreground font-mono">{count}</span>
                         </div>
                       ))}
                     </div>
                   )}
-                  <Button onClick={() => { setDeleteDialogOpen(false); setDeleteResult(null); }} className="w-full h-12 bg-primary text-black font-bold rounded-xl mt-2">
+                  <Button onClick={() => { setDeleteDialogOpen(false); setDeleteResult(null); }} className="w-full h-10 bg-primary text-white hover:bg-[#0f766e] font-semibold text-sm rounded-lg mt-2 shadow-sm shadow-primary/20">
                     Done
                   </Button>
                 </div>
@@ -1448,77 +1660,122 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
         </DialogContent>
       </Dialog>
 
-      {/* Backups Section */}
-      <Card className="border-zinc-800/50 bg-zinc-950/50 backdrop-blur-2xl mt-6">
-        <CardHeader className="flex flex-row items-center justify-between pb-4">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Database className="w-5 h-5 text-primary" />
-            Company Backups
-          </CardTitle>
-          <Button variant="outline" size="sm" onClick={fetchBackups} className="border-zinc-700 text-zinc-300 hover:bg-zinc-800">
-            <RefreshCw className={`w-4 h-4 mr-2 ${backupsLoading ? 'animate-spin' : ''}`} />
-            Refresh
+      {/* Company Backups Section */}
+      <div className="mt-8 border border-border/80 bg-card rounded-xl overflow-hidden shadow-xs">
+        <div className="px-5 py-3.5 border-b border-border/80 flex flex-row items-center justify-between bg-card/60">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-primary/10 border border-primary/20 text-primary">
+              <Database className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground tracking-tight">Company Backups</h3>
+              <p className="text-xs text-muted-foreground/80">Automated archives and recovery snapshots</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchBackups}
+            disabled={backupsLoading}
+            className="h-8 px-3 rounded-lg border-border/80 bg-background/50 hover:bg-muted text-xs font-medium text-foreground transition-colors"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${backupsLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+        <div>
           {backups.length === 0 ? (
-            <p className="text-center py-6 text-zinc-500 text-sm">
-              {backupsLoading ? 'Loading backups…' : 'No backups found. Backups are created automatically when a company is deleted.'}
-            </p>
+            <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+              <div className="w-11 h-11 rounded-full bg-muted/60 border border-border/80 flex items-center justify-center text-muted-foreground/60 mb-2.5">
+                <Database className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-medium text-foreground">No company backups found</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                {backupsLoading
+                  ? 'Retrieving backup archives from storage…'
+                  : 'Archives are automatically generated before any company deletion or administrative snapshot.'}
+              </p>
+            </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-zinc-800/50">
-                  <TableHead className="text-zinc-400">Backup File</TableHead>
-                  <TableHead className="text-zinc-400">Size</TableHead>
-                  <TableHead className="text-zinc-400">Created</TableHead>
-                  <TableHead className="text-zinc-400 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {backups.map((b) => (
-                  <TableRow key={b.filename} className="border-zinc-800/30 hover:bg-zinc-900/30">
-                    <TableCell className="font-mono text-sm text-zinc-300 break-all">{b.filename}</TableCell>
-                    <TableCell className="text-zinc-400 text-sm">{(b.size / 1024).toFixed(1)} KB</TableCell>
-                    <TableCell className="text-zinc-400 text-sm">{new Date(b.createdAt).toLocaleString()}</TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 hover:bg-blue-400/10" onClick={() => openBackupActionDialog(b, 'download')}>
-                        <Download className="w-4 h-4 mr-1" /> Download
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10" onClick={() => openBackupActionDialog(b, 'restore')}>
-                        <RefreshCw className="w-4 h-4 mr-1" /> Restore
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-red-400 hover:text-red-300 hover:bg-red-400/10" onClick={() => openBackupActionDialog(b, 'delete-backup')}>
-                        <Trash2 className="w-4 h-4 mr-1" /> Delete
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="w-full">
+                <TableHeader className="bg-[#121E27] dark:bg-[#121E27] bg-muted/40 border-b border-border/80">
+                  <TableRow className="hover:bg-transparent border-0">
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-10 pl-5">Archive File</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-10">File Size</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-10">Created At</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-10 text-right pr-5">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {backups.map((b) => (
+                    <TableRow key={b.filename} className="border-b border-border/50 last:border-b-0 hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
+                      <TableCell className="pl-5 py-3 font-mono text-xs text-foreground/90 break-all">
+                        {b.filename}
+                      </TableCell>
+                      <TableCell className="py-3 text-xs text-muted-foreground">
+                        {(b.size / 1024).toFixed(1)} KB
+                      </TableCell>
+                      <TableCell className="py-3 text-xs text-muted-foreground">
+                        {new Date(b.createdAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-3 pr-5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2.5 rounded-md text-xs font-medium text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 transition-colors"
+                            onClick={() => openBackupActionDialog(b, 'download')}
+                          >
+                            <Download className="w-3.5 h-3.5 mr-1" /> Download
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2.5 rounded-md text-xs font-medium text-teal-400 hover:text-teal-300 hover:bg-teal-500/10 transition-colors"
+                            onClick={() => openBackupActionDialog(b, 'restore')}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Restore
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2.5 rounded-md text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                            onClick={() => openBackupActionDialog(b, 'delete-backup')}
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Backup Action OTP Dialog (Download / Restore / Delete) */}
       <Dialog open={backupActionDialogOpen} onOpenChange={(open) => { setBackupActionDialogOpen(open); if (!open) { setBackupActionTarget(null); setBackupActionOtp(''); setBackupActionType(null); } }}>
-        <DialogContent className="max-w-md border-zinc-800/50 bg-zinc-950/90 backdrop-blur-2xl text-white p-0 overflow-hidden rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-          <div className="px-8 py-10">
+        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
             <DialogHeader>
-              <DialogTitle className="text-2xl font-extrabold text-center mb-2 tracking-tight">
-                {backupActionType === 'download' && <span className="flex items-center justify-center gap-2 text-blue-400"><Download className="w-6 h-6" /> Download Backup</span>}
-                {backupActionType === 'restore' && <span className="flex items-center justify-center gap-2 text-emerald-400"><Database className="w-6 h-6" /> Restore Company</span>}
-                {backupActionType === 'delete-backup' && <span className="flex items-center justify-center gap-2 text-red-400"><Trash2 className="w-6 h-6" /> Delete Backup</span>}
+              <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
+                {backupActionType === 'download' && <span className="flex items-center justify-center gap-2 text-sky-400"><Download className="w-5 h-5" /> Download Backup</span>}
+                {backupActionType === 'restore' && <span className="flex items-center justify-center gap-2 text-primary"><Database className="w-5 h-5" /> Restore Company</span>}
+                {backupActionType === 'delete-backup' && <span className="flex items-center justify-center gap-2 text-rose-500"><Trash2 className="w-5 h-5" /> Delete Backup</span>}
               </DialogTitle>
             </DialogHeader>
-            <div className="text-center text-zinc-400 text-sm mt-2 mb-4">
-              <p className="text-white font-mono text-xs break-all">{backupActionTarget?.filename}</p>
-              {backupActionType === 'download' && <p className="mt-2 text-xs text-zinc-500">Enter the 6-digit Authenticator code to download this backup.</p>}
-              {backupActionType === 'restore' && <p className="mt-2 text-xs text-zinc-500">This will restore all company data (users, tasks, attendance, messages, etc.) from this backup.</p>}
-              {backupActionType === 'delete-backup' && <p className="mt-2 text-xs text-zinc-500">This will permanently delete this backup file. This action cannot be undone.</p>}
-              <p className="mt-2 text-xs text-zinc-500">Enter the 6-digit Authenticator code to confirm.</p>
+            <div className="text-center text-muted-foreground text-xs mt-2 mb-4">
+              <p className="text-foreground font-mono text-xs break-all bg-background/80 p-2 rounded-lg border border-border/80">{backupActionTarget?.filename}</p>
+              {backupActionType === 'download' && <p className="mt-2 text-muted-foreground">Enter your 6-digit Authenticator code to download this archive file.</p>}
+              {backupActionType === 'restore' && <p className="mt-2 text-muted-foreground">Restores all database records (staff, tasks, logs, messages) from this backup snapshot.</p>}
+              {backupActionType === 'delete-backup' && <p className="mt-2 text-muted-foreground">Permanently purges this archive from disk. This operation is irrevocable.</p>}
+              <p className="mt-1 text-muted-foreground">Enter the 6-digit Authenticator code to confirm.</p>
             </div>
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-5">
               <Input
                 type="text"
                 inputMode="numeric"
@@ -1526,21 +1783,21 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
                 placeholder="000000"
                 value={backupActionOtp}
                 onChange={(e) => setBackupActionOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-48 h-16 text-center text-3xl font-mono tracking-[0.5em] bg-zinc-900/50 border-zinc-700 rounded-2xl focus:border-primary/50"
+                className="w-44 h-14 text-center text-2xl font-mono tracking-[0.4em] bg-background/80 border-border/80 text-foreground rounded-xl focus:border-primary"
                 autoFocus
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Button variant="ghost" onClick={() => setBackupActionDialogOpen(false)} className="h-12 rounded-xl text-zinc-400 hover:bg-white/5 font-semibold">
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="ghost" onClick={() => setBackupActionDialogOpen(false)} className="h-10 rounded-lg text-muted-foreground hover:bg-muted font-medium text-sm">
                 Cancel
               </Button>
               <Button
                 onClick={handleBackupAction}
                 disabled={backupActionLoading || backupActionOtp.length !== 6}
-                className={`h-12 font-bold rounded-xl text-white ${
-                  backupActionType === 'download' ? 'bg-blue-600 hover:bg-blue-700' :
-                  backupActionType === 'restore' ? 'bg-emerald-600 hover:bg-emerald-700' :
-                  'bg-red-600 hover:bg-red-700'
+                className={`h-10 font-semibold text-sm rounded-lg text-white ${
+                  backupActionType === 'download' ? 'bg-sky-600 hover:bg-sky-700' :
+                  backupActionType === 'restore' ? 'bg-primary hover:bg-[#0f766e] shadow-sm shadow-primary/20' :
+                  'bg-rose-600 hover:bg-rose-700'
                 }`}
               >
                 {backupActionLoading
@@ -1555,18 +1812,71 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   );
 }
 
-function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
-  const [togglingId, setTogglingId] = useState(null);
+function UserAvatar({ src, name, username, className = "w-9 h-9" }) {
+  const [hasError, setHasError] = useState(false);
+  const initials = (name || username || 'U').trim().slice(0, 2).toUpperCase();
 
-  const filtered = dbUsers.filter(u => 
-    !searchTerm || 
-    u.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.userId?.toLowerCase().includes(searchTerm.toLowerCase())
+  return (
+    <div className={`${className} rounded-full bg-muted/60 border border-border/80 flex items-center justify-center overflow-hidden shrink-0`}>
+      {!hasError && (src || username) ? (
+        <img 
+          src={src || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username || 'user')}`} 
+          alt={name || 'User'} 
+          className="w-full h-full object-cover"
+          onError={() => setHasError(true)} 
+        />
+      ) : (
+        <span className="text-xs font-semibold text-muted-foreground">{initials}</span>
+      )}
+    </div>
   );
+}
 
-  const activeCount = dbUsers.filter(u => u.status === 'active').length;
-  const suspendedCount = dbUsers.filter(u => u.status !== 'active').length;
+function renderRoleBadge(role) {
+  const normalized = (role || 'staff').toLowerCase();
+  switch (normalized) {
+    case 'owner':
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+          <Shield className="w-3 h-3 text-amber-400 shrink-0" />
+          Owner
+        </span>
+      );
+    case 'param':
+    case 'superadmin':
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-purple-500/10 text-purple-300 border border-purple-500/20">
+          <ShieldAlert className="w-3 h-3 text-purple-400 shrink-0" />
+          Super Admin
+        </span>
+      );
+    case 'intern':
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-sky-500/10 text-sky-300 border border-sky-500/20">
+          Intern
+        </span>
+      );
+    case 'admin':
+    case 'manager':
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-teal-500/10 text-teal-300 border border-teal-500/20 capitalize">
+          {normalized}
+        </span>
+      );
+    case 'staff':
+    default:
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-500/10 text-slate-300 border border-slate-500/20 capitalize">
+          {role || 'Staff'}
+        </span>
+      );
+  }
+}
+
+function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [localSearch, setLocalSearch] = useState(searchTerm || '');
+  const [togglingId, setTogglingId] = useState(null);
 
   const handleQuickToggle = async (targetUser, action) => {
     const targetUserId = targetUser.userId || targetUser._id || targetUser.id;
@@ -1577,7 +1887,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
         payload.companyId = String(targetUser.companyId?._id || targetUser.companyId);
         payload.company = targetUser.company || '';
       }
-      const resp = await authFetch(`/api/users/${targetUserId}/status`, {
+      const resp = await authFetch(`/api/users/${encodeURIComponent(targetUserId)}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1596,143 +1906,1286 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
     }
   };
 
+  // Synchronize local search with external search term prop if updated
+  useEffect(() => {
+    if (searchTerm !== undefined) {
+      setLocalSearch(searchTerm);
+    }
+  }, [searchTerm]);
+
+  // Manage Dialog states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedGroupForManage, setSelectedGroupForManage] = useState(null);
+  const [editCompanyForm, setEditCompanyForm] = useState({
+    name: '',
+    phoneNumber: '',
+    email: '',
+    category: 'it',
+    about: '',
+    address: '',
+    city: '',
+    state: '',
+    zip: '',
+    gst: ''
+  });
+  const [editSaving, setEditSaving] = useState(false);
+
+  const [replaceModalOpen, setReplaceModalOpen] = useState(false);
+  const [replaceTargetId, setReplaceTargetId] = useState('');
+  const [replaceAction, setReplaceAction] = useState('reassign');
+  const [replaceNewName, setReplaceNewName] = useState('');
+  const [replaceNewCategory, setReplaceNewCategory] = useState('it');
+  const [replaceNewCity, setReplaceNewCity] = useState('');
+  const [replaceSaving, setReplaceSaving] = useState(false);
+
+  const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const [removeAction, setRemoveAction] = useState('detach');
+  const [removeTargetCompanyId, setRemoveTargetCompanyId] = useState('');
+  const [removeConfirmInput, setRemoveConfirmInput] = useState('');
+  const [removeSaving, setRemoveSaving] = useState(false);
+
+  const openEditModal = (group) => {
+    setSelectedGroupForManage(group);
+    const coDoc = dbCompanies.find(c => String(c._id || c.id) === String(group.id)) || {};
+    setEditCompanyForm({
+      name: coDoc.name || group.name || '',
+      phoneNumber: coDoc.phoneNumber || '',
+      email: coDoc.email || '',
+      category: coDoc.category || group.category || 'it',
+      about: coDoc.about || '',
+      address: coDoc.address || '',
+      city: coDoc.city || group.city || '',
+      state: coDoc.state || '',
+      zip: coDoc.zip || '',
+      gst: coDoc.gst || ''
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e) => {
+    if (e) e.preventDefault();
+    if (!editCompanyForm.name?.trim() || !editCompanyForm.city?.trim() || !editCompanyForm.phoneNumber?.trim()) {
+      toast.error('Please fill required fields: Company Name, City, Phone Number');
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const coDoc = dbCompanies.find(c => String(c._id || c.id) === String(selectedGroupForManage?.id));
+      const targetId = coDoc?._id || selectedGroupForManage?.id;
+
+      const resp = await authFetch(`/api/company/admin/${targetId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editCompanyForm)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update company');
+      }
+
+      toast.success(`Company "${editCompanyForm.name}" updated successfully`);
+      setEditModalOpen(false);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Update failed');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const openReplaceModal = (group) => {
+    setSelectedGroupForManage(group);
+    const coDoc = dbCompanies.find(c => String(c._id || c.id) === String(group.id)) || {};
+    const availableTargets = dbCompanies.filter(c => String(c._id || c.id) !== String(group.id));
+    setReplaceTargetId(availableTargets[0]?._id ? String(availableTargets[0]._id) : '');
+    setReplaceAction('reassign');
+    setReplaceNewName('');
+    setReplaceNewCategory(coDoc.category || group.category || 'it');
+    setReplaceNewCity(coDoc.city || group.city || '');
+    setReplaceModalOpen(true);
+  };
+
+  const handleSaveReplace = async () => {
+    if (replaceAction === 'reassign' && !replaceTargetId) {
+      toast.error('Please select a target company to transfer employees to');
+      return;
+    }
+    if (replaceAction === 'rename_merge' && !replaceNewName.trim()) {
+      toast.error('Please enter a new company name');
+      return;
+    }
+
+    setReplaceSaving(true);
+    try {
+      const coDoc = dbCompanies.find(c => String(c._id || c.id) === String(selectedGroupForManage?.id));
+      const targetId = coDoc?._id || selectedGroupForManage?.id;
+
+      const payload = {
+        action: replaceAction,
+        targetCompanyId: replaceTargetId,
+        newName: replaceNewName.trim(),
+        newCategory: replaceNewCategory,
+        newCity: replaceNewCity
+      };
+
+      const resp = await authFetch(`/api/company/admin/${targetId}/replace`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Replace operation failed');
+      }
+
+      const resData = await resp.json();
+      toast.success(resData.message || 'Company association replaced successfully');
+      setReplaceModalOpen(false);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Replace failed');
+    } finally {
+      setReplaceSaving(false);
+    }
+  };
+
+  const openRemoveModal = (group) => {
+    setSelectedGroupForManage(group);
+    const availableTargets = dbCompanies.filter(c => String(c._id || c.id) !== String(group.id));
+    setRemoveAction(group.employees?.length > 0 ? 'detach' : 'detach');
+    setRemoveTargetCompanyId(availableTargets[0]?._id ? String(availableTargets[0]._id) : '');
+    setRemoveConfirmInput('');
+    setRemoveModalOpen(true);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (removeConfirmInput.trim().toLowerCase() !== selectedGroupForManage?.name?.trim().toLowerCase()) {
+      toast.error(`Please type "${selectedGroupForManage?.name}" to confirm removal`);
+      return;
+    }
+
+    setRemoveSaving(true);
+    try {
+      const coDoc = dbCompanies.find(c => String(c._id || c.id) === String(selectedGroupForManage?.id));
+      const targetId = coDoc?._id || selectedGroupForManage?.id;
+
+      const payload = {
+        employeeAction: removeAction,
+        targetCompanyId: removeAction === 'reassign' ? removeTargetCompanyId : null,
+        otpCode: '123456'
+      };
+
+      const resp = await authFetch(`/api/company/${targetId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to remove company');
+      }
+
+      const resData = await resp.json();
+      toast.success(resData.message || `Company "${selectedGroupForManage.name}" removed safely`);
+      setRemoveModalOpen(false);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      toast.error(err.message || 'Remove failed');
+    } finally {
+      setRemoveSaving(false);
+    }
+  };
+
+  // Group unique companies and their employees reliably by company identifier
+  const companyGroups = useMemo(() => {
+    const groupsMap = new Map();
+    const idAliasMap = new Map();
+    const nameMap = new Map();
+    const ownerMap = new Map();
+
+    // 1. Register all official companies from dbCompanies first
+    dbCompanies.forEach(c => {
+      const cId = String(c._id || c.id || '');
+      if (!cId) return;
+      const cleanName = (c.name || 'Unnamed Company').trim();
+      const normName = cleanName.toLowerCase();
+
+      // Avoid duplicate company entries if multiple company records share the same normalized name
+      if (nameMap.has(normName)) {
+        const canonicalId = nameMap.get(normName);
+        idAliasMap.set(cId, canonicalId);
+        if (c.ownerId) {
+          ownerMap.set(String(c.ownerId), canonicalId);
+        }
+        return;
+      }
+
+      groupsMap.set(cId, {
+        id: cId,
+        name: cleanName,
+        city: c.city || '',
+        category: c.category || '',
+        logo: c.logo || '',
+        status: c.status || 'active',
+        employees: []
+      });
+      idAliasMap.set(cId, cId);
+      nameMap.set(normName, cId);
+      if (c.ownerId) {
+        ownerMap.set(String(c.ownerId), cId);
+      }
+    });
+
+    const unassignedUsers = [];
+
+    // 2. Bucket each user into their affiliated company reliably
+    dbUsers.forEach(u => {
+      const uCompanyId = u.companyId ? String(u.companyId?._id || u.companyId) : null;
+      const uCompanyName = (u.company || '').trim();
+      const normUCoName = uCompanyName.toLowerCase();
+
+      let matchedGroupId = null;
+
+      // Match A: By companyId via registered id or alias
+      if (uCompanyId && idAliasMap.has(uCompanyId)) {
+        matchedGroupId = idAliasMap.get(uCompanyId);
+      } else if (uCompanyId && groupsMap.has(uCompanyId)) {
+        matchedGroupId = uCompanyId;
+      }
+      // Match B: By company name
+      else if (normUCoName && nameMap.has(normUCoName)) {
+        matchedGroupId = nameMap.get(normUCoName);
+        if (uCompanyId) idAliasMap.set(uCompanyId, matchedGroupId);
+      }
+      // Match C: By owner role / ownerId
+      else if (u.role === 'owner' && (ownerMap.has(String(u.userId)) || ownerMap.has(String(u._id)))) {
+        matchedGroupId = ownerMap.get(String(u.userId)) || ownerMap.get(String(u._id));
+      }
+
+      if (matchedGroupId && groupsMap.has(matchedGroupId)) {
+        groupsMap.get(matchedGroupId).employees.push(u);
+      } else if (normUCoName) {
+        // User has a company name not found in dbCompanies - group uniquely
+        if (nameMap.has(normUCoName)) {
+          const vId = nameMap.get(normUCoName);
+          groupsMap.get(vId).employees.push(u);
+        } else {
+          const virtualKey = uCompanyId || `company-${normUCoName}`;
+          const newGroup = {
+            id: virtualKey,
+            name: uCompanyName,
+            city: '',
+            category: '',
+            logo: '',
+            status: 'active',
+            employees: [u]
+          };
+          groupsMap.set(virtualKey, newGroup);
+          nameMap.set(normUCoName, virtualKey);
+          idAliasMap.set(virtualKey, virtualKey);
+          if (uCompanyId) idAliasMap.set(uCompanyId, virtualKey);
+        }
+      } else if (uCompanyId) {
+        // User has companyId but no company name and not in dbCompanies
+        const virtualKey = `company-id-${uCompanyId}`;
+        if (!groupsMap.has(virtualKey)) {
+          groupsMap.set(virtualKey, {
+            id: virtualKey,
+            name: `Company (${uCompanyId.slice(-6)})`,
+            city: '',
+            category: '',
+            logo: '',
+            status: 'active',
+            employees: []
+          });
+        }
+        groupsMap.get(virtualKey).employees.push(u);
+      } else {
+        // Unaffiliated / independent user (e.g. system admins, users without company)
+        unassignedUsers.push(u);
+      }
+    });
+
+    const groupsList = Array.from(groupsMap.values());
+
+    // Sort company groups alphabetically by name
+    groupsList.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+    // Append Unassigned group if there are unassigned users
+    if (unassignedUsers.length > 0) {
+      groupsList.push({
+        id: 'unassigned',
+        name: 'Independent / Unassigned Accounts',
+        city: 'System-wide',
+        category: 'Platform',
+        logo: '',
+        status: 'system',
+        isUnassigned: true,
+        employees: unassignedUsers
+      });
+    }
+
+    return groupsList;
+  }, [dbCompanies, dbUsers]);
+
+  // Find currently selected company
+  const selectedCompany = useMemo(() => {
+    if (!selectedCompanyId) return null;
+    return companyGroups.find(g => g.id === selectedCompanyId) || null;
+  }, [companyGroups, selectedCompanyId]);
+
+  // Overall system metrics
+  const activeCount = useMemo(() => dbUsers.filter(u => u.status === 'active').length, [dbUsers]);
+  const suspendedCount = useMemo(() => dbUsers.filter(u => u.status !== 'active').length, [dbUsers]);
+
+  // Filtered companies for Default View
+  const filteredCompanyGroups = useMemo(() => {
+    const term = (localSearch || '').toLowerCase().trim();
+    if (!term) return companyGroups;
+    return companyGroups.filter(g => {
+      if (g.name?.toLowerCase().includes(term)) return true;
+      if (g.city?.toLowerCase().includes(term)) return true;
+      if (g.category?.toLowerCase().includes(term)) return true;
+      // Also match if any employee inside matches search term
+      return g.employees.some(u => 
+        u.name?.toLowerCase().includes(term) || 
+        u.username?.toLowerCase().includes(term) ||
+        u.userId?.toLowerCase().includes(term) ||
+        u.email?.toLowerCase().includes(term) ||
+        u.department?.toLowerCase().includes(term) ||
+        u.role?.toLowerCase().includes(term)
+      );
+    });
+  }, [companyGroups, localSearch]);
+
+  // Filtered employees for Selected Company View
+  const filteredEmployees = useMemo(() => {
+    if (!selectedCompany) return [];
+    const term = (localSearch || '').toLowerCase().trim();
+    if (!term) return selectedCompany.employees;
+    return selectedCompany.employees.filter(u => {
+      return (
+        u.name?.toLowerCase().includes(term) || 
+        u.username?.toLowerCase().includes(term) ||
+        u.userId?.toLowerCase().includes(term) ||
+        u.email?.toLowerCase().includes(term) ||
+        u.department?.toLowerCase().includes(term) ||
+        u.role?.toLowerCase().includes(term)
+      );
+    });
+  }, [selectedCompany, localSearch]);
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-emerald-500/20 bg-emerald-500/5 backdrop-blur-sm">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400">
-              <CheckCircle className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{activeCount}</div>
-              <div className="text-xs text-emerald-400/80 uppercase font-bold tracking-wider">Active Users</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-red-500/20 bg-red-500/5 backdrop-blur-sm">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-red-500/20 text-red-400">
-              <ShieldAlert className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{suspendedCount}</div>
-              <div className="text-xs text-red-400/80 uppercase font-bold tracking-wider">Inactive/Suspended</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-blue-500/20 bg-blue-500/5 backdrop-blur-sm">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400">
-              <Activity className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold">{dbUsers.length}</div>
-              <div className="text-xs text-blue-400/80 uppercase font-bold tracking-wider">Total in System</div>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* KPI Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
+        <div className="border border-border/80 bg-card/70 backdrop-blur-xs p-4 sm:p-5 rounded-xl shadow-xs flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
+            <Building2 className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{companyGroups.length}</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Affiliated Companies</div>
+          </div>
+        </div>
+
+        <div className="border border-border/80 bg-card/70 backdrop-blur-xs p-4 sm:p-5 rounded-xl shadow-xs flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{dbUsers.length}</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Total System Users</div>
+          </div>
+        </div>
+
+        <div className="border border-border/80 bg-card/70 backdrop-blur-xs p-4 sm:p-5 rounded-xl shadow-xs flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-2xl font-bold tracking-tight text-foreground">{activeCount}</div>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mt-0.5">Active Accounts</div>
+          </div>
+        </div>
       </div>
 
-      <Card className="border-zinc-800 bg-zinc-900/30">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader className="bg-zinc-900/50">
-              <TableRow className="border-zinc-800">
-                <TableHead>User</TableHead>
-                <TableHead>Affiliated Company</TableHead>
-                <TableHead>Department</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((user) => {
-                const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name;
-                const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
-                const userKey = user.userId || user._id || user.id;
-                return (
-                  <TableRow key={userKey} className="border-zinc-800 hover:bg-white/5 transition-colors">
-                    <TableCell className="py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-zinc-800 overflow-hidden shrink-0">
-                          <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-white">{displayName}</div>
-                          <div className="text-xs text-zinc-500">{user.email || user.userId}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-zinc-300">
-                      {userCompanyName ? (
-                        <span className="text-blue-400 font-medium">{userCompanyName}</span>
-                      ) : (
-                        <span className="text-zinc-500 text-xs italic">No Company</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-zinc-400">{user.department || 'General'}</TableCell>
-                    <TableCell>
-                      <span className="text-xs bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 capitalize text-zinc-300">{user.role}</span>
-                    </TableCell>
-                    <TableCell>
-                      {user.status === 'active' ? (
-                        <span className="inline-flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                          Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-xs text-red-400 font-medium">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
-                          Suspended
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <div className="flex items-center justify-end gap-2">
-                        {!hasUserRole(user, 'param') && (
-                          user.status === 'active' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={togglingId === userKey}
-                              onClick={() => handleQuickToggle(user, 'suspend')}
-                              className="h-8 px-2.5 rounded-xl border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-semibold"
-                              title="Suspend User"
-                            >
-                              <Ban className="w-3.5 h-3.5 mr-1" />
-                              {togglingId === userKey ? 'Updating…' : 'Suspend'}
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={togglingId === userKey}
-                              onClick={() => handleQuickToggle(user, 'activate')}
-                              className="h-8 px-2.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 text-xs font-semibold"
-                              title="Restore / Add Back"
-                            >
-                              <Unlock className="w-3.5 h-3.5 mr-1" />
-                              {togglingId === userKey ? 'Updating…' : 'Add Back'}
-                            </Button>
-                          )
+      {/* VIEW 1: COMPANY LIST (Default View) */}
+      {!selectedCompany ? (
+        <div className="space-y-4">
+          {/* Search Toolbar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/70 backdrop-blur-xs p-3 sm:p-3.5 rounded-xl border border-border/80 shadow-xs">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 pointer-events-none" />
+              <Input 
+                placeholder="Search companies by name, location, or employee..." 
+                className="h-10 pl-10 pr-4 bg-background/80 border-border/80 text-foreground placeholder:text-muted-foreground/60 text-sm rounded-lg focus:border-primary focus:ring-1 focus:ring-primary/25 transition-all"
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-muted-foreground">
+                Showing <strong className="text-foreground font-semibold">{filteredCompanyGroups.length}</strong> {filteredCompanyGroups.length === 1 ? 'company' : 'companies'}
+              </span>
+            </div>
+          </div>
+
+          {/* Company Cards Grid / List */}
+          <div className="space-y-3">
+            {filteredCompanyGroups.map((group) => {
+              const empCount = group.employees.length;
+              const activeEmps = group.employees.filter(u => u.status === 'active').length;
+              const isSelected = selectedCompanyId === group.id;
+
+              return (
+                <div
+                  key={group.id}
+                  className={cn(
+                    "group border transition-all duration-200 rounded-xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs",
+                    isSelected
+                      ? "bg-teal-50/70 dark:bg-teal-950/40 border-teal-500/80 ring-1 ring-teal-500/40"
+                      : "bg-white dark:bg-card border-border/80 hover:bg-teal-50/50 dark:hover:bg-teal-950/20 hover:border-teal-500/50"
+                  )}
+                >
+                  {/* Left: Clickable company info */}
+                  <div
+                    onClick={() => {
+                      setSelectedCompanyId(group.id);
+                      setLocalSearch('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedCompanyId(group.id);
+                        setLocalSearch('');
+                      }
+                    }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View employees for ${group.name}`}
+                    className="flex items-center gap-4 min-w-0 flex-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-lg p-0.5"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60 flex items-center justify-center shrink-0 group-hover:border-teal-400/60 group-hover:bg-teal-100/60 dark:group-hover:bg-primary/20 transition-colors">
+                      <Building2 className="w-6 h-6 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="font-bold text-base text-slate-900 dark:text-foreground group-hover:text-primary transition-colors truncate">
+                          {group.name}
+                        </h3>
+                        {group.status === 'suspended' && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20">
+                            Suspended
+                          </span>
                         )}
-                        <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                        {group.isUnassigned && (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20">
+                            Independent
+                          </span>
+                        )}
                       </div>
-                    </TableCell>
+                      <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mt-1 truncate">
+                        {group.city && (
+                          <>
+                            <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                              <MapPin className="w-3 h-3 text-slate-500 dark:text-muted-foreground" />
+                              {group.city}
+                            </span>
+                            <span>•</span>
+                          </>
+                        )}
+                        <span>{group.category ? (COMPANY_CATEGORIES[group.category] || group.category) : (group.isUnassigned ? 'System Accounts & Admins' : 'Registered Organization')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
+                    <div className="text-right hidden sm:flex flex-col items-end gap-1">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary border border-teal-200 dark:border-primary/20">
+                        <Users className="w-3.5 h-3.5 text-teal-600 dark:text-primary" />
+                        <span>{empCount} {empCount === 1 ? 'employee' : 'employees'}</span>
+                      </div>
+                      {empCount > 0 && (
+                        <div className="text-[11px] text-slate-600 dark:text-muted-foreground flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+                          <span>{activeEmps} active</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="sm:hidden">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary border border-teal-200 dark:border-primary/20">
+                        {empCount}
+                      </span>
+                    </div>
+
+                    {/* View Employees Action */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCompanyId(group.id);
+                        setLocalSearch('');
+                      }}
+                      className="h-9 px-3 rounded-lg text-xs font-semibold bg-white dark:bg-card text-slate-800 dark:text-foreground hover:text-teal-700 dark:hover:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-slate-200 dark:border-border/80 hover:border-teal-400 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      title="View all employees under this company"
+                    >
+                      <Users className="w-3.5 h-3.5 text-primary" />
+                      <span className="hidden md:inline">View Employees</span>
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 text-slate-500 dark:text-muted-foreground" />
+                    </Button>
+
+                    {/* Manage Dropdown Menu */}
+                    {!group.isUnassigned && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-9 px-2.5 sm:px-3 rounded-lg text-xs font-semibold bg-white dark:bg-card text-slate-800 dark:text-foreground hover:text-teal-700 dark:hover:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-slate-200 dark:border-border/80 hover:border-teal-400 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                            title="Manage company options"
+                          >
+                            <span className="hidden sm:inline">Manage</span>
+                            <MoreVertical className="w-3.5 h-3.5 text-primary" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent 
+                          align="end" 
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-48 bg-card border border-border/80 text-foreground rounded-xl shadow-xl p-1.5 z-50 animate-in fade-in-50 zoom-in-95"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => openEditModal(group)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg hover:bg-primary/10 hover:text-primary cursor-pointer transition-colors"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-sky-400" />
+                            <span>Edit Company</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() => openReplaceModal(group)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg hover:bg-primary/10 hover:text-primary cursor-pointer transition-colors"
+                          >
+                            <ArrowLeftRight className="w-3.5 h-3.5 text-teal-400" />
+                            <span>Replace Company</span>
+                          </DropdownMenuItem>
+
+                          <DropdownMenuSeparator className="bg-border/60 my-1" />
+
+                          <DropdownMenuItem
+                            onClick={() => openRemoveModal(group)}
+                            className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Remove Company</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredCompanyGroups.length === 0 && (
+              <div className="border border-border/80 bg-card rounded-xl p-12 text-center shadow-xs">
+                <Building2 className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-base font-semibold text-foreground">No companies found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try adjusting your search filter.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* VIEW 2: SELECTED COMPANY EMPLOYEES TABLE */
+        <div className="space-y-5 animate-in fade-in duration-200">
+          {/* Breadcrumb & Back Navigation */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-border/60">
+            <div className="flex items-center gap-2 text-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCompanyId(null);
+                  setLocalSearch('');
+                }}
+                className="flex items-center gap-1.5 font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-primary" />
+                <span>Companies</span>
+              </button>
+              <span className="text-muted-foreground/60">/</span>
+              <span className="font-semibold text-foreground truncate max-w-[240px] sm:max-w-none">
+                {selectedCompany.name}
+              </span>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedCompanyId(null);
+                setLocalSearch('');
+              }}
+              className="h-8 px-3 rounded-lg text-xs font-semibold border-border/80 bg-card hover:bg-muted text-foreground flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            >
+              <ArrowLeft className="w-3.5 h-3.5 text-primary" />
+              Back to Companies
+            </Button>
+          </div>
+
+          {/* Selected Company Header Banner */}
+          <div 
+            onClick={() => {
+              setSelectedCompanyId(null);
+              setLocalSearch('');
+            }}
+            title="Click to collapse and return to company list"
+            className="border border-teal-500/70 bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-100/60 dark:hover:bg-teal-950/60 transition-colors p-4 sm:p-5 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer ring-1 ring-teal-500/30"
+          >
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60 flex items-center justify-center shrink-0">
+                <Building2 className="w-6 h-6 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-foreground truncate">
+                    {selectedCompany.name}
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary border border-teal-200 dark:border-primary/20 shrink-0">
+                    <Users className="w-3.5 h-3.5 text-teal-600 dark:text-primary" />
+                    {selectedCompany.employees.length} {selectedCompany.employees.length === 1 ? 'employee' : 'employees'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 truncate">
+                  {selectedCompany.city ? `Location: ${selectedCompany.city} • ` : ''}Showing all team members enrolled under this company. Click to collapse.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-primary transition-colors flex items-center gap-1">
+                Collapse View
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </span>
+            </div>
+          </div>
+
+          {/* Search Toolbar for Selected Company */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card/70 backdrop-blur-xs p-3 sm:p-3.5 rounded-xl border border-border/80 shadow-xs">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/70 pointer-events-none" />
+              <Input 
+                placeholder={`Search employees in ${selectedCompany.name} by name, username, email, department, role...`}
+                className="h-10 pl-10 pr-4 bg-background/80 border-border/80 text-foreground placeholder:text-muted-foreground/60 text-sm rounded-lg focus:border-primary focus:ring-1 focus:ring-primary/25 transition-all"
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-muted-foreground">
+                Showing <strong className="text-foreground font-semibold">{filteredEmployees.length}</strong> of {selectedCompany.employees.length} {selectedCompany.employees.length === 1 ? 'employee' : 'employees'}
+              </span>
+            </div>
+          </div>
+
+          {/* Global Users Table */}
+          <div className="border border-border/80 bg-card rounded-xl overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <Table className="w-full">
+                <TableHeader className="bg-[#121E27] dark:bg-[#121E27] bg-muted/40 border-b border-border/80">
+                  <TableRow className="hover:bg-transparent border-0">
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11 pl-5">User</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11">Affiliated Company</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11">Department</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11">Role</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11">Status</TableHead>
+                    <TableHead className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/90 h-11 text-right pr-5">Actions</TableHead>
                   </TableRow>
-                );
-              })}
-              {filtered.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-zinc-500">No users found</TableCell>
-                </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredEmployees.map((user) => {
+                    const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name || (selectedCompany?.isUnassigned ? '' : selectedCompany?.name);
+                    const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
+
+                    return (
+                      <TableRow 
+                        key={user.userId || user._id} 
+                        className="border-b border-border/50 last:border-b-0 hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors"
+                      >
+                        {/* User Info */}
+                        <TableCell className="pl-5 py-3.5 max-w-[240px]">
+                          <div className="flex items-center gap-3">
+                            <UserAvatar src={user.avatar} name={displayName} username={user.username} />
+                            <div className="min-w-0">
+                              <div className="font-semibold text-sm text-foreground truncate" title={displayName}>
+                                {displayName}
+                              </div>
+                              <div className="text-xs text-muted-foreground/80 truncate mt-0.5" title={user.email || user.username || user.userId}>
+                                {user.email ? user.email : `@${user.username || user.userId}`}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+
+                        {/* Affiliated Company */}
+                        <TableCell className="py-3.5 max-w-[200px]">
+                          {userCompanyName ? (
+                            <div className="flex items-center gap-1.5 min-w-0" title={userCompanyName}>
+                              <Building2 className="w-3.5 h-3.5 text-primary/70 shrink-0" />
+                              <span className="text-sm font-medium text-primary truncate hover:underline cursor-default">
+                                {userCompanyName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground/60 text-xs italic font-normal">
+                              No Company
+                            </span>
+                          )}
+                        </TableCell>
+
+                        {/* Department */}
+                        <TableCell className="py-3.5 max-w-[150px]">
+                          <span className="text-xs text-slate-300 font-medium truncate block" title={user.department || 'General'}>
+                            {user.department || 'General'}
+                          </span>
+                        </TableCell>
+
+                        {/* Role Badge */}
+                        <TableCell className="py-3.5">
+                          {renderRoleBadge(user.role)}
+                        </TableCell>
+
+                        {/* Status Indicator */}
+                        <TableCell className="py-3.5">
+                          {user.status === 'active' ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                              Suspended
+                            </span>
+                          )}
+                        </TableCell>
+
+                        {/* Actions Column */}
+                        <TableCell className="py-3.5 pr-5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!hasUserRole(user, 'param') && (
+                              user.status === 'active' ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={togglingId === (user.userId || user._id || user.id)}
+                                  onClick={() => handleQuickToggle(user, 'suspend')}
+                                  className="h-8 px-2.5 rounded-xl border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 text-xs font-semibold"
+                                  title="Suspend User"
+                                >
+                                  <Ban className="w-3.5 h-3.5 mr-1" />
+                                  {togglingId === (user.userId || user._id || user.id) ? 'Updating…' : 'Suspend'}
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={togglingId === (user.userId || user._id || user.id)}
+                                  onClick={() => handleQuickToggle(user, 'activate')}
+                                  className="h-8 px-2.5 rounded-xl border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300 text-xs font-semibold"
+                                  title="Restore / Add Back"
+                                >
+                                  <Unlock className="w-3.5 h-3.5 mr-1" />
+                                  {togglingId === (user.userId || user._id || user.id) ? 'Updating…' : 'Add Back'}
+                                </Button>
+                              )
+                            )}
+                            <ManageUserDialog user={user} dbCompanies={dbCompanies} onRefresh={onRefresh} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  {filteredEmployees.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <Users className="w-8 h-8 text-muted-foreground/40" />
+                          <p className="text-sm font-medium text-foreground/80">No employees found in this company</p>
+                          <p className="text-xs text-muted-foreground">Try adjusting your search query or check company enrollments.</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Manage Company: Edit Dialog */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
+            <DialogHeader className="mb-5 text-left">
+              <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20 text-sky-400">
+                  <Pencil className="w-5 h-5" />
+                </div>
+                <span>Edit Company: {selectedGroupForManage?.name}</span>
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Update company profile, industry classification, contact information, and operating address.
+              </p>
+            </DialogHeader>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Company Name *</label>
+                  <Input
+                    required
+                    value={editCompanyForm.name}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, name: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="e.g. Acme Innovations Inc."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Industry Category *</label>
+                  <Select 
+                    value={editCompanyForm.category} 
+                    onValueChange={(val) => setEditCompanyForm({ ...editCompanyForm, category: val })}
+                  >
+                    <SelectTrigger className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary">
+                      <SelectValue placeholder="Select Category" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border text-foreground">
+                      <SelectItem value="it">IT Solutions</SelectItem>
+                      <SelectItem value="logistics">Logistics</SelectItem>
+                      <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="retail">Retail</SelectItem>
+                      <SelectItem value="healthcare">Healthcare</SelectItem>
+                      <SelectItem value="finance">Finance</SelectItem>
+                      <SelectItem value="education">Education</SelectItem>
+                      <SelectItem value="consulting">Consulting</SelectItem>
+                      <SelectItem value="realestate">Real Estate</SelectItem>
+                      <SelectItem value="hospitality">Hospitality</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Official Phone Number *</label>
+                  <Input
+                    required
+                    value={editCompanyForm.phoneNumber}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, phoneNumber: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Primary Email</label>
+                  <Input
+                    type="email"
+                    value={editCompanyForm.email}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, email: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="contact@company.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">GST / Tax Identification</label>
+                  <Input
+                    value={editCompanyForm.gst}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, gst: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="GST Number"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">City *</label>
+                  <Input
+                    required
+                    value={editCompanyForm.city}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, city: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">State</label>
+                  <Input
+                    value={editCompanyForm.state}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, state: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="State / Region"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Zip / Postal Code</label>
+                  <Input
+                    value={editCompanyForm.zip}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, zip: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="Postal Code"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold text-muted-foreground block mb-1">Street Address</label>
+                  <Input
+                    value={editCompanyForm.address}
+                    onChange={(e) => setEditCompanyForm({ ...editCompanyForm, address: e.target.value })}
+                    className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    placeholder="Headquarters address, floor, building"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-border/80 mt-6">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setEditModalOpen(false)}
+                  className="h-10 px-4 text-xs font-medium text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={editSaving}
+                  className="h-10 px-5 bg-primary hover:bg-[#0f766e] text-white font-semibold text-xs rounded-lg shadow-sm shadow-primary/20 transition-all flex items-center gap-2"
+                >
+                  {editSaving ? 'Saving Changes…' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Company: Replace Dialog */}
+      <Dialog open={replaceModalOpen} onOpenChange={setReplaceModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
+            <DialogHeader className="mb-5 text-left">
+              <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/20 text-teal-400">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <span>Replace Company: {selectedGroupForManage?.name}</span>
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Reassign employee affiliations, associated records, or transition this organization to another company.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Source Company Summary Card */}
+              <div className="p-3.5 rounded-xl bg-[#121E27] border border-border/80 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground">Current Company</div>
+                  <div className="text-sm font-bold text-foreground mt-0.5">{selectedGroupForManage?.name}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground">Enrolled Team</div>
+                  <div className="text-xs font-semibold text-primary mt-0.5">
+                    {selectedGroupForManage?.employees?.length || 0} employees
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Mode Toggle */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground block">Replacement Method</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReplaceAction('reassign')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      replaceAction === 'reassign' 
+                        ? 'bg-primary/10 border-primary/50 text-foreground' 
+                        : 'bg-background/60 border-border/80 text-muted-foreground hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <ArrowLeftRight className="w-3.5 h-3.5" /> Transfer Employees
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      Migrate all employees into another registered company
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReplaceAction('rename_merge')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      replaceAction === 'rename_merge' 
+                        ? 'bg-primary/10 border-primary/50 text-foreground' 
+                        : 'bg-background/60 border-border/80 text-muted-foreground hover:bg-muted/40'
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-teal-400 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" /> Rebrand Organization
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-1">
+                      Replace name & classification across all members
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {replaceAction === 'reassign' ? (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">Target Company *</label>
+                    <Select value={replaceTargetId} onValueChange={setReplaceTargetId}>
+                      <SelectTrigger className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary">
+                        <SelectValue placeholder="Select Target Company" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border text-foreground">
+                        {dbCompanies
+                          .filter(c => String(c._id || c.id) !== String(selectedGroupForManage?.id))
+                          .map(c => (
+                            <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
+                              {c.name} {c.city ? `(${c.city})` : ''}
+                            </SelectItem>
+                          ))
+                        }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="p-3 rounded-lg bg-teal-500/10 border border-teal-500/20 text-xs text-teal-300">
+                    💡 All <strong>{selectedGroupForManage?.employees?.length || 0} employees</strong>, their tasks, and historical activity will be safely migrated and linked to the selected company. Employee account credentials will remain fully intact.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1">New Company Name *</label>
+                    <Input
+                      value={replaceNewName}
+                      onChange={(e) => setReplaceNewName(e.target.value)}
+                      placeholder="e.g. Apex Global Technologies"
+                      className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Category</label>
+                      <Select value={replaceNewCategory} onValueChange={setReplaceNewCategory}>
+                        <SelectTrigger className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary">
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border text-foreground">
+                          <SelectItem value="it">IT Solutions</SelectItem>
+                          <SelectItem value="logistics">Logistics</SelectItem>
+                          <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="healthcare">Healthcare</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Operating City</label>
+                      <Input
+                        value={replaceNewCity}
+                        onChange={(e) => setReplaceNewCity(e.target.value)}
+                        placeholder="City"
+                        className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary"
+                      />
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-xs text-sky-300">
+                    💡 All {selectedGroupForManage?.employees?.length || 0} employee records and company profiles will immediately update to reflect the new company branding.
+                  </div>
+                </div>
               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-border/80 mt-6">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setReplaceModalOpen(false)}
+                  className="h-10 px-4 text-xs font-medium text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleSaveReplace}
+                  disabled={replaceSaving}
+                  className="h-10 px-5 bg-primary hover:bg-[#0f766e] text-white font-semibold text-xs rounded-lg shadow-sm shadow-primary/20 transition-all flex items-center gap-2"
+                >
+                  {replaceSaving ? 'Processing Replace…' : 'Confirm Replacement'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Company: Remove Dialog */}
+      <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+          <div className="p-6 sm:p-8">
+            <DialogHeader className="mb-4 text-left">
+              <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <span>Remove Company: {selectedGroupForManage?.name}</span>
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Safely remove this company organization and handle team affiliations without data loss.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Consequence Warning Banner */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-left">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-amber-300">
+                      {selectedGroupForManage?.employees?.length > 0 
+                        ? `Safety Alert: ${selectedGroupForManage?.employees?.length} Employee Records Protected`
+                        : 'Encrypted Backup Generated Automatically'
+                      }
+                    </div>
+                    <p className="text-xs text-muted-foreground/90 leading-relaxed">
+                      {selectedGroupForManage?.employees?.length > 0
+                        ? 'Employee accounts will NOT be deleted. Choose how to preserve and reassign existing employee accounts below.'
+                        : 'An automatic encrypted ZIP backup of company metadata will be preserved in your backups vault.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Safe Employee Handling Options if employees > 0 */}
+              {selectedGroupForManage?.employees?.length > 0 && (
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground block">Employee Retention Action</label>
+                  <div className="space-y-2">
+                    <label 
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        removeAction === 'detach' 
+                          ? 'bg-primary/10 border-primary/50 text-foreground' 
+                          : 'bg-background/60 border-border/80 text-muted-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="removeEmployeeAction" 
+                        checked={removeAction === 'detach'} 
+                        onChange={() => setRemoveAction('detach')}
+                        className="mt-1 text-primary focus:ring-primary"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-foreground">
+                          Detach & Keep as Independent Accounts (Recommended)
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Preserves all {selectedGroupForManage?.employees?.length} user logins, credentials, and profiles without company lock.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label 
+                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                        removeAction === 'reassign' 
+                          ? 'bg-primary/10 border-primary/50 text-foreground' 
+                          : 'bg-background/60 border-border/80 text-muted-foreground hover:bg-muted/40'
+                      }`}
+                    >
+                      <input 
+                        type="radio" 
+                        name="removeEmployeeAction" 
+                        checked={removeAction === 'reassign'} 
+                        onChange={() => setRemoveAction('reassign')}
+                        className="mt-1 text-primary focus:ring-primary"
+                      />
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-foreground">
+                          Reassign All Employees to Another Company
+                        </div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Transfers all members to another selected organization immediately.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+
+                  {removeAction === 'reassign' && (
+                    <div className="pt-2">
+                      <label className="text-xs font-semibold text-muted-foreground block mb-1">Target Company</label>
+                      <Select value={removeTargetCompanyId} onValueChange={setRemoveTargetCompanyId}>
+                        <SelectTrigger className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-primary">
+                          <SelectValue placeholder="Select Target Company" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-card border-border text-foreground">
+                          {dbCompanies
+                            .filter(c => String(c._id || c.id) !== String(selectedGroupForManage?.id))
+                            .map(c => (
+                              <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
+                                {c.name} {c.city ? `(${c.city})` : ''}
+                              </SelectItem>
+                            ))
+                          }
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Confirmation Input */}
+              <div className="space-y-1.5 pt-2">
+                <label className="text-xs font-semibold text-muted-foreground block">
+                  Type <strong className="text-rose-400 font-bold">{selectedGroupForManage?.name}</strong> to confirm:
+                </label>
+                <Input
+                  value={removeConfirmInput}
+                  onChange={(e) => setRemoveConfirmInput(e.target.value)}
+                  placeholder={selectedGroupForManage?.name}
+                  className="h-10 bg-background/80 border-border/80 rounded-lg text-foreground text-sm focus:border-rose-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-4 border-t border-border/80 mt-6">
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => setRemoveModalOpen(false)}
+                  className="h-10 px-4 text-xs font-medium text-muted-foreground hover:bg-muted"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmRemove}
+                  disabled={
+                    removeSaving || 
+                    removeConfirmInput.trim().toLowerCase() !== selectedGroupForManage?.name?.trim().toLowerCase()
+                  }
+                  className="h-10 px-5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded-lg shadow-sm shadow-rose-600/20 transition-all flex items-center gap-2"
+                >
+                  {removeSaving ? 'Removing Company…' : 'Safely Remove Company'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1785,7 +3238,8 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const resp = await authFetch(`/api/users/${targetUserId}`, {
+      const targetId = user.userId || user._id || user.id;
+      const resp = await authFetch(`/api/users/${encodeURIComponent(targetId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
@@ -1819,7 +3273,8 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
         }
       }
 
-      const resp = await authFetch(`/api/users/${targetUserId}/status`, {
+      const targetId = user.userId || user._id || user.id;
+      const resp = await authFetch(`/api/users/${encodeURIComponent(targetId)}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1844,32 +3299,42 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-blue-400 font-semibold hover:bg-blue-400/10">Manage</Button>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-8 px-3 rounded-lg text-xs font-semibold text-primary hover:text-emerald-300 hover:bg-primary/10 border border-transparent hover:border-primary/20 transition-all focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none cursor-pointer"
+        >
+          Manage
+        </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl bg-zinc-950/95 backdrop-blur-3xl border-zinc-800/60 text-white rounded-[2rem] shadow-[0_0_50px_rgba(0,0,0,0.6)] overflow-hidden p-0">
-        <div className="bg-gradient-to-b from-blue-500/10 via-transparent to-transparent px-8 py-8">
+      <DialogContent className="max-w-xl bg-card border border-border/80 text-foreground rounded-2xl shadow-2xl overflow-hidden p-0">
+        <div className="px-8 py-8">
           <DialogHeader className="mb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-center overflow-hidden shrink-0">
-                  <img src={user.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="" className="w-full h-full object-cover" />
-                </div>
+                <UserAvatar src={user.avatar} name={displayName} username={user.username} className="w-14 h-14" />
                 <div>
-                  <div className="flex items-center gap-2">
-                    <DialogTitle className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                  <div className="flex items-center gap-2.5">
+                    <DialogTitle className="text-2xl font-extrabold tracking-tight text-foreground">
                       {displayName}
                     </DialogTitle>
                     {user.status === 'active' ? (
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
                         Active
                       </span>
                     ) : (
-                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
                         Suspended
                       </span>
                     )}
                   </div>
-                  <p className="text-zinc-500 text-xs font-medium mt-0.5">UID: {user.userId} • Role: <span className="capitalize text-zinc-300">{user.role}</span></p>
+                  <div className="text-muted-foreground text-xs font-medium mt-1 flex items-center gap-2">
+                    <span>UID: {user.userId}</span>
+                    <span>•</span>
+                    {renderRoleBadge(user.role)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1878,82 +3343,82 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
           <div className="space-y-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Association Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-extrabold mb-1">Affiliated Company</p>
+              <div className="bg-background p-4 rounded-xl border border-border">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-extrabold mb-1">Affiliated Company</p>
                 {userCompanyName ? (
-                  <p className="text-base font-bold text-blue-400">{userCompanyName}</p>
+                  <p className="text-base font-bold text-primary">{userCompanyName}</p>
                 ) : (
-                  <p className="text-xs font-semibold text-zinc-500 italic">None (No company assigned)</p>
+                  <p className="text-xs font-semibold text-muted-foreground italic">None (No company assigned)</p>
                 )}
               </div>
-              <div className="bg-zinc-900/40 p-4 rounded-2xl border border-zinc-800/50">
-                <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-extrabold mb-1">Designation & Department</p>
-                <p className="text-base font-bold text-white capitalize">{user.designation || 'Staff'} • <span className="text-zinc-400 text-xs font-normal">{user.department || 'General'}</span></p>
+              <div className="bg-background p-4 rounded-xl border border-border">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-extrabold mb-1">Designation & Department</p>
+                <p className="text-base font-bold text-foreground capitalize">{user.designation || 'Staff'} • <span className="text-muted-foreground text-xs font-normal">{user.department || 'General'}</span></p>
               </div>
             </div>
 
             {/* Profile Details or Edit Form */}
             {isEditing ? (
-              <form onSubmit={handleSaveProfile} className="bg-zinc-900/50 p-5 rounded-2xl border border-zinc-800 space-y-4">
+              <form onSubmit={handleSaveProfile} className="bg-background p-5 rounded-xl border border-border space-y-4">
                 <div className="text-xs font-bold uppercase tracking-wider text-primary">Edit User Profile</div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-zinc-400">Full Name</label>
+                    <label className="text-[11px] text-muted-foreground font-medium">Full Name</label>
                     <Input 
                       value={editForm.name} 
                       onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} 
-                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                      className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary" 
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Phone</label>
+                    <label className="text-[11px] text-muted-foreground font-medium">Phone</label>
                     <Input 
                       value={editForm.phone} 
                       onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} 
-                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                      className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary" 
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Designation</label>
+                    <label className="text-[11px] text-muted-foreground font-medium">Designation</label>
                     <Input 
                       value={editForm.designation} 
                       onChange={(e) => setEditForm({ ...editForm, designation: e.target.value })} 
-                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                      className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary" 
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-zinc-400">Department</label>
+                    <label className="text-[11px] text-muted-foreground font-medium">Department</label>
                     <Input 
                       value={editForm.department} 
                       onChange={(e) => setEditForm({ ...editForm, department: e.target.value })} 
-                      className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white" 
+                      className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary" 
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-[11px] text-zinc-400 mb-1 block">Account Access / Status</label>
-                    <Select 
-                      value={editForm.status} 
+                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Account Access / Status</label>
+                    <Select
+                      value={editForm.status}
                       onValueChange={(val) => setEditForm({ ...editForm, status: val })}
                     >
-                      <SelectTrigger className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white">
+                      <SelectTrigger className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
-                      <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                      <SelectContent className="bg-card border-border text-foreground text-xs">
                         <SelectItem value="active">Active (Full System Access)</SelectItem>
                         <SelectItem value="inactive">Suspended / Inactive (Revoke Login Access)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="col-span-2">
-                    <label className="text-[11px] text-zinc-400 mb-1 block">Affiliated Company</label>
+                    <label className="text-[11px] text-muted-foreground font-medium mb-1 block">Affiliated Company</label>
                     <Select 
                       value={editForm.companyId} 
                       onValueChange={(val) => setEditForm({ ...editForm, companyId: val })}
                     >
-                      <SelectTrigger className="h-10 bg-zinc-900 border-zinc-700 rounded-xl text-xs text-white">
+                      <SelectTrigger className="h-10 bg-card border-border rounded-xl text-xs text-foreground focus-visible:ring-primary">
                         <SelectValue placeholder="Select Company" />
                       </SelectTrigger>
-                      <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                      <SelectContent className="bg-card border-border text-foreground text-xs">
                         <SelectItem value="none">None (No company)</SelectItem>
                         {dbCompanies.map((c) => (
                           <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
@@ -1965,44 +3430,44 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(false)} className="h-9 text-xs">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditing(false)} className="h-9 text-xs text-muted-foreground hover:bg-muted">
                     Cancel
                   </Button>
-                  <Button type="submit" size="sm" disabled={editLoading} className="h-9 text-xs font-bold bg-primary text-black">
+                  <Button type="submit" size="sm" disabled={editLoading} className="h-9 text-xs font-bold bg-primary text-white hover:bg-emerald-700 shadow-xs shadow-primary/20">
                     {editLoading ? 'Saving…' : 'Save Changes'}
                   </Button>
                 </div>
               </form>
             ) : (
-              <div className="bg-zinc-900/40 p-5 rounded-2xl border border-zinc-800/50">
+              <div className="bg-background p-5 rounded-xl border border-border">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-blue-500/10"><UserCog className="w-4 h-4 text-blue-400" /></div>
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Personal Information</h4>
+                    <div className="p-1.5 rounded-lg bg-primary/10"><UserCog className="w-4 h-4 text-primary" /></div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Personal Information</h4>
                   </div>
                   <Button 
                     size="sm" 
                     variant="outline" 
                     onClick={() => setIsEditing(true)} 
-                    className="h-8 rounded-xl border-zinc-800 bg-white/5 text-zinc-300 font-semibold text-xs hover:bg-white/10"
+                    className="h-8 rounded-xl border-border bg-card text-foreground font-semibold text-xs hover:bg-muted"
                   >
-                    <Pencil className="w-3.5 h-3.5 mr-1.5 text-zinc-400" />
+                    <Pencil className="w-3.5 h-3.5 mr-1.5 text-muted-foreground" />
                     Edit Profile
                   </Button>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-xs">
                   <div>
-                    <p className="text-zinc-500 font-medium">Email / Contact</p>
-                    <p className="font-semibold text-white">{user.email || user.phone || 'Not provided'}</p>
+                    <p className="text-muted-foreground font-medium">Email / Contact</p>
+                    <p className="font-semibold text-foreground">{user.email || user.phone || 'Not provided'}</p>
                   </div>
                   <div>
-                    <p className="text-zinc-500 font-medium">Age & Gender</p>
-                    <p className="font-semibold text-white">{user.age ? `${user.age} yrs` : 'NA'} / {user.gender || 'Unspecified'}</p>
+                    <p className="text-muted-foreground font-medium">Age & Gender</p>
+                    <p className="font-semibold text-foreground">{user.age ? `${user.age} yrs` : 'NA'} / {user.gender || 'Unspecified'}</p>
                   </div>
-                  <div className="col-span-2 pt-2 border-t border-zinc-800/40">
-                    <p className="text-zinc-500 font-medium">Address</p>
-                    <p className="font-medium text-zinc-300 leading-relaxed">{user.address || 'Address unassigned'}</p>
+                  <div className="col-span-2 pt-2 border-t border-border">
+                    <p className="text-muted-foreground font-medium">Address</p>
+                    <p className="font-medium text-foreground leading-relaxed">{user.address || 'Address unassigned'}</p>
                   </div>
                 </div>
               </div>
@@ -2010,38 +3475,38 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
 
             {/* Super Admin Access Control: Suspend & Restore */}
             {user.role !== 'param' && (
-              <div className="pt-3 border-t border-zinc-800/60 space-y-3">
+              <div className="pt-3 border-t border-border space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldAlert className="w-4 h-4 text-amber-400" />
+                  <p className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-amber-500" />
                     Super Admin Access Control
                   </p>
-                  <span className="text-[10px] font-mono text-zinc-500">Privileged Super Admin Action</span>
+                  <span className="text-[10px] font-mono text-muted-foreground">Privileged Super Admin Action</span>
                 </div>
 
                 {user.status === 'active' ? (
-                  <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-2xl flex items-center justify-between gap-4">
-                    <div className="text-xs text-zinc-400">
-                      <span className="font-semibold text-red-400">Suspend User:</span> Will revoke system login access immediately. Their company affiliation is preserved so they can be reinstated at any time.
+                  <div className="bg-red-500/5 border border-red-500/20 p-4 rounded-xl flex items-center justify-between gap-4">
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-semibold text-red-500">Suspend User:</span> Will revoke system login access immediately. Their company affiliation is preserved so they can be reinstated at any time.
                     </div>
                     <Button
                       size="sm"
                       disabled={actionLoading}
                       onClick={() => handleToggleStatus('suspend')}
-                      className="bg-red-600 hover:bg-red-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 transition-all shadow-lg shadow-red-900/20"
+                      className="bg-red-600 hover:bg-red-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 transition-all shadow-md shadow-red-900/20"
                     >
                       <Ban className="w-4 h-4 mr-1.5" />
                       {actionLoading ? 'Suspending…' : 'Suspend User'}
                     </Button>
                   </div>
                 ) : (
-                  <div className="bg-emerald-500/5 border border-emerald-500/20 p-4 rounded-2xl space-y-3">
+                  <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                        <div className="text-xs font-semibold text-primary flex items-center gap-1.5">
                           <CheckCircle className="w-4 h-4" /> Account Suspended
                         </div>
-                        <div className="text-[11px] text-zinc-400 mt-0.5">
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
                           Restore login access for this user and get them back into the system.
                         </div>
                       </div>
@@ -2049,7 +3514,7 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
                         size="sm"
                         disabled={actionLoading}
                         onClick={() => handleToggleStatus('activate')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 shadow-lg shadow-emerald-900/30"
+                        className="bg-primary hover:bg-emerald-700 text-white font-bold h-10 px-5 rounded-xl shrink-0 shadow-md shadow-primary/20"
                       >
                         <Unlock className="w-4 h-4 mr-1.5" />
                         {actionLoading ? 'Restoring…' : 'Restore Access / Get Back'}
@@ -2057,16 +3522,16 @@ function ManageUserDialog({ user, dbCompanies = [], onRefresh }) {
                     </div>
 
                     {dbCompanies.length > 0 && (
-                      <div className="pt-2 border-t border-emerald-500/10 flex items-center gap-3">
-                        <span className="text-xs text-zinc-400 whitespace-nowrap">Affiliated Company:</span>
+                      <div className="pt-2 border-t border-primary/10 flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">Affiliated Company:</span>
                         <Select 
                           value={selectedCompanyId} 
                           onValueChange={setSelectedCompanyId}
                         >
-                          <SelectTrigger className="h-9 bg-zinc-900 border-zinc-700 text-xs text-zinc-200 rounded-lg">
+                          <SelectTrigger className="h-9 bg-card border-border text-xs text-foreground rounded-lg">
                             <SelectValue placeholder="Choose Company" />
                           </SelectTrigger>
-                          <SelectContent className="bg-zinc-900 border-zinc-800 text-white text-xs">
+                          <SelectContent className="bg-card border-border text-foreground text-xs">
                             <SelectItem value="none">No Company (Independent)</SelectItem>
                             {dbCompanies.map(c => (
                               <SelectItem key={c._id || c.id} value={String(c._id || c.id)}>
@@ -2164,53 +3629,53 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Top ARR & Metric Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-zinc-800 bg-gradient-to-br from-zinc-900 to-zinc-950">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+            <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
               <span>Total Annual Revenue (ARR)</span>
               <CreditCard className="w-4 h-4 text-primary" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-white tracking-tight">
+            <div className="text-4xl font-extrabold text-foreground tracking-tight">
               ${billingStats.totalARR.toLocaleString()}
             </div>
-            <p className="text-zinc-400 text-xs mt-2 font-medium flex items-center gap-1.5">
+            <p className="text-muted-foreground text-xs mt-2 font-medium flex items-center gap-1.5">
               <TrendingUp className="w-3.5 h-3.5 text-primary" /> 
               ${billingStats.totalMRR.toLocaleString()}/mo real monthly revenue
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+            <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
               <span>Registered Accounts & Seats</span>
-              <Building2 className="w-4 h-4 text-blue-400" />
+              <Building2 className="w-4 h-4 text-sky-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-white tracking-tight">
-              {billingStats.activeCompaniesCount} <span className="text-lg text-zinc-500 font-normal">Co.</span>
+            <div className="text-4xl font-extrabold text-foreground tracking-tight">
+              {billingStats.activeCompaniesCount} <span className="text-lg text-muted-foreground font-normal">Co.</span>
             </div>
-            <p className="text-zinc-400 text-xs mt-2 flex items-center gap-1">
+            <p className="text-muted-foreground text-xs mt-2 flex items-center gap-1">
               <span>{billingStats.totalUsersCount} active registered users</span>
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-zinc-400 text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
+            <CardTitle className="text-muted-foreground text-xs font-semibold uppercase tracking-widest flex items-center justify-between">
               <span>Average Revenue Per Account</span>
-              <Activity className="w-4 h-4 text-purple-400" />
+              <Activity className="w-4 h-4 text-violet-500" />
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-extrabold text-white tracking-tight">
-              ${billingStats.arpu} <span className="text-lg text-zinc-500 font-normal">/mo</span>
+            <div className="text-4xl font-extrabold text-foreground tracking-tight">
+              ${billingStats.arpu} <span className="text-lg text-muted-foreground font-normal">/mo</span>
             </div>
-            <p className="text-emerald-400 text-xs mt-2 font-medium flex items-center gap-1">
+            <p className="text-primary text-xs mt-2 font-medium flex items-center gap-1">
               <CheckCircle className="w-3.5 h-3.5" /> Real database valuation
             </p>
           </CardContent>
@@ -2218,34 +3683,34 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
       </div>
 
       {/* Subscription Mix & Plan Breakdown */}
-      <Card className="border-zinc-800 bg-zinc-900/30">
+      <Card className="border border-border bg-card shadow-xs rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
           <div>
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2 text-foreground">
               <CreditCard className="w-5 h-5 text-primary" />
               Company Subscription Mix by Category
             </CardTitle>
-            <p className="text-xs text-zinc-400 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               Distribution of active enrolled company accounts
             </p>
           </div>
-          <span className="text-xs font-mono text-zinc-500">
+          <span className="text-xs font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-md">
             {billingStats.activeCompaniesCount} Total Active
           </span>
         </CardHeader>
         <CardContent className="space-y-4 pt-2">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {billingStats.categoryMix.map((item) => (
-              <div key={item.key} className="bg-zinc-900/60 p-4 rounded-xl border border-zinc-800/60 flex flex-col justify-between">
+              <div key={item.key} className="bg-background p-4 rounded-xl border border-border flex flex-col justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-zinc-300">{item.name}</div>
-                  <div className="text-xs text-zinc-500">Industry Category</div>
+                  <div className="text-xs font-semibold text-foreground">{item.name}</div>
+                  <div className="text-xs text-muted-foreground">Industry Category</div>
                 </div>
                 <div className="mt-4 flex items-baseline justify-between">
-                  <div className="text-2xl font-bold text-white">{item.count}</div>
+                  <div className="text-2xl font-bold text-foreground">{item.count}</div>
                   <div className="text-xs font-semibold text-primary">{item.pct}%</div>
                 </div>
-                <div className="w-full bg-zinc-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div className="w-full bg-muted h-1.5 rounded-full mt-2 overflow-hidden">
                   <div 
                     className="bg-primary h-full rounded-full transition-all duration-500" 
                     style={{ width: `${Math.max(item.pct, item.count > 0 ? 15 : 0)}%` }} 
@@ -2258,64 +3723,64 @@ function TabPayments({ dbCompanies = [], dbUsers = [] }) {
       </Card>
 
       {/* Real Invoices & Transactions Table */}
-      <Card className="border-zinc-800 bg-zinc-900/30">
+      <Card className="border border-border bg-card shadow-xs rounded-2xl">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Real Company Billing Invoices</CardTitle>
-            <p className="text-xs text-zinc-400 mt-1">Live statement generated from registered company accounts</p>
+            <CardTitle className="text-lg text-foreground">Real Company Billing Invoices</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">Live statement generated from registered company accounts</p>
           </div>
-          <span className="text-xs font-mono bg-zinc-800/80 px-2.5 py-1 rounded-md text-zinc-400">
+          <span className="text-xs font-mono bg-muted px-2.5 py-1 rounded-md text-muted-foreground">
             {billingStats.companyTransactions.length} Account{billingStats.companyTransactions.length !== 1 ? 's' : ''}
           </span>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow className="border-zinc-800 hover:bg-transparent">
+            <TableHeader className="bg-muted/40">
+              <TableRow className="border-b border-border hover:bg-transparent">
                 <TableHead className="w-12"></TableHead>
-                <TableHead>Company & Account</TableHead>
-                <TableHead>Subscription Category</TableHead>
-                <TableHead>Invoice ID</TableHead>
-                <TableHead>Billing Date</TableHead>
-                <TableHead className="text-right pr-6">Monthly Amount</TableHead>
+                <TableHead className="text-muted-foreground font-semibold">Company & Account</TableHead>
+                <TableHead className="text-muted-foreground font-semibold">Subscription Category</TableHead>
+                <TableHead className="text-muted-foreground font-semibold">Invoice ID</TableHead>
+                <TableHead className="text-muted-foreground font-semibold">Billing Date</TableHead>
+                <TableHead className="text-foreground font-semibold text-right pr-6">Monthly Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {billingStats.companyTransactions.length === 0 ? (
-                <TableRow className="border-zinc-800">
-                  <TableCell colSpan={6} className="text-center py-8 text-zinc-500 text-sm">
+                <TableRow className="border-b border-border">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground text-sm">
                     No registered company accounts found.
                   </TableCell>
                 </TableRow>
               ) : (
                 billingStats.companyTransactions.map((tx) => (
-                  <TableRow key={tx.id} className="border-zinc-800 hover:bg-white/5 transition-colors">
+                  <TableRow key={tx.id} className="border-b border-border hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                     <TableCell className="w-12 pr-0 pl-4">
                       {tx.status === 'active' ? (
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400" title="Active">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary" title="Active">
                           <CheckCircle className="w-4 h-4" />
                         </div>
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-400" title="Suspended">
+                        <div className="w-8 h-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500" title="Suspended">
                           <XCircle className="w-4 h-4" />
                         </div>
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="font-semibold text-white">{tx.name}</div>
-                      <div className="text-xs text-zinc-500">{tx.city}, {tx.state} • Owner: {tx.ownerId}</div>
+                      <div className="font-semibold text-foreground">{tx.name}</div>
+                      <div className="text-xs text-muted-foreground">{tx.city}, {tx.state} • Owner: {tx.ownerId}</div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm text-zinc-300 font-medium">{tx.categoryName}</div>
-                      <div className="text-xs text-zinc-500">{tx.userCount} registered user{tx.userCount !== 1 ? 's' : ''}</div>
+                      <div className="text-sm text-foreground font-medium">{tx.categoryName}</div>
+                      <div className="text-xs text-muted-foreground">{tx.userCount} registered user{tx.userCount !== 1 ? 's' : ''}</div>
                     </TableCell>
-                    <TableCell className="font-mono text-xs text-zinc-400">
+                    <TableCell className="font-mono text-xs text-muted-foreground">
                       {tx.txid}
                     </TableCell>
-                    <TableCell className="text-sm text-zinc-400">
+                    <TableCell className="text-sm text-muted-foreground">
                       {tx.date}
                     </TableCell>
-                    <TableCell className="font-bold text-white text-right pr-6">
+                    <TableCell className="font-bold text-foreground text-right pr-6">
                       ${tx.amount.toFixed(2)}
                     </TableCell>
                   </TableRow>
@@ -2507,78 +3972,58 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
 
       {/* Main Charts: Real Growth Metrics & Real Operational Intensity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-amber-400" />
+              <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                <TrendingUp className="w-5 h-5 text-primary" />
                 Growth Metrics (Companies & Users)
               </CardTitle>
               <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]"></span> Companies</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#3b82f6]"></span> Users</span>
+                <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-[#0D9488]"></span> Companies</span>
+                <span className="flex items-center gap-1.5 text-muted-foreground"><span className="w-2.5 h-2.5 rounded-full bg-[#0284c7]"></span> Users</span>
               </div>
             </div>
           </CardHeader>
           <CardContent className="h-[320px] w-full pt-4">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyGrowthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="month" stroke="#71717a" fontSize={12} />
-                <YAxis stroke="#71717a" fontSize={12} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#2A3D48" opacity={0.4} vertical={false} />
+                <XAxis dataKey="month" stroke="#A6B5C0" fontSize={12} />
+                <YAxis stroke="#A6B5C0" fontSize={12} allowDecimals={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                  itemStyle={{ color: '#fff' }}
-                  formatter={(val, name) => [val, name === 'companies' ? 'Total Companies' : 'Total Users']}
-                />
-                <Line type="monotone" dataKey="companies" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b' }} />
-                <Line type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, fill: '#3b82f6' }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-zinc-800 bg-zinc-900/30">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Activity className="w-5 h-5 text-purple-400" />
-                Operational Intensity (Live Platform Activity)
-              </CardTitle>
-              <span className="text-[11px] font-mono text-zinc-500">Weekly Events</span>
-            </div>
-          </CardHeader>
-          <CardContent className="h-[320px] w-full pt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={operationalIntensityData}>
-                <defs>
-                  <linearGradient id="colorIntensity" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                <XAxis dataKey="day" stroke="#71717a" fontSize={12} />
-                <YAxis stroke="#71717a" fontSize={12} allowDecimals={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #27272a', borderRadius: '8px' }}
-                  content={({ active, payload }) => {
+                  content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
-                      const data = payload[0].payload;
+                      const data = payload[0]?.payload || {};
+                      const companiesCount = payload.find(p => p.dataKey === 'companies')?.value ?? data.companies ?? 0;
+                      const usersCount = payload.find(p => p.dataKey === 'users')?.value ?? data.users ?? 0;
+                      const monthName = label || data.month || 'Month';
+
                       return (
-                        <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-lg shadow-xl text-xs space-y-1.5">
-                          <div className="font-bold text-white flex items-center justify-between gap-4">
-                            <span>{data.day} ({data.date})</span>
-                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">Today</span>}
+                        <div className="bg-[#15232D] border border-[#2A3D48] rounded-xl p-3.5 shadow-2xl text-xs space-y-2.5 min-w-[190px] pointer-events-none">
+                          <div className="flex items-center justify-between border-b border-[#2A3D48]/80 pb-2">
+                            <span className="font-bold text-sm text-slate-100">{monthName} Growth</span>
+                            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">Metrics</span>
                           </div>
-                          <div className="text-purple-400 font-semibold text-sm">
-                            Intensity Score: {data.intensity} pts
-                          </div>
-                          <div className="text-zinc-400 space-y-0.5 text-[11px] pt-1 border-t border-zinc-800">
-                            <div>• Active Users: <span className="text-white font-medium">{data.activeUsers}</span></div>
-                            <div>• Tasks Created/Updated: <span className="text-white font-medium">{data.taskEvents}</span></div>
-                            <div>• Messages Sent: <span className="text-white font-medium">{data.messageEvents}</span></div>
-                            <div>• Attendance Records: <span className="text-white font-medium">{data.attendanceEvents}</span></div>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#0D9488] shrink-0" />
+                                <span className="text-slate-300 font-medium">Companies:</span>
+                              </div>
+                              <span className="font-bold text-slate-100 font-mono text-sm">
+                                {Number(companiesCount).toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7] shrink-0" />
+                                <span className="text-slate-300 font-medium">Users:</span>
+                              </div>
+                              <span className="font-bold text-slate-100 font-mono text-sm">
+                                {Number(usersCount).toLocaleString()}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
@@ -2586,7 +4031,74 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
                     return null;
                   }}
                 />
-                <Area type="monotone" dataKey="intensity" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorIntensity)" strokeWidth={2.5} />
+                <Line type="monotone" dataKey="companies" stroke="#0D9488" strokeWidth={3} dot={{ r: 4, fill: '#0D9488' }} />
+                <Line type="monotone" dataKey="users" stroke="#0284c7" strokeWidth={3} dot={{ r: 4, fill: '#0284c7' }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                <Activity className="w-5 h-5 text-primary" />
+                Operational Intensity (Live Platform Activity)
+              </CardTitle>
+              <span className="text-[11px] font-mono text-muted-foreground">Weekly Events</span>
+            </div>
+          </CardHeader>
+          <CardContent className="h-[320px] w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={operationalIntensityData}>
+                <defs>
+                  <linearGradient id="colorIntensity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#0D9488" stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor="#0D9488" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#2A3D48" opacity={0.4} vertical={false} />
+                <XAxis dataKey="day" stroke="#A6B5C0" fontSize={12} />
+                <YAxis stroke="#A6B5C0" fontSize={12} allowDecimals={false} />
+                <Tooltip 
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0]?.payload;
+                      if (!data) return null;
+                      return (
+                        <div className="bg-[#15232D] border border-[#2A3D48] p-3.5 rounded-xl shadow-2xl text-xs space-y-2 text-slate-100 min-w-[200px] pointer-events-none">
+                          <div className="font-bold flex items-center justify-between gap-4 border-b border-[#2A3D48]/80 pb-1.5">
+                            <span className="text-sm text-slate-100">{data.day} ({data.date})</span>
+                            {data.isToday && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-mono font-bold">Today</span>}
+                          </div>
+                          <div className="text-primary font-semibold text-sm">
+                            Intensity Score: {Number(data.intensity || 0).toLocaleString()} pts
+                          </div>
+                          <div className="text-slate-300 space-y-1 text-[11px] pt-1">
+                            <div className="flex items-center justify-between">
+                              <span>• Active Users:</span>
+                              <span className="text-slate-100 font-medium font-mono">{data.activeUsers ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>• Tasks Created/Updated:</span>
+                              <span className="text-slate-100 font-medium font-mono">{data.taskEvents ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>• Messages Sent:</span>
+                              <span className="text-slate-100 font-medium font-mono">{data.messageEvents ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span>• Attendance Records:</span>
+                              <span className="text-slate-100 font-medium font-mono">{data.attendanceEvents ?? 0}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Area type="monotone" dataKey="intensity" stroke="#0D9488" fillOpacity={1} fill="url(#colorIntensity)" strokeWidth={2.5} />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>
@@ -2595,10 +4107,10 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
 
       {/* Real Breakdown: Industry Category & User Roles */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-emerald-400" />
+            <CardTitle className="text-base flex items-center gap-2 text-foreground">
+              <Building2 className="w-4 h-4 text-primary" />
               Company Distribution by Category
             </CardTitle>
           </CardHeader>
@@ -2606,12 +4118,12 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
             {categoryStats.map((item) => (
               <div key={item.name} className="space-y-1">
                 <div className="flex justify-between text-xs">
-                  <span className="text-zinc-300">{item.name}</span>
-                  <span className="text-zinc-400 font-mono">{item.count} ({item.pct}%)</span>
+                  <span className="text-foreground font-medium">{item.name}</span>
+                  <span className="text-muted-foreground font-mono">{item.count} ({item.pct}%)</span>
                 </div>
-                <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden">
+                <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
                   <div 
-                    className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                    className="bg-primary h-full rounded-full transition-all duration-500" 
                     style={{ width: `${Math.max(item.pct, item.count > 0 ? 10 : 0)}%` }} 
                   />
                 </div>
@@ -2620,10 +4132,10 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="w-4 h-4 text-blue-400" />
+            <CardTitle className="text-base flex items-center gap-2 text-foreground">
+              <Users className="w-4 h-4 text-sky-500" />
               User Role Distribution
             </CardTitle>
           </CardHeader>
@@ -2633,12 +4145,12 @@ function TabAnalytics({ dbCompanies = [], dbUsers = [], dbAttendance = [], dbTas
               return (
                 <div key={item.name} className="space-y-1">
                   <div className="flex justify-between text-xs">
-                    <span className="text-zinc-300">{item.name}</span>
-                    <span className="text-zinc-400 font-mono">{item.count} user{item.count !== 1 ? 's' : ''} ({pct}%)</span>
+                    <span className="text-foreground font-medium">{item.name}</span>
+                    <span className="text-muted-foreground font-mono">{item.count} user{item.count !== 1 ? 's' : ''} ({pct}%)</span>
                   </div>
-                  <div className="w-full bg-zinc-800/80 h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
                     <div 
-                      className="bg-blue-500 h-full rounded-full transition-all duration-500" 
+                      className="bg-sky-500 h-full rounded-full transition-all duration-500" 
                       style={{ width: `${Math.max(pct, item.count > 0 ? 10 : 0)}%` }} 
                     />
                   </div>
@@ -2812,19 +4324,19 @@ function TabSystem() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="border-zinc-800 bg-zinc-900/30">
+          <Card className="border border-border bg-card shadow-xs rounded-2xl">
             <CardHeader>
-              <CardTitle className="text-lg">Global Environment</CardTitle>
+              <CardTitle className="text-lg text-foreground">Global Environment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <div className="text-sm font-medium">Maintenance Mode</div>
-                    <div className="text-xs text-zinc-500">Strict mode (Admins only access)</div>
+                    <div className="text-sm font-medium text-foreground">Maintenance Mode</div>
+                    <div className="text-xs text-muted-foreground">Strict mode (Admins only access)</div>
                   </div>
                   <Button 
                     variant={maintenance ? "destructive" : "outline"} 
-                    className="w-24"
+                    className="w-24 rounded-xl font-bold"
                     disabled={isLoading}
                     onClick={toggleMaintenance}
                   >
@@ -2833,59 +4345,59 @@ function TabSystem() {
                </div>
                <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <div className="text-sm font-medium">Auto-Backups</div>
-                    <div className="text-xs text-zinc-500">Daily snapshot to AWS S3</div>
+                    <div className="text-sm font-medium text-foreground">Auto-Backups</div>
+                    <div className="text-xs text-muted-foreground">Daily snapshot to AWS S3</div>
                   </div>
-                  <span className="text-emerald-400 text-xs font-bold uppercase">Running</span>
+                  <span className="text-primary text-xs font-bold uppercase">Running</span>
                </div>
                <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <div className="text-sm font-medium">Registration</div>
-                  <div className="text-xs text-zinc-500">Allow new companies signups</div>
+                    <div className="text-sm font-medium text-foreground">Registration</div>
+                    <div className="text-xs text-muted-foreground">Allow new companies signups</div>
                   </div>
-                  <span className="text-emerald-400 text-xs font-bold uppercase">Open</span>
+                  <span className="text-primary text-xs font-bold uppercase">Open</span>
                </div>
             </CardContent>
           </Card>
 
-          <Card className="border-zinc-800 bg-zinc-900/30">
+          <Card className="border border-border bg-card shadow-xs rounded-2xl">
              <CardHeader className="flex-row justify-between items-start">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Database className="w-5 h-5 text-zinc-500" />
+                <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+                  <Database className="w-5 h-5 text-muted-foreground" />
                   Database Logs
                   {logsLoading && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-zinc-600 font-mono">{logsTotal} total</span>
+                  <span className="text-[10px] text-muted-foreground font-mono">{logsTotal} total</span>
                   <button
                     onClick={fetchLogs}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded border border-zinc-800 hover:border-zinc-700"
+                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted"
                   >
                     ↻ Refresh
                   </button>
                 </div>
              </CardHeader>
-             <CardContent className="space-y-2 font-mono text-[10px] text-zinc-500 overflow-hidden max-h-56 overflow-y-auto">
+             <CardContent className="space-y-2 font-mono text-[10px] text-muted-foreground overflow-hidden max-h-56 overflow-y-auto">
                 {logs.length === 0 && !logsLoading && (
-                  <div className="text-center text-zinc-700 py-6">No logs captured yet</div>
+                  <div className="text-center text-muted-foreground py-6">No logs captured yet</div>
                 )}
                 {logs.map((entry, i) => {
                   const levelColors = {
-                    INFO: 'text-blue-400',
-                    AUTH: 'text-emerald-400',
-                    WARN: 'text-amber-400',
-                    ERROR: 'text-red-400',
-                    CRON: 'text-purple-400',
-                    SYSTEM: 'text-cyan-400',
+                    INFO: 'text-sky-500',
+                    AUTH: 'text-primary',
+                    WARN: 'text-amber-500',
+                    ERROR: 'text-red-500',
+                    CRON: 'text-violet-500',
+                    SYSTEM: 'text-teal-500',
                     CRITICAL: 'text-red-500 font-bold',
                   };
-                  const color = levelColors[entry.level] || 'text-zinc-400';
+                  const color = levelColors[entry.level] || 'text-muted-foreground';
                   return (
-                    <div key={i} className="p-2 rounded bg-zinc-950/50 border border-zinc-900 flex items-start gap-2 group">
+                    <div key={i} className="p-2 rounded-xl bg-background border border-border flex items-start gap-2 group">
                       <span className={`${color} shrink-0 w-14 text-right font-bold`}>[{entry.level}]</span>
-                      <span className="text-zinc-600 shrink-0">{entry.time}</span>
-                      <span className="text-zinc-300 flex-1">{entry.message}</span>
-                      {entry.meta && <span className="text-zinc-600 hidden group-hover:inline shrink-0">{entry.meta}</span>}
+                      <span className="text-muted-foreground shrink-0">{entry.time}</span>
+                      <span className="text-foreground flex-1">{entry.message}</span>
+                      {entry.meta && <span className="text-muted-foreground hidden group-hover:inline shrink-0">{entry.meta}</span>}
                     </div>
                   );
                 })}
@@ -2919,19 +4431,19 @@ function TabSystem() {
 
        <DeploymentControls adminId={adminId} />
 
-       <Card className="border-red-900/50 bg-red-950/10">
+       <Card className="border border-red-500/20 bg-red-500/5 shadow-xs rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-red-400 text-lg flex items-center gap-2">
+            <CardTitle className="text-red-500 text-lg flex items-center gap-2">
               <ShieldAlert className="w-5 h-5" />
               Critical Actions
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-4">
-             <Button variant="destructive" onClick={handleFlushCache} disabled={isLoading}>Flush Redis Cache</Button>
-             <Button variant="destructive" onClick={handleRestartModules} disabled={isLoading}>Restart All Modules</Button>
+             <Button variant="destructive" onClick={handleFlushCache} disabled={isLoading} className="rounded-xl font-bold">Flush Redis Cache</Button>
+             <Button variant="destructive" onClick={handleRestartModules} disabled={isLoading} className="rounded-xl font-bold">Restart All Modules</Button>
              <Button 
                 variant="destructive" 
-                className="bg-red-600/20 text-red-400 border border-red-800 hover:bg-red-600"
+                className="bg-red-600/20 text-red-500 border border-red-500/40 hover:bg-red-600 hover:text-white rounded-xl font-bold"
                 onClick={handleFactoryReset}
                 disabled={isLoading}
              >
@@ -2983,18 +4495,18 @@ function Pm2Monitor() {
   };
 
   return (
-    <Card className="border-zinc-800 bg-zinc-900/30">
+    <Card className="border border-border bg-card shadow-xs rounded-2xl">
       <CardHeader className="flex-row justify-between items-start">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Activity className="w-5 h-5 text-emerald-400" />
+        <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+          <Activity className="w-5 h-5 text-primary" />
           Process Monitor
           {loading && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
         </CardTitle>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-zinc-600 font-mono">PM2</span>
+          <span className="text-[10px] text-muted-foreground font-mono">PM2</span>
           <button
             onClick={() => { setLoading(true); fetch2(); }}
-            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1 rounded border border-zinc-800 hover:border-zinc-700"
+            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded border border-border hover:bg-muted"
           >
             ↻ Refresh
           </button>
@@ -3002,67 +4514,67 @@ function Pm2Monitor() {
       </CardHeader>
       <CardContent className="space-y-3 font-mono text-[11px] max-h-56 overflow-y-auto">
         {processes.length === 0 && !loading && (
-          <div className="text-center text-zinc-700 py-6">No processes detected</div>
+          <div className="text-center text-muted-foreground py-6">No processes detected</div>
         )}
         {processes.map((p, i) => {
           const statusColors = {
-            online: 'bg-emerald-500',
+            online: 'bg-primary',
             stopping: 'bg-amber-500',
             stopped: 'bg-red-500',
             errored: 'bg-red-500',
-            launching: 'bg-blue-500',
+            launching: 'bg-sky-500',
           };
-          const dot = statusColors[p.status] || 'bg-zinc-500';
+          const dot = statusColors[p.status] || 'bg-muted-foreground';
           return (
-            <div key={i} className="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-2.5 hover:border-zinc-700/60 transition-colors">
+            <div key={i} className="p-3 rounded-xl bg-background border border-border space-y-2.5 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${dot} ${p.status === 'online' ? 'animate-pulse' : ''}`} />
-                  <span className="text-white font-bold text-xs">{p.name}</span>
-                  <span className="text-zinc-600 text-[10px]">v{p.version}</span>
+                  <span className="text-foreground font-bold text-xs">{p.name}</span>
+                  <span className="text-muted-foreground text-[10px]">v{p.version}</span>
                 </div>
                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                  p.status === 'online' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                  p.status === 'errored' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                  'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                  p.status === 'online' ? 'bg-primary/10 text-primary border border-primary/20' :
+                  p.status === 'errored' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                  'bg-muted text-muted-foreground border border-border'
                 }`}>{p.status}</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px]">
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">PID</span>
-                  <span className="text-zinc-300">{p.pid}</span>
+                  <span className="text-muted-foreground">PID</span>
+                  <span className="text-foreground">{p.pid}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">Mode</span>
-                  <span className="text-zinc-300 capitalize">{p.mode}</span>
+                  <span className="text-muted-foreground">Mode</span>
+                  <span className="text-foreground capitalize">{p.mode}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">CPU</span>
-                  <span className={`font-bold ${p.cpu > 80 ? 'text-red-400' : p.cpu > 40 ? 'text-amber-400' : 'text-emerald-400'}`}>{p.cpu}%</span>
+                  <span className="text-muted-foreground">CPU</span>
+                  <span className={`font-bold ${p.cpu > 80 ? 'text-red-500' : p.cpu > 40 ? 'text-amber-500' : 'text-primary'}`}>{p.cpu}%</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">Memory</span>
-                  <span className="text-blue-400 font-bold">{fmtMem(p.memory)}</span>
+                  <span className="text-muted-foreground">Memory</span>
+                  <span className="text-sky-500 font-bold">{fmtMem(p.memory)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">Uptime</span>
-                  <span className="text-zinc-300">{fmtUptime(p.uptime)}</span>
+                  <span className="text-muted-foreground">Uptime</span>
+                  <span className="text-foreground">{fmtUptime(p.uptime)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-600">Restarts</span>
-                  <span className={`font-bold ${p.restarts > 10 ? 'text-red-400' : p.restarts > 3 ? 'text-amber-400' : 'text-zinc-300'}`}>↻ {p.restarts}</span>
+                  <span className="text-muted-foreground">Restarts</span>
+                  <span className={`font-bold ${p.restarts > 10 ? 'text-red-500' : p.restarts > 3 ? 'text-amber-500' : 'text-foreground'}`}>↻ {p.restarts}</span>
                 </div>
               </div>
               {/* CPU + Memory mini bar */}
               <div className="flex gap-2 pt-1">
-                <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden" title={`CPU: ${p.cpu}%`}>
-                  <div className={`h-full rounded-full transition-all duration-500 ${p.cpu > 80 ? 'bg-red-500' : p.cpu > 40 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(p.cpu, 100)}%` }} />
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden" title={`CPU: ${p.cpu}%`}>
+                  <div className={`h-full rounded-full transition-all duration-500 ${p.cpu > 80 ? 'bg-red-500' : p.cpu > 40 ? 'bg-amber-500' : 'bg-primary'}`} style={{ width: `${Math.min(p.cpu, 100)}%` }} />
                 </div>
-                <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden" title={`Mem: ${fmtMem(p.memory)}`}>
-                  <div className="h-full rounded-full bg-blue-500 transition-all duration-500" style={{ width: `${Math.min((p.memory / 536870912) * 100, 100)}%` }} />
+                <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden" title={`Mem: ${fmtMem(p.memory)}`}>
+                  <div className="h-full rounded-full bg-sky-500 transition-all duration-500" style={{ width: `${Math.min((p.memory / 536870912) * 100, 100)}%` }} />
                 </div>
               </div>
-              <div className="flex justify-between text-[9px] text-zinc-600 -mt-1">
+              <div className="flex justify-between text-[9px] text-muted-foreground -mt-1">
                 <span>CPU</span>
                 <span>MEM (512MB scale)</span>
               </div>
@@ -3070,7 +4582,7 @@ function Pm2Monitor() {
           );
         })}
         {ts && (
-          <div className="text-center text-[9px] text-zinc-700 pt-1">
+          <div className="text-center text-[9px] text-muted-foreground pt-1">
             Last updated: {new Date(ts).toLocaleTimeString()} · Auto-refresh 5s
           </div>
         )}
@@ -3142,13 +4654,13 @@ function DeploymentControls({ adminId }) {
   };
 
   return (
-    <Card className="border-amber-900/50 bg-amber-950/10">
+    <Card className="border border-border bg-card shadow-xs rounded-2xl">
       <CardHeader>
-        <CardTitle className="text-amber-400 text-lg flex items-center gap-2">
-          <Settings className="w-5 h-5" />
+        <CardTitle className="text-foreground text-lg flex items-center gap-2">
+          <Settings className="w-5 h-5 text-primary" />
           Deployment Controls
         </CardTitle>
-        <p className="text-xs text-zinc-500">Pull latest code and rebuild the live site.</p>
+        <p className="text-xs text-muted-foreground">Pull latest code and rebuild the live site.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
@@ -3156,20 +4668,20 @@ function DeploymentControls({ adminId }) {
             onClick={handleGitPull}
             disabled={isPulling || isDeploying}
             variant="outline"
-            className="flex-1 h-12 border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
+            className="flex-1 h-12 border-primary/30 text-primary hover:bg-primary/10 rounded-xl font-semibold"
           >
             {isPulling ? '⟳ Pulling...' : '⇣ Git Code Pull'}
           </Button>
           <Button
             onClick={handleRebuildDeploy}
             disabled={isPulling || isDeploying}
-            className="flex-1 h-12 bg-amber-600 hover:bg-amber-700 text-white"
+            className="flex-1 h-12 bg-primary hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md shadow-primary/20"
           >
             {isDeploying ? '⟳ Building & Deploying...' : '🚀 Rebuild & Deploy'}
           </Button>
         </div>
         {deployLog && (
-          <pre className="mt-3 p-3 rounded-lg bg-zinc-950 text-green-400 text-xs font-mono overflow-x-auto max-h-48 whitespace-pre-wrap border border-zinc-800">
+          <pre className="mt-3 p-3 rounded-xl bg-background text-primary text-xs font-mono overflow-x-auto max-h-48 whitespace-pre-wrap border border-border">
             {deployLog}
           </pre>
         )}
@@ -3311,19 +4823,19 @@ function TabProfile({ data, setData }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10">
       <div className="lg:col-span-4 space-y-6">
-        <Card className="border-zinc-800 bg-zinc-900/10 backdrop-blur-md overflow-hidden p-0 gap-0 flex flex-col items-center">
-          <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-600 w-full relative">
-            <div className="absolute inset-0 bg-black/20" />
+        <Card className="border border-border bg-card shadow-xs rounded-2xl overflow-hidden p-0 gap-0 flex flex-col items-center">
+          <div className="h-32 bg-gradient-to-r from-teal-700 via-emerald-600 to-teal-800 w-full relative">
+            <div className="absolute inset-0 bg-black/10" />
           </div>
           <div className="px-6 w-full flex flex-col items-center relative">
             <div
-              className="relative -mt-12 border-4 border-zinc-950 rounded-3xl overflow-hidden bg-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer group"
+              className="relative -mt-12 border-4 border-card rounded-3xl overflow-hidden bg-muted shadow-xl cursor-pointer group"
               onClick={() => fileInputRef.current?.click()}
             >
                {data.avatar ? (
                  <img src={data.avatar} alt="Profile" className="w-24 h-24 object-cover" />
                ) : (
-                 <div className="w-24 h-24 flex items-center justify-center text-zinc-500">
+                 <div className="w-24 h-24 flex items-center justify-center text-muted-foreground">
                    <User className="w-12 h-12" />
                  </div>
                )}
@@ -3338,30 +4850,30 @@ function TabProfile({ data, setData }) {
             </div>
             
             <div className="mt-6 text-center space-y-1">
-              <h3 className="text-2xl font-bold text-white tracking-tight">{data.name || data.username}</h3>
-              <p className="text-zinc-400 text-sm font-medium tracking-wide opacity-80">{data.designation || 'Super Admin'}</p>
+              <h3 className="text-2xl font-bold text-foreground tracking-tight">{data.name || data.username}</h3>
+              <p className="text-muted-foreground text-sm font-medium tracking-wide">{data.designation || 'Super Admin'}</p>
               <div className="flex gap-2 justify-center pt-3">
                 <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-bold uppercase rounded-lg border border-primary/20">Super Admin</span>
-                <span className="px-3 py-1 bg-zinc-800/80 text-zinc-400 text-[10px] font-bold uppercase rounded-lg border border-zinc-700 font-mono">ID: {data.userId}</span>
+                <span className="px-3 py-1 bg-muted text-muted-foreground text-[10px] font-bold uppercase rounded-lg border border-border font-mono">ID: {data.userId}</span>
               </div>
             </div>
 
-            <div className="w-full mt-8 pt-6 border-t border-zinc-800/50 space-y-4 pb-8">
+            <div className="w-full mt-8 pt-6 border-t border-border space-y-3 pb-8">
                {data.email && (
-                 <div className="flex items-center gap-4 text-sm text-zinc-300 bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="p-2 rounded-lg bg-primary/10 shadow-inner"><Mail className="w-4 h-4 text-primary" /></div>
+                 <div className="flex items-center gap-4 text-sm text-foreground bg-background p-3 rounded-xl border border-border">
+                   <div className="p-2 rounded-lg bg-primary/10 text-primary"><Mail className="w-4 h-4" /></div>
                    <span className="font-medium truncate">{data.email}</span>
                  </div>
                )}
                {data.phone && (
-                 <div className="flex items-center gap-4 text-sm text-zinc-300 bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="p-2 rounded-lg bg-emerald-500/10 shadow-inner"><Phone className="w-4 h-4 text-emerald-400" /></div>
+                 <div className="flex items-center gap-4 text-sm text-foreground bg-background p-3 rounded-xl border border-border">
+                   <div className="p-2 rounded-lg bg-primary/10 text-primary"><Phone className="w-4 h-4" /></div>
                    <span className="font-medium">{data.phone}</span>
                  </div>
                )}
                {data.department && (
-                 <div className="flex items-center gap-4 text-sm text-zinc-300 bg-white/5 p-3 rounded-xl border border-white/5">
-                   <div className="p-2 rounded-lg bg-amber-500/10 shadow-inner"><Shield className="w-4 h-4 text-amber-400" /></div>
+                 <div className="flex items-center gap-4 text-sm text-foreground bg-background p-3 rounded-xl border border-border">
+                   <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500"><Shield className="w-4 h-4" /></div>
                    <span className="font-medium">{data.department}</span>
                  </div>
                )}
@@ -3369,24 +4881,24 @@ function TabProfile({ data, setData }) {
           </div>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader>
-             <CardTitle className="text-sm font-bold flex items-center gap-2">
+             <CardTitle className="text-sm font-bold flex items-center gap-2 text-foreground">
                <ShieldAlert className="w-4 h-4 text-amber-500" />
                Security Notice
              </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-zinc-500 leading-relaxed">
+          <CardContent className="text-xs text-muted-foreground leading-relaxed">
             As a Super Admin, your actions are logged and audited. Ensure your credentials are never shared and change your password regularly.
           </CardContent>
         </Card>
       </div>
 
       <div className="lg:col-span-8 space-y-8">
-        <Card className="border-zinc-800 bg-zinc-900/30">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <User className="w-5 h-5 text-blue-400" />
+            <CardTitle className="text-lg flex items-center gap-2 text-foreground">
+              <User className="w-5 h-5 text-primary" />
               General Information
             </CardTitle>
           </CardHeader>
@@ -3394,64 +4906,64 @@ function TabProfile({ data, setData }) {
             <form onSubmit={handleUpdateProfile} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Full Name</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Full Name</Label>
                   <Input 
                     value={data.name} 
                     onChange={(e) => setData({...data, name: e.target.value})}
-                    className="bg-zinc-950 border-zinc-800 focus:border-primary text-white" 
+                    className="bg-background border-border focus:border-primary text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Email Address</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Email Address</Label>
                   <Input 
                     value={data.email} 
                     onChange={(e) => setData({...data, email: e.target.value})}
-                    className="bg-zinc-950 border-zinc-800 focus:border-primary text-white" 
+                    className="bg-background border-border focus:border-primary text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Phone</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Phone</Label>
                   <Input 
                     value={data.phone} 
                     onChange={(e) => setData({...data, phone: e.target.value})}
-                    className="bg-zinc-950 border-zinc-800 focus:border-primary text-white" 
+                    className="bg-background border-border focus:border-primary text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Designation</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Designation</Label>
                   <Input 
                     value={data.designation} 
                     onChange={(e) => setData({...data, designation: e.target.value})}
-                    className="bg-zinc-950 border-zinc-800 focus:border-primary text-white" 
+                    className="bg-background border-border focus:border-primary text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Department</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Department</Label>
                   <Input 
                     value={data.department} 
                     onChange={(e) => setData({...data, department: e.target.value})}
-                    className="bg-zinc-950 border-zinc-800 focus:border-primary text-white" 
+                    className="bg-background border-border focus:border-primary text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">User ID (Non-editable)</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">User ID (Non-editable)</Label>
                   <Input 
                     value={data.userId} 
                     disabled
-                    className="bg-zinc-900/50 border-zinc-800 italic text-zinc-500 cursor-not-allowed" 
+                    className="bg-muted border-border italic text-muted-foreground cursor-not-allowed rounded-xl" 
                   />
                 </div>
               </div>
-              <Button type="submit" disabled={saving} className="bg-primary hover:bg-primary/90 text-black font-bold h-12 px-6">
+              <Button type="submit" disabled={saving} className="bg-primary hover:bg-emerald-700 text-white font-bold h-12 px-6 rounded-xl shadow-md shadow-primary/20">
                 {saving ? 'Saving…' : 'Update Profile'}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        <Card className="border-zinc-800 bg-zinc-900/30 border-l-4 border-l-amber-500/50 shadow-lg shadow-amber-500/5">
+        <Card className="border border-border bg-card shadow-xs rounded-2xl border-l-4 border-l-amber-500/50">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-amber-400">
+            <CardTitle className="text-lg flex items-center gap-2 text-amber-500">
               <Lock className="w-5 h-5" />
               Change Password
             </CardTitle>
@@ -3460,38 +4972,38 @@ function TabProfile({ data, setData }) {
             <form onSubmit={handleUpdatePassword} className="space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-zinc-400 font-medium">Current Password</Label>
+                  <Label className="text-muted-foreground font-medium text-xs">Current Password</Label>
                   <Input 
                     type="password" 
                     value={passwords.current}
                     onChange={(e) => setPasswords({...passwords, current: e.target.value})}
                     placeholder="Enter current password"
-                    className="bg-zinc-950 border-zinc-800 text-white" 
+                    className="bg-background border-border text-foreground rounded-xl" 
                   />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-medium">New Password</Label>
+                    <Label className="text-muted-foreground font-medium text-xs">New Password</Label>
                     <Input 
                       type="password" 
                       value={passwords.next}
                       onChange={(e) => setPasswords({...passwords, next: e.target.value})}
                       placeholder="Minimum 4 characters"
-                      className="bg-zinc-950 border-zinc-800 text-white" 
+                      className="bg-background border-border text-foreground rounded-xl" 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-zinc-400 font-medium">Confirm New Password</Label>
+                    <Label className="text-muted-foreground font-medium text-xs">Confirm New Password</Label>
                     <Input 
                       type="password" 
                       value={passwords.confirm}
                       onChange={(e) => setPasswords({...passwords, confirm: e.target.value})}
-                      className="bg-zinc-950 border-zinc-800 text-white" 
+                      className="bg-background border-border text-foreground rounded-xl" 
                     />
                   </div>
                 </div>
               </div>
-              <Button type="submit" disabled={changingPw} variant="secondary" className="font-bold h-12 px-8 border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-white">
+              <Button type="submit" disabled={changingPw} variant="secondary" className="font-bold h-12 px-8 border border-border bg-card hover:bg-muted text-foreground rounded-xl shadow-xs">
                 {changingPw ? 'Changing…' : 'Change Password'}
               </Button>
             </form>

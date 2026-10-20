@@ -52,16 +52,21 @@ export async function isPort3004Reachable(force = false) {
 
   // If failed on IPv4, test localhost or fetch
   if (!reachable) {
+    const primary = process.env.AUTH_SERV_URL || `http://${targetHost}:${targetPort}`;
     try {
-      const primary = process.env.AUTH_SERV_URL || `http://${targetHost}:${targetPort}`;
       await fetch(primary, { signal: AbortSignal.timeout(600) });
       reachable = true;
     } catch {
-      reachable = false;
+      try {
+        const fallback = primary.replace('localhost', '127.0.0.1');
+        await fetch(fallback, { signal: AbortSignal.timeout(600) });
+        reachable = true;
+      } catch {
+        reachable = false;
+      }
     }
   }
 
   _port3004Status = { reachable, lastCheck: Date.now() };
   return reachable;
 }
-

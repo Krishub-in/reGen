@@ -1,15 +1,15 @@
 /**
  * useSocket — real-time data synchronisation via Socket.IO.
  *
- * Connects once per app lifetime, authenticates with the JWT,
+ * Connects once per app lifetime, authenticates with JWT,
  * and invalidates the relevant React Query caches when the
  * server broadcasts change events.
  *
- * Covered modules:
- *   attendance:change  → ['attendance']
- *   task:change        → ['tasks']
- *   message:change     → ['messages']
- *   scrum:change       → ['scrumNotes']
+ * Includes complete handling for:
+ * - Page lifecycle & BFCache (pagehide / pageshow / visibilitychange)
+ * - Safe reconnection without duplicate connections on React remounts
+ * - Clean teardown of event listeners
+ * - Multi-role token support (SuperAdmin sa_auth_token & User/Company auth_token)
  */
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -39,94 +39,209 @@ export function getSocket() {
 
 /**
  * Resolve the socket server URL.
- * - In production the page is served from the same origin as the API,
- *   so we just use the current origin.
- * - In dev (Vite proxy) the `/ws` path is proxied to the backend.
+ * - In production the page is served from the same origin as the API.
+ * - In dev (Vite proxy) the `/ws` path is proxied to the backend on port 5006.
  */
 function getSocketUrl() {
-  // In production the frontend is served from nginx on the same host
-  // as the API, so window.location.origin works.
+  if (typeof window === 'undefined') return '';
   return window.location.origin;
+}
+
+/**
+ * Retrieve the active authentication token.
+ * Checks both regular and Super Admin storage keys based on current route.
+ */
+function getAuthToken() {
+  if (typeof window === 'undefined') return null;
+  const isSuperAdmin = window.location.pathname.startsWith('/superadmin');
+  return isSuperAdmin
+    ? (localStorage.getItem('sa_auth_token') || localStorage.getItem('auth_token'))
+    : (localStorage.getItem('auth_token') || localStorage.getItem('sa_auth_token'));
+}
+
+// Module-level singleton instance to prevent duplicate connections across React renders/remounts
+let activeSocket = null;
+let activeToken = null;
+let isBfCached = false;
+let currentQueryClient = null;
+
+function setupEventListeners(socket) {
+  // Remove existing listeners to prevent duplicates
+  for (const event of Object.keys(EVENT_TO_QUERY_KEYS)) {
+    socket.off(event);
+  }
+  socket.off('company:blocked');
+  socket.off('connect');
+  socket.off('disconnect');
+
+  // Register real-time query invalidation listeners
+  for (const [event, queryKeys] of Object.entries(EVENT_TO_QUERY_KEYS)) {
+    socket.on(event, () => {
+      if (currentQueryClient) {
+        for (const key of queryKeys) {
+          currentQueryClient.invalidateQueries({ queryKey: key });
+        }
+      }
+    });
+  }
+
+  socket.on('notification:new', (notif) => {
+    if (currentQueryClient) {
+      currentQueryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-notification-new', { detail: notif }));
+    }
+  });
+
+  // Force logout when company is blocked by SuperAdmin
+  socket.on('company:blocked', (payload) => {
+    localStorage.removeItem('current_user');
+    localStorage.removeItem('auth_token');
+    alert(payload?.message || 'Your company has been blocked. Please contact system admin (ReGen) for assistance.');
+    window.location.href = '/';
+  });
+
+  socket.on('connect', () => {
+    globalSocket = socket;
+    // eslint-disable-next-line no-console
+    console.log('[WS] connected');
+  });
+
+  socket.on('disconnect', (reason) => {
+    // Only log if not intentional BFCache transition
+    if (!isBfCached) {
+      // eslint-disable-next-line no-console
+      console.log('[WS] disconnected:', reason);
+    }
+  });
+}
+
+function getOrCreateSocket(token) {
+  if (!token) {
+    if (activeSocket) {
+      activeSocket.disconnect();
+      activeSocket = null;
+      globalSocket = null;
+      activeToken = null;
+    }
+    return null;
+  }
+
+  // If existing socket is valid with the same token, reuse it
+  if (activeSocket && activeToken === token) {
+    globalSocket = activeSocket;
+    if (!activeSocket.connected && !isBfCached) {
+      activeSocket.connect();
+    }
+    return activeSocket;
+  }
+
+  // If token changed, tear down old socket
+  if (activeSocket) {
+    activeSocket.disconnect();
+    activeSocket = null;
+    globalSocket = null;
+  }
+
+  activeToken = token;
+  const socket = io(getSocketUrl(), {
+    path: '/ws',
+    transports: ['websocket', 'polling'],
+    auth: { token },
+    query: { token },
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 10000,
+  });
+
+  setupEventListeners(socket);
+  activeSocket = socket;
+  globalSocket = socket;
+  return activeSocket;
 }
 
 export function useSocket() {
   const queryClient = useQueryClient();
-  const socketRef = useRef(null);
-  // Track the token so we reconnect on login / disconnect on logout
-  const [token, setToken] = useState(() => localStorage.getItem('auth_token'));
+  const [token, setToken] = useState(getAuthToken);
 
-  // Poll localStorage for token changes (covers login/logout from other code)
+  // Keep queryClient reference updated for event callbacks
   useEffect(() => {
-    const interval = setInterval(() => {
-      const current = localStorage.getItem('auth_token');
+    currentQueryClient = queryClient;
+  }, [queryClient]);
+
+  // Monitor localStorage for token changes (login, logout, account switch)
+  useEffect(() => {
+    const checkToken = () => {
+      const current = getAuthToken();
       setToken((prev) => (prev !== current ? current : prev));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    };
 
-  useEffect(() => {
-    // Disconnect stale socket if token changed or disappeared
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
-
-    if (!token) return; // not logged in
-
-    const socket = io(getSocketUrl(), {
-      path: '/ws',
-      transports: ['websocket', 'polling'],
-      auth: { token },
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 2000,
-      reconnectionDelayMax: 10000,
-    });
-
-    socketRef.current = socket;
-    globalSocket = socket;
-
-    // Register event listeners
-    for (const [event, queryKeys] of Object.entries(EVENT_TO_QUERY_KEYS)) {
-      socket.on(event, () => {
-        for (const key of queryKeys) {
-          queryClient.invalidateQueries({ queryKey: key });
-        }
-      });
-    }
-
-    socket.on('notification:new', (notif) => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('app-notification-new', { detail: notif }));
-      }
-    });
-
-    // Force logout when company is blocked by SuperAdmin
-    socket.on('company:blocked', (payload) => {
-      // Clear all auth state
-      localStorage.removeItem('current_user');
-      localStorage.removeItem('auth_token');
-      // Show alert and redirect to login
-      alert(payload?.message || 'Your company has been blocked. Please contact system admin (ReGen) for assistance.');
-      window.location.href = '/';
-    });
-
-    socket.on('connect', () => {
-      globalSocket = socket;
-      // eslint-disable-next-line no-console
-      console.log('[WS] connected');
-    });
-
-    socket.on('disconnect', (reason) => {
-      // eslint-disable-next-line no-console
-      console.log('[WS] disconnected:', reason);
-    });
+    window.addEventListener('storage', checkToken);
+    const interval = setInterval(checkToken, 1000);
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
-      if (globalSocket === socket) globalSocket = null;
+      window.removeEventListener('storage', checkToken);
+      clearInterval(interval);
     };
-  }, [token, queryClient]);
+  }, []);
+
+  // Manage connection lifecycle and BFCache events
+  useEffect(() => {
+    const socket = getOrCreateSocket(token);
+
+    // BFCache: Handle page entering Back-Forward Cache (navigating away)
+    const handlePageHide = (event) => {
+      // If persisted is true, the page is going into BFCache
+      isBfCached = true;
+      if (activeSocket && activeSocket.connected) {
+        // Disconnect cleanly so browser does not forcibly terminate the connection with an error
+        activeSocket.disconnect();
+      }
+    };
+
+    // BFCache: Handle page restored from Back-Forward Cache
+    const handlePageShow = (event) => {
+      if (event.persisted || isBfCached) {
+        isBfCached = false;
+        const currentToken = getAuthToken();
+        if (currentToken) {
+          if (activeSocket) {
+            activeSocket.auth = { token: currentToken };
+            if (activeSocket.io?.opts) {
+              activeSocket.io.opts.query = { token: currentToken };
+            }
+            if (!activeSocket.connected) {
+              activeSocket.connect();
+            }
+          } else {
+            getOrCreateSocket(currentToken);
+          }
+        }
+      }
+    };
+
+    // Tab visibility recovery (e.g. background tab reactivation)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !isBfCached) {
+        const currentToken = getAuthToken();
+        if (currentToken && activeSocket && !activeSocket.connected) {
+          activeSocket.connect();
+        }
+      }
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [token]);
 }
 

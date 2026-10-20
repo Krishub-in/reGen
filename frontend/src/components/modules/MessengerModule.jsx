@@ -662,164 +662,161 @@ export default function MessengerModule({ userProfile }) {
         </div>
       )}
       
-      <Card className="h-[calc(100vh-16rem)] flex flex-col">
-        <CardHeader>
-          <CardTitle>Team Chat</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto pr-4">
-            <div className="space-y-4">
-              {isLoading ? (
-                <p className="text-center py-8 text-muted-foreground">Loading messages...</p>
-              ) : messages.length === 0 ? (
-                <p className="text-center py-8 text-muted-foreground">No messages yet. Start the conversation!</p>
-              ) : (
-                messages.map((message, msgIndex) => {
-                  const mid = message._id || message.messageId || message.id;
-                  const own = isOwnMessage(message.senderId);
-                  const modifiable = canModify(message);
-                  const isEditing = editingId === mid;
-                  const isCurrentSearchMatch = searchMatches[currentMatchIndex] === msgIndex;
-
-                  return (
-                    <div
-                      key={mid}
-                      ref={(el) => { matchRefs.current[msgIndex] = el; }}
-                      className={`group flex ${own ? 'justify-end' : 'justify-start'} ${isCurrentSearchMatch ? 'ring-2 ring-yellow-400 rounded-lg' : ''}`}
-                      onMouseDown={() => onMessagePointerDown(mid)}
-                      onMouseUp={onMessagePointerUp}
-                      onTouchStart={() => onMessagePointerDown(mid)}
-                      onTouchEnd={onMessagePointerUp}
-                      onClick={() => selectionMode ? toggleSelect(mid) : null}
-                    >
-                      <div
-                        className={`max-w-[70%] rounded-lg p-3 relative ${
-                          own
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-foreground'
-                        } ${selectionMode && selectedIds.includes(mid) ? 'ring-2 ring-destructive' : ''}`}
-                      >
-                        {/* Edit/Delete action buttons – shown on hover */}
-                        {modifiable && !selectionMode && !isEditing && (
-                          <div className={`absolute top-1 ${own ? 'left-1' : 'right-1'} hidden group-hover:flex gap-1`}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); startEdit(message); }}
-                              className="rounded p-1 bg-background/80 hover:bg-background text-foreground shadow-sm"
-                              title="Edit"
-                            >
-                              <Pencil className="h-3 w-3" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleDeleteSingle(mid); }}
-                              className="rounded p-1 bg-background/80 hover:bg-destructive hover:text-destructive-foreground text-foreground shadow-sm"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        )}
-
-                        {isEditing ? (
-                          <div className="space-y-2">
-                            <Input
-                              value={editContent}
-                              onChange={(e) => setEditContent(e.target.value)}
-                              className="h-8 text-sm bg-background text-foreground"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                            />
-                            <div className="flex gap-1 justify-end">
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={cancelEdit}>
-                                <X className="h-3 w-3 mr-1" /> Cancel
-                              </Button>
-                              <Button size="sm" className="h-6 px-2 text-xs" onClick={confirmEdit} disabled={editMessage.isPending || !editContent.trim()}>
-                                <Check className="h-3 w-3 mr-1" /> Save
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-sm break-words">{highlightText(message.content, msgIndex)}</p>
-                        )}
-
-                        {Array.isArray(message.attachments) && message.attachments.length > 0 && (
-                          <div className="mt-2 space-y-2">
-                            {message.attachments.map((att, idx) => {
-                              const normalized = normalizeAttachment(att);
-                              if (!normalized) return null;
-                              const sizeText = typeof normalized.size === 'number' ? ` (${Math.round(normalized.size / 1024)} KB)` : '';
-                              const publicPath = toPublicPath(normalized.path);
-                              const isAudio = (
-                                normalized.type?.startsWith('audio') ||
-                                /\.(webm|wav|mp3|ogg|m4a|aac)$/i.test(normalized.name || normalized.path || '') ||
-                                (normalized.path && String(normalized.path).includes('voice-'))
-                              );
-
-                              return (
-                                <div key={`${message.id}-att-${idx}`} className="rounded-md border border-border p-2 bg-background/50 text-foreground">
-                                  {isImageAttachment(normalized) && (
-                                    <img src={publicPath} alt={normalized.name} className="max-h-40 rounded-md object-contain mb-2" />
-                                  )}
-                                  {isAudio ? (
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center justify-between text-xs font-semibold px-0.5">
-                                        <span className="flex items-center gap-1.5 text-primary">
-                                          <Mic className="h-3.5 w-3.5" />
-                                          Voice Note
-                                        </span>
-                                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
-                                          {normalized.name}
-                                        </span>
-                                      </div>
-                                      <audio
-                                        controls
-                                        preload="metadata"
-                                        src={publicPath}
-                                        className="h-9 w-full max-w-[260px] rounded-md focus:outline-none"
-                                      >
-                                        Your browser does not support audio playback.
-                                      </audio>
-                                    </div>
-                                  ) : (
-                                    <a href={publicPath} download={normalized.name} className="text-xs underline flex items-center gap-2" title={normalized.name}>
-                                      <Paperclip className="h-3 w-3" />
-                                      {truncateName(normalized.name)}{sizeText}
-                                    </a>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-1 mt-1">
-                          <p className="text-xs opacity-70">
-                            {getSenderName(message.senderId, message.senderName || message.sender || 'Unknown')}
-                          </p>
-                          {message.editedAt && (
-                            <span className="text-[10px] opacity-50 italic">(edited)</span>
-                          )}
-                        </div>
-                        <p className="text-[11px] opacity-60">
-                          {formatTime(message.timestamp)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              <div ref={bottomRef} />
+      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100vh-11rem)] min-h-[580px] flex flex-col w-full">
+        <CardHeader className="h-16 px-4 md:px-6 border-b border-border bg-card/80 backdrop-blur-xs flex flex-row items-center justify-between gap-3 shrink-0 py-0">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-border">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-bold text-foreground">Company Team Channel</CardTitle>
+              <p className="text-xs text-muted-foreground">General workspace collaboration</p>
             </div>
           </div>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setSearchOpen(o => !o); setSearchTerm(''); setCurrentMatchIndex(0); }}>
+              <Search className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
 
+        <CardContent className="flex-1 flex flex-col min-h-0 p-0 relative bg-background/50">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+            {isLoading ? (
+              <div className="h-full flex items-center justify-center py-16 text-muted-foreground text-sm">
+                Loading messages...
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="h-full min-h-[300px] flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-14 h-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-3">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h4 className="font-bold text-sm text-foreground">Welcome to Team Chat</h4>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
+                  Post company-wide announcements, share updates, or collaborate with all teammates right here.
+                </p>
+              </div>
+            ) : (
+              messages.map((message, msgIndex) => {
+                const mid = message._id || message.messageId || message.id;
+                const own = isOwnMessage(message.senderId);
+                const modifiable = canModify(message);
+                const isEditing = editingId === mid;
+                const isCurrentSearchMatch = searchMatches[currentMatchIndex] === msgIndex;
+
+                return (
+                  <div
+                    key={mid}
+                    ref={(el) => { matchRefs.current[msgIndex] = el; }}
+                    className={`group flex ${own ? 'justify-end' : 'justify-start'} ${isCurrentSearchMatch ? 'ring-2 ring-amber-400 rounded-2xl' : ''}`}
+                    onMouseDown={() => onMessagePointerDown(mid)}
+                    onMouseUp={onMessagePointerUp}
+                    onTouchStart={() => onMessagePointerDown(mid)}
+                    onTouchEnd={onMessagePointerUp}
+                    onClick={() => selectionMode ? toggleSelect(mid) : null}
+                  >
+                    <div
+                      className={`max-w-[78%] sm:max-w-[68%] rounded-2xl p-3.5 relative shadow-xs transition-all ${
+                        own
+                          ? 'bg-[#0D9488] text-white rounded-br-xs'
+                          : 'bg-card border border-border text-foreground rounded-bl-xs'
+                      } ${selectionMode && selectedIds.includes(mid) ? 'ring-2 ring-destructive' : ''}`}
+                    >
+                      {/* Edit/Delete action buttons – shown on hover */}
+                      {modifiable && !selectionMode && !isEditing && (
+                        <div className="absolute top-1 right-1 hidden group-hover:flex gap-1 bg-card/90 border border-border/60 rounded-lg p-0.5 shadow-xs">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); startEdit(message); }}
+                            className="rounded p-1 hover:bg-secondary text-muted-foreground hover:text-foreground"
+                            title="Edit"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteSingle(mid); }}
+                            className="rounded p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {isEditing ? (
+                        <div className="space-y-2">
+                          <Input
+                            value={editContent}
+                            onChange={(e) => setEditContent(e.target.value)}
+                            className="h-8 text-xs bg-background text-foreground"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmEdit(); }
+                              if (e.key === 'Escape') cancelEdit();
+                            }}
+                          />
+                          <div className="flex gap-1 justify-end">
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={cancelEdit}>
+                              <X className="h-3 w-3 mr-1" /> Cancel
+                            </Button>
+                            <Button size="sm" className="h-6 px-2 text-xs bg-white text-emerald-800" onClick={confirmEdit} disabled={editMessage.isPending || !editContent.trim()}>
+                              <Check className="h-3 w-3 mr-1" /> Save
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm break-words leading-relaxed whitespace-pre-wrap">{highlightText(message.content, msgIndex)}</p>
+                      )}
+
+                      {Array.isArray(message.attachments) && message.attachments.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          {message.attachments.map((att, idx) => {
+                            const normalized = normalizeAttachment(att);
+                            if (!normalized) return null;
+                            const sizeText = typeof normalized.size === 'number' ? ` (${Math.round(normalized.size / 1024)} KB)` : '';
+                            const publicPath = toPublicPath(normalized.path);
+                            return (
+                              <div key={`${message.id}-att-${idx}`} className={`rounded-xl border p-2 text-xs flex items-center gap-2 ${
+                                own ? 'bg-white/10 border-white/20 text-white' : 'bg-muted/40 border-border text-foreground'
+                              }`}>
+                                {isImageAttachment(normalized) ? (
+                                  <img src={publicPath} alt={normalized.name} className="max-h-36 rounded-lg object-contain mb-1" />
+                                ) : (
+                                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                )}
+                                <a href={publicPath} download={normalized.name} className="underline truncate flex-1 hover:opacity-80" title={normalized.name}>
+                                  {truncateName(normalized.name)}{sizeText}
+                                </a>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      
+                      <div className={`flex items-center justify-between gap-3 mt-1.5 text-[10px] ${own ? 'text-white/80' : 'text-muted-foreground'}`}>
+                        <span className="font-semibold truncate">
+                          {own ? 'You' : getSenderName(message.senderId, message.senderName || message.sender || 'Unknown')}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {message.editedAt && (
+                            <span className="italic opacity-80">(edited)</span>
+                          )}
+                          <span>{formatTime(message.timestamp)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={bottomRef} />
+          </div>
         </CardContent>
-        <CardFooter className="sticky bottom-0 bg-background">
-          <form onSubmit={handleSend} className="flex gap-2 w-full items-center">
+        <CardFooter className="p-3 md:p-4 border-t border-border bg-card/90 backdrop-blur-xs shrink-0">
+          <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
             {!isRecording && (
-              <div className="flex items-center">
-                <Label htmlFor="chat-files" className="p-2 rounded-md bg-muted hover:bg-muted/80 cursor-pointer shrink-0">
-                  <Paperclip className="h-4 w-4" />
+              <>
+                <Label htmlFor="chat-files" className="h-10 w-10 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center cursor-pointer shrink-0 transition-colors border border-border">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
                 </Label>
                 <Input
                   id="chat-files"
@@ -829,13 +826,13 @@ export default function MessengerModule({ userProfile }) {
                   className="hidden"
                   onChange={(e) => setFiles(Array.from(e.target.files || []))}
                 />
-              </div>
+              </>
             )}
             {files.length > 0 && !isRecording && (
-              <div className="flex items-center gap-2 max-w-[30%] overflow-x-auto">
+              <div className="flex items-center gap-1.5 max-w-[30%] overflow-x-auto">
                 {files.map((f, idx) => (
-                  <Badge key={`${f.name}-${idx}`} variant="secondary" className="flex items-center gap-2 whitespace-nowrap" title={f.name}>
-                    <span className="text-xs">{truncateName(f.name)}</span>
+                  <Badge key={`${f.name}-${idx}`} variant="secondary" className="flex items-center gap-1 whitespace-nowrap text-xs py-1 px-2 rounded-lg" title={f.name}>
+                    <span>{truncateName(f.name)}</span>
                     <button
                       type="button"
                       className="rounded-md p-0.5 hover:bg-muted"
@@ -849,17 +846,17 @@ export default function MessengerModule({ userProfile }) {
             )}
 
             {isRecording ? (
-              <div className="flex-1 flex items-center justify-between bg-destructive/10 text-destructive px-3 py-1.5 rounded-md border border-destructive/20 animate-pulse">
+              <div className="flex-1 flex items-center justify-between bg-destructive/10 text-destructive px-3.5 py-2 rounded-xl border border-destructive/20 animate-pulse">
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-red-600 animate-ping" />
                   <span className="text-sm font-semibold">Recording voice message...</span>
                   <span className="text-xs font-mono ml-2 font-bold">{recordDuration}s</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelVoiceRecording} className="h-7 text-xs text-destructive hover:bg-destructive/20">
+                  <Button type="button" size="sm" variant="ghost" onClick={cancelVoiceRecording} className="h-8 text-xs text-destructive hover:bg-destructive/20 rounded-lg">
                     <X className="h-4 w-4 mr-1" /> Cancel
                   </Button>
-                  <Button type="button" size="sm" onClick={stopVoiceRecording} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white font-medium">
+                  <Button type="button" size="sm" onClick={stopVoiceRecording} className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg">
                     <Square className="h-3 w-3 mr-1 fill-current" /> Send
                   </Button>
                 </div>
@@ -871,9 +868,12 @@ export default function MessengerModule({ userProfile }) {
                   ref={textInputRef}
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder={isDictating ? '🎙️ Listening... Speak now to transcribe' : 'Type your message...'}
+                  placeholder={isDictating ? '🎙️ Listening... Speak now to transcribe' : 'Post a message to team...'}
                   disabled={sendMessage.isPending}
-                  className={cn("flex-1", isDictating && "border-primary ring-2 ring-primary/40 bg-primary/5")}
+                  className={cn("flex-1 h-10 rounded-xl bg-background border-border text-xs sm:text-sm", isDictating && "border-primary ring-2 ring-primary/40 bg-primary/5")}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); }
+                  }}
                 />
                 {/* Voice-to-Text (Speech dictation into text box) */}
                 <Button
@@ -883,8 +883,8 @@ export default function MessengerModule({ userProfile }) {
                   onClick={toggleVoiceToText}
                   title={isDictating ? 'Stop Voice Typing' : 'Voice Typing (Speech to Text)'}
                   className={cn(
-                    "shrink-0 transition-colors",
-                    isDictating ? "text-primary animate-pulse bg-primary/20 hover:bg-primary/30" : "text-muted-foreground hover:text-foreground"
+                    "h-10 w-10 rounded-xl shrink-0 transition-colors border border-border",
+                    isDictating ? "text-primary animate-pulse bg-primary/20 hover:bg-primary/30 border-primary" : "text-muted-foreground hover:text-foreground bg-secondary/50"
                   )}
                 >
                   <Volume2 className="h-4 w-4" />
@@ -896,11 +896,16 @@ export default function MessengerModule({ userProfile }) {
                   size="icon"
                   onClick={startVoiceRecording}
                   title="Record Voice Message (Voice Note)"
-                  className="shrink-0 text-muted-foreground hover:text-red-500"
+                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-red-500 bg-secondary/50 border border-border transition-colors"
                 >
                   <Mic className="h-4 w-4" />
                 </Button>
-                <Button type="submit" disabled={sendMessage.isPending || (!content.trim() && files.length === 0)}>
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white shrink-0 shadow-xs"
+                  disabled={sendMessage.isPending || (!content.trim() && files.length === 0)}
+                >
                   <Send className="h-4 w-4" />
                 </Button>
               </>

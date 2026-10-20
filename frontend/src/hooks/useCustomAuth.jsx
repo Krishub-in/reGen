@@ -22,19 +22,33 @@ export const CustomAuthProvider = ({ children }) => {
     const initAuth = async () => {
       // Check if there is a current active session
       const currentUsername = localStorage.getItem('current_user');
-      if (currentUsername) {
+      const token = localStorage.getItem('auth_token');
+      if (currentUsername || token) {
+        const sessionKey = currentUsername || 'current_user';
         const db = getAuthDb();
-        const userRecord = db[currentUsername];
+        let userRecord = db[sessionKey];
+
+        if (!userRecord || !userRecord.identityJson) {
+          try {
+            const newIdentity = Ed25519KeyIdentity.generate();
+            db[sessionKey] = { identityJson: newIdentity.toJSON() };
+            saveAuthDb(db);
+            userRecord = db[sessionKey];
+          } catch (e) {
+            console.error("Failed to generate identity", e);
+          }
+        }
         
         if (userRecord && userRecord.identityJson) {
-            try {
-                const identity = Ed25519KeyIdentity.fromJSON(JSON.stringify(userRecord.identityJson));
-                setIdentity(identity);
-                setIsAuthenticated(true);
-            } catch (e) {
-                console.error("Failed to load identity", e);
-                localStorage.removeItem('current_user');
-            }
+          try {
+            const identity = Ed25519KeyIdentity.fromJSON(JSON.stringify(userRecord.identityJson));
+            setIdentity(identity);
+            setIsAuthenticated(true);
+          } catch (e) {
+            console.error("Failed to load identity", e);
+            localStorage.removeItem('current_user');
+            localStorage.removeItem('auth_token');
+          }
         }
       }
       setIsLoggingIn(false);
