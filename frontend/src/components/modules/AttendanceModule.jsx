@@ -254,6 +254,97 @@ export default function AttendanceModule({ userProfile }) {
     });
   }, [allLeaves, toIdText, normalizeAttendanceDate]);
 
+  const formatTime = (timeValue) => {
+    if (!timeValue) return '--';
+    try {
+      if (typeof timeValue === 'bigint') {
+        const ms = Number(timeValue) / 1000000;
+        const d = new Date(ms);
+        if (isNaN(d.getTime())) return '--';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      if (typeof timeValue === 'string') {
+        if (/^\d+$/.test(timeValue)) {
+          const asBig = BigInt(timeValue);
+          const ms = Number(asBig) / 1000000;
+          const d = new Date(ms);
+          if (isNaN(d.getTime())) return '--';
+          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        const d = new Date(timeValue);
+        if (isNaN(d.getTime())) return '--';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      if (typeof timeValue === 'number') {
+        let ms = timeValue;
+        if (timeValue > 10000000000) {
+          ms = timeValue / 1000000;
+        }
+        const d = new Date(ms);
+        if (isNaN(d.getTime())) return '--';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch (e) {
+      console.error('Error formatting time:', timeValue, e);
+      return '--';
+    }
+  };
+
+  const getCheckInTime = (record) => {
+    if (!record) return null;
+    return record?.checkIn || 
+           record?.checkInTime || 
+           record?.checkInAt || 
+           record?.checkinTime ||
+           record?.start ||
+           record?.startTime ||
+           null;
+  };
+
+  const getCheckOutTime = (record) => {
+    if (!record) return null;
+    const checkOut = record?.checkOut || 
+                    record?.checkOutTime || 
+                    record?.checkOutAt || 
+                    record?.checkoutTime ||
+                    record?.end ||
+                    record?.endTime ||
+                    null;
+    return Array.isArray(checkOut) ? checkOut[0] : checkOut;
+  };
+
+  const calculateDuration = (startTime, endTime, verbose = false) => {
+    if (!startTime || !endTime) return null;
+    try {
+      let startMs = typeof startTime === 'number'
+        ? (startTime > 10000000000 ? startTime / 1000000 : startTime)
+        : new Date(startTime).getTime();
+      let endMs = typeof endTime === 'number'
+        ? (endTime > 10000000000 ? endTime / 1000000 : endTime)
+        : new Date(endTime).getTime();
+
+      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return null;
+
+      const diffMs = endMs - startMs;
+      const totalMinutes = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+
+      if (verbose) {
+        if (hours === 0) return `${minutes} min${minutes !== 1 ? 's' : ''}`;
+        if (minutes === 0) return `${hours} hr${hours !== 1 ? 's' : ''}`;
+        return `${hours} hr${hours !== 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
+      }
+      if (hours === 0) return `${minutes}m`;
+      if (minutes === 0) return `${hours}h`;
+      return `${hours}h ${minutes}m`;
+    } catch {
+      return null;
+    }
+  };
+
   // -- Admin View Logic --
   const attendanceData = isAdmin ? allAttendance : userAttendance;
   
@@ -541,102 +632,6 @@ export default function AttendanceModule({ userProfile }) {
     URL.revokeObjectURL(url);
     toast.success('Attendance report exported');
   }, [filteredAttendance, selectedDateStr]);
-
-  const formatTime = (timeValue) => {
-    if (!timeValue) return '--';
-    try {
-      // If it's a BigInt (nanoseconds)
-      if (typeof timeValue === 'bigint') {
-        const ms = Number(timeValue) / 1000000; // nanoseconds -> ms
-        const d = new Date(ms);
-        if (isNaN(d.getTime())) return '--';
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-
-      // If it's a string
-      if (typeof timeValue === 'string') {
-        // If string is all digits, treat as epoch (ns or ms)
-        if (/^\d+$/.test(timeValue)) {
-          const asBig = BigInt(timeValue);
-          const ms = Number(asBig) / 1000000;
-          const d = new Date(ms);
-          if (isNaN(d.getTime())) return '--';
-          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-        // Otherwise assume ISO date string
-        const d = new Date(timeValue);
-        if (isNaN(d.getTime())) return '--';
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-
-      // If it's a number, check if nanoseconds
-      if (typeof timeValue === 'number') {
-        let ms = timeValue;
-        if (timeValue > 10000000000) {
-          ms = timeValue / 1000000; // nanoseconds -> ms
-        }
-        const d = new Date(ms);
-        if (isNaN(d.getTime())) return '--';
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
-    } catch (e) {
-      console.error('Error formatting time:', timeValue, e);
-      return '--';
-    }
-  };
-
-  const getCheckInTime = (record) => {
-    if (!record) return null;
-    return record?.checkIn || 
-           record?.checkInTime || 
-           record?.checkInAt || 
-           record?.checkinTime ||
-           record?.start ||
-           record?.startTime ||
-           null;
-  };
-
-  const getCheckOutTime = (record) => {
-    if (!record) return null;
-    const checkOut = record?.checkOut || 
-                    record?.checkOutTime || 
-                    record?.checkOutAt || 
-                    record?.checkoutTime ||
-                    record?.end ||
-                    record?.endTime ||
-                    null;
-    return Array.isArray(checkOut) ? checkOut[0] : checkOut;
-  };
-
-  const calculateDuration = (startTime, endTime, verbose = false) => {
-    if (!startTime || !endTime) return null;
-    try {
-      let startMs = typeof startTime === 'number'
-        ? (startTime > 10000000000 ? startTime / 1000000 : startTime)
-        : new Date(startTime).getTime();
-      let endMs = typeof endTime === 'number'
-        ? (endTime > 10000000000 ? endTime / 1000000 : endTime)
-        : new Date(endTime).getTime();
-
-      if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return null;
-
-      const diffMs = endMs - startMs;
-      const totalMinutes = Math.floor(diffMs / (1000 * 60));
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
-
-      if (verbose) {
-        if (hours === 0) return `${minutes} min${minutes !== 1 ? 's' : ''}`;
-        if (minutes === 0) return `${hours} hr${hours !== 1 ? 's' : ''}`;
-        return `${hours} hr${hours !== 1 ? 's' : ''} ${minutes} min${minutes !== 1 ? 's' : ''}`;
-      }
-      if (hours === 0) return `${minutes}m`;
-      if (minutes === 0) return `${hours}h`;
-      return `${hours}h ${minutes}m`;
-    } catch {
-      return null;
-    }
-  };
 
   // -- User/Mobile View Logic --
   const todayStr = format(currentTime, 'yyyy-MM-dd');
