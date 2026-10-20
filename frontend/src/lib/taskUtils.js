@@ -151,15 +151,15 @@ export function getTaskStatusLabel(task) {
 export function getTaskStatusBadgeClass(task) {
   const ui = getTaskUiStatus(task);
   if (ui === 'completed') {
-    return 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200 border-green-300 dark:border-green-800';
+    return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 font-medium';
   }
   if (ui === 'not_completed') {
     return 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200 border-red-400 dark:border-red-800 font-semibold';
   }
   if (ui === 'inProgress') {
-    return 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 border-blue-300 dark:border-blue-800';
+    return 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-300 dark:border-teal-800 font-medium';
   }
-  return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200 border-gray-300 dark:border-gray-700';
+  return 'bg-muted text-muted-foreground border-border font-medium';
 }
 
 /**

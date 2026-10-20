@@ -31,7 +31,7 @@ export function initSocketIO(httpServer) {
   // ── Auth middleware ──────────────────────────────────────────────
   io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      const token = socket.handshake.auth?.token || socket.handshake.query?.token;
       if (!token) return next(new Error('Authentication required'));
 
       const secret = process.env.JWT_SECRET;

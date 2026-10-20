@@ -294,64 +294,72 @@ export default function CompanyModule({ userProfile }) {
   }, [ownerDepartments]);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-10">
-      <h2 className="text-2xl font-bold">
-        {isOwner || isAdmin ? 'Company Overview' : 'Company Details'}
-      </h2>
+    <div className="emerald-theme space-y-6 w-full pb-10">
+      <div className="flex items-center gap-3 pb-2 border-b border-border">
+        <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+          <Building className="w-5 h-5" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">
+            {isOwner || isAdmin ? 'Company Overview' : 'Company Details'}
+          </h2>
+          <p className="text-xs text-muted-foreground">Manage organizational profile, departmental capacity, terms, and policies</p>
+        </div>
+      </div>
 
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="terms">Terms & Conditions</TabsTrigger>
-          <TabsTrigger value="policies">Policies</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 bg-secondary/60 p-1 rounded-2xl border border-border h-12">
+          <TabsTrigger value="dashboard" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Dashboard</TabsTrigger>
+          <TabsTrigger value="profile" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Profile</TabsTrigger>
+          <TabsTrigger value="terms" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Terms & Conditions</TabsTrigger>
+          <TabsTrigger value="policies" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Policies</TabsTrigger>
         </TabsList>
         
         <TabsContent value="dashboard" className="space-y-6 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="bg-primary/5 border-primary/10">
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
                 <CardContent className="p-6 flex items-center gap-4">
-                   <div className="p-3 rounded-2xl bg-primary/10 text-primary">
+                   <div className="p-3.5 rounded-2xl bg-primary/10 text-primary">
                       <Users2 className="w-6 h-6" />
                    </div>
                    <div>
-                      <p className="text-sm text-muted-foreground font-medium">Total Employees</p>
-                      <h3 className="text-2xl font-bold">{ownerDepartments.reduce((sum, d) => sum + d.staff.length, 0)}</h3>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Employees</p>
+                      <h3 className="text-2xl font-bold text-foreground mt-0.5">{ownerDepartments.reduce((sum, d) => sum + d.staff.length, 0)}</h3>
                    </div>
                 </CardContent>
               </Card>
-              <Card className="bg-blue-500/5 border-blue-500/10">
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
                 <CardContent className="p-6 flex items-center gap-4">
-                   <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-500">
+                   <div className="p-3.5 rounded-2xl bg-primary/10 text-primary">
                       <Building className="w-6 h-6" />
                    </div>
                    <div>
-                      <p className="text-sm text-muted-foreground font-medium">Core Departments</p>
-                      <h3 className="text-2xl font-bold">{ownerDepartments.length} Active</h3>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Core Departments</p>
+                      <h3 className="text-2xl font-bold text-foreground mt-0.5">{ownerDepartments.length} Active</h3>
                    </div>
                 </CardContent>
               </Card>
-              <Card className="bg-emerald-500/5 border-emerald-500/10">
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
                 <CardContent className="p-6 flex items-center gap-4">
-                   <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500">
+                   <div className="p-3.5 rounded-2xl bg-primary/10 text-primary">
                       <TrendingUp className="w-6 h-6" />
                    </div>
                    <div>
-                      <p className="text-sm text-muted-foreground font-medium">Industry Segment</p>
-                      <h3 className="text-xl font-bold truncate max-w-[120px]">{formData.about || formData.category || 'N/A'}</h3>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Industry Segment</p>
+                      <h3 className="text-xl font-bold text-foreground truncate max-w-[140px] mt-0.5">{formData.about || formData.category || 'N/A'}</h3>
                    </div>
                 </CardContent>
               </Card>
             </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-                  Department Health
+            <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+              <CardHeader className="border-b border-border bg-card px-6 py-4">
+                <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                  <LayoutDashboard className="w-5 h-5 text-primary" />
+                  Department Health & Allocation
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-6">
                 {departmentCards.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-10 text-center">
                     No department data available. Please initialize staff records.
@@ -361,18 +369,18 @@ export default function CompanyModule({ userProfile }) {
                     {departmentCards.map(dept => (
                       <div
                         key={dept.name}
-                        className="border border-border rounded-2xl p-5 flex flex-col gap-3 bg-muted/30 hover:bg-muted/50 transition-all group"
+                        className="border border-border rounded-2xl p-5 flex flex-col gap-3 bg-secondary/30 hover:border-primary/40 transition-all group"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold tracking-tight group-hover:text-primary transition-colors">{dept.name}</span>
+                          <span className="font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">{dept.name}</span>
                         </div>
                         <div className="space-y-2">
                            <div className="flex justify-between text-xs">
                               <span className="text-muted-foreground">Resource Load</span>
-                              <span className="font-bold">{dept.totalStaff} Members</span>
+                              <span className="font-bold text-foreground">{dept.totalStaff} Members</span>
                            </div>
-                           <div className="w-full bg-muted h-1.5 rounded-full overflow-hidden">
-                              <div className="bg-primary h-full rounded-full" style={{ width: '100%' }} />
+                           <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                              <div className="bg-primary h-full rounded-full transition-all" style={{ width: '100%' }} />
                            </div>
                         </div>
                       </div>
@@ -407,108 +415,117 @@ export default function CompanyModule({ userProfile }) {
             </div>
           )}
 
-          <Card>
-            <CardHeader className="border-b border-border pb-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-xl flex items-center gap-3 uppercase tracking-tight">
-                <ShieldCheck className="w-6 h-6 text-primary" />
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border bg-card px-6 py-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-bold flex items-center gap-2.5 text-foreground">
+                <ShieldCheck className="w-5 h-5 text-primary" />
                 Core Business Profile
               </CardTitle>
               {(isAdmin || isOwner) && currentCompany && (
-                <Button onClick={handleSubmit} disabled={updateCompany.isPending} size="sm">
+                <Button onClick={handleSubmit} disabled={updateCompany.isPending} size="sm" className="bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl shadow-xs px-4 h-9 transition-all">
                   {updateCompany.isPending ? 'Saving...' : 'Update Company'}
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
-                <div className="space-y-2">
-                    <Label htmlFor="name">Company Name</Label>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-xs font-semibold text-foreground">Company Name</Label>
                     <Input
                         id="name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="reGen Innovations Inc."
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="address">Registered Address</Label>
+                 <div className="space-y-1.5">
+                    <Label htmlFor="address" className="text-xs font-semibold text-foreground">Registered Address</Label>
                     <Input
                         id="address"
                         value={formData.address}
                         onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                         placeholder="123 Enterprise Drive, Suite 400..."
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="city">City *</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="city" className="text-xs font-semibold text-foreground">City *</Label>
                     <Input
                         id="city"
                         value={formData.city}
                         onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                         placeholder="Innovation City"
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                         required
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="state">State</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="state" className="text-xs font-semibold text-foreground">State</Label>
                     <Input
                         id="state"
                         value={formData.state}
                         onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                         placeholder="California"
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="zip">ZIP Code</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="zip" className="text-xs font-semibold text-foreground">ZIP Code</Label>
                     <Input
                         id="zip"
                         value={formData.zip}
                         onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
                         placeholder="90001"
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="about">About / Category</Label>
+                <div className="space-y-1.5 md:col-span-2">
+                    <Label htmlFor="about" className="text-xs font-semibold text-foreground">About / Category</Label>
                     <Input
                         id="about"
                         value={formData.about}
                         onChange={(e) => setFormData({ ...formData, about: e.target.value })}
                         placeholder="IT Solutions, Manufacturing, etc."
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="email">Contact Email</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-xs font-semibold text-foreground">Contact Email</Label>
                     <Input
                         id="email"
                         value={formData.contactEmail}
                         onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
                         placeholder="contact@regen.com"
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="phone">Contact Phone</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="phone" className="text-xs font-semibold text-foreground">Contact Phone</Label>
                     <Input
                         id="phone"
                         value={formData.contactPhone}
                         onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
                         placeholder="+1 (555) 123-4567"
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="gst">GST/VAT Identification Number</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="gst" className="text-xs font-semibold text-foreground">GST/VAT Identification Number</Label>
                     <div className="flex gap-2">
                       <Input
                           id="gst"
                           value={formData.gst}
                           onChange={(e) => setFormData({ ...formData, gst: e.target.value })}
                           placeholder="GSTIN..."
+                          className="rounded-xl border border-border bg-background text-foreground"
                           disabled={!isAdmin && !isOwner}
                       />
                       {(isAdmin || isOwner) && (
@@ -517,19 +534,21 @@ export default function CompanyModule({ userProfile }) {
                           variant="outline"
                           size="sm"
                           onClick={handleGstAutofill}
+                          className="rounded-xl border border-border bg-secondary hover:bg-secondary/80 text-foreground font-semibold px-4"
                         >
                           Fetch
                         </Button>
                       )}
                     </div>
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="tax">Tax Identification Number</Label>
+                <div className="space-y-1.5">
+                    <Label htmlFor="tax" className="text-xs font-semibold text-foreground">Tax Identification Number</Label>
                     <Input
                         id="tax"
                         value={formData.taxDetails}
                         onChange={(e) => setFormData({ ...formData, taxDetails: e.target.value })}
                         placeholder="TX-1234567..."
+                        className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
@@ -538,16 +557,16 @@ export default function CompanyModule({ userProfile }) {
         </TabsContent>
 
         <TabsContent value="terms" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Terms and Conditions</CardTitle>
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+            <CardHeader className="border-b border-border bg-card px-6 py-4">
+              <CardTitle className="text-base font-bold text-foreground">Terms and Conditions</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
                 <Textarea
                   value={formData.policies}
                   onChange={(e) => setFormData({ ...formData, policies: e.target.value })}
                   placeholder="Welcome to reGen Innovations Inc. Our Terms and Conditions..."
-                  className="min-h-[400px] font-light text-sm leading-relaxed"
+                  className="min-h-[400px] font-light text-sm leading-relaxed rounded-xl border border-border bg-background text-foreground"
                   disabled={!isAdmin && !isOwner}
                 />
             </CardContent>
@@ -556,9 +575,12 @@ export default function CompanyModule({ userProfile }) {
 
         <TabsContent value="policies" className="space-y-4 mt-4">
           <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Company Policies</h3>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Company Policies</h3>
+                <p className="text-xs text-muted-foreground">Internal policies, guidelines, and compliance documents</p>
+              </div>
               {(isAdmin || isOwner) && (
-                <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-400" onClick={() => setPolicyForm({ title: '', content: '', effectiveDate: new Date().toISOString().slice(0, 10) })}>
+                <Button size="sm" className="bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl shadow-xs px-4 h-9 transition-all" onClick={() => setPolicyForm({ title: '', content: '', effectiveDate: new Date().toISOString().slice(0, 10) })}>
                     <Plus className="h-4 w-4 mr-2" />
                     Add New Policy
                 </Button>
@@ -567,30 +589,30 @@ export default function CompanyModule({ userProfile }) {
 
           {/* Add / Edit Policy Form */}
           {policyForm && (isAdmin || isOwner) && (
-            <Card className="border-blue-200 dark:border-blue-800">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{editingPolicyIdx !== null ? 'Edit Policy' : 'New Policy'}</CardTitle>
+            <Card className="border border-primary/30 bg-card rounded-2xl shadow-md overflow-hidden">
+              <CardHeader className="border-b border-border bg-card px-6 py-3">
+                <CardTitle className="text-base font-bold text-foreground">{editingPolicyIdx !== null ? 'Edit Policy' : 'New Policy'}</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Policy Title *</Label>
-                    <Input value={policyForm.title} onChange={e => setPolicyForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Remote Work Policy" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-foreground">Policy Title *</Label>
+                    <Input value={policyForm.title} onChange={e => setPolicyForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Remote Work Policy" className="rounded-xl border border-border bg-background text-foreground" />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Effective Date</Label>
-                    <Input type="date" value={policyForm.effectiveDate} onChange={e => setPolicyForm(f => ({ ...f, effectiveDate: e.target.value }))} />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-foreground">Effective Date</Label>
+                    <Input type="date" value={policyForm.effectiveDate} onChange={e => setPolicyForm(f => ({ ...f, effectiveDate: e.target.value }))} className="rounded-xl border border-border bg-background text-foreground" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Policy Content *</Label>
-                  <Textarea value={policyForm.content} onChange={e => setPolicyForm(f => ({ ...f, content: e.target.value }))} placeholder="Describe the policy details..." className="min-h-[120px]" />
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">Policy Content *</Label>
+                  <Textarea value={policyForm.content} onChange={e => setPolicyForm(f => ({ ...f, content: e.target.value }))} placeholder="Describe the policy details..." className="min-h-[120px] rounded-xl border border-border bg-background text-foreground" />
                 </div>
-                <div className="flex gap-2 justify-end">
-                  <Button variant="ghost" size="sm" onClick={() => { setPolicyForm(null); setEditingPolicyIdx(null); }}>
+                <div className="flex gap-2 justify-end pt-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setPolicyForm(null); setEditingPolicyIdx(null); }} className="rounded-xl hover:bg-secondary">
                     <X className="h-4 w-4 mr-1" /> Cancel
                   </Button>
-                  <Button size="sm" onClick={handleSavePolicy} disabled={savingPolicy}>
+                  <Button size="sm" onClick={handleSavePolicy} disabled={savingPolicy} className="bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl shadow-xs px-4 h-9">
                     <Save className="h-4 w-4 mr-1" /> {savingPolicy ? 'Saving...' : 'Save Policy'}
                   </Button>
                 </div>
@@ -599,36 +621,36 @@ export default function CompanyModule({ userProfile }) {
           )}
 
           {/* Policy List */}
-          <Card>
+          <Card className="border border-border bg-card rounded-2xl shadow-xs overflow-hidden">
             <CardContent className="p-0">
               {(!currentCompany?.companyPolicies || currentCompany.companyPolicies.length === 0) ? (
                 <div className="py-12 text-center text-muted-foreground">
-                  <FileText className="mx-auto h-10 w-10 mb-3 opacity-40" />
-                  <p className="text-sm">No policies added yet.</p>
+                  <FileText className="mx-auto h-10 w-10 mb-3 text-primary/40" />
+                  <p className="text-sm font-medium">No policies added yet.</p>
                   {(isAdmin || isOwner) && <p className="text-xs mt-1">Click "Add New Policy" to create one.</p>}
                 </div>
               ) : (
                 <Accordion type="single" collapsible className="w-full">
                   {currentCompany.companyPolicies.map((policy, idx) => (
-                    <AccordionItem key={policy._id || idx} value={`policy-${idx}`} className={`px-6 ${idx === currentCompany.companyPolicies.length - 1 ? 'border-b-0' : ''}`}>
-                      <AccordionTrigger className="hover:no-underline">
+                    <AccordionItem key={policy._id || idx} value={`policy-${idx}`} className={`px-6 border-b border-border/60 ${idx === currentCompany.companyPolicies.length - 1 ? 'border-b-0' : ''}`}>
+                      <AccordionTrigger className="hover:no-underline py-4">
                         <div className="flex items-center justify-between w-full pr-2">
                           <div className="text-left">
-                            <div className="font-medium">{policy.title}</div>
+                            <div className="font-semibold text-foreground">{policy.title}</div>
                             <div className="text-xs text-muted-foreground font-normal mt-1">
                               {policy.effectiveDate ? `Effective: ${new Date(policy.effectiveDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}` : ''}
                             </div>
                           </div>
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="text-muted-foreground whitespace-pre-wrap text-sm">{policy.content}</div>
+                      <AccordionContent className="pb-4">
+                        <div className="text-foreground/90 whitespace-pre-wrap text-sm leading-relaxed">{policy.content}</div>
                         {(isAdmin || isOwner) && (
-                          <div className="flex gap-2 mt-4 pt-3 border-t">
-                            <Button variant="outline" size="sm" onClick={() => handleEditPolicy(idx)}>
+                          <div className="flex gap-2 mt-4 pt-3 border-t border-border">
+                            <Button variant="outline" size="sm" onClick={() => handleEditPolicy(idx)} className="rounded-xl border border-border hover:bg-secondary">
                               <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                             </Button>
-                            <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950" onClick={() => handleDeletePolicy(idx)}>
+                            <Button variant="outline" size="sm" className="rounded-xl text-destructive border-destructive/20 hover:bg-destructive/10" onClick={() => handleDeletePolicy(idx)}>
                               <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete
                             </Button>
                           </div>

@@ -1,18 +1,26 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useGetAllMeetingNotes, useAddMeetingNote, useUpdateMeetingNote, useDeleteMeetingNote, useGetUserScrumNotes, useGetAllScrumNotes, useAddScrumNote, useUpdateScrumNote, useGetAllUsers, useGetAllTasks, useCreateTask, useUpdateTask } from '../../hooks/useQueries';
+import { 
+  useGetAllMeetingNotes, useAddMeetingNote, useUpdateMeetingNote, useDeleteMeetingNote, 
+  useGetUserScrumNotes, useGetAllScrumNotes, useAddScrumNote, useUpdateScrumNote, 
+  useGetAllUsers, useGetAllTasks, useUpdateTask 
+} from '../../hooks/useQueries';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Clock, ChevronDown } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Plus, Clock, ChevronDown, ListTodo, CheckCircle2, Play, AlertTriangle, 
+  FileText, Calendar, Pencil, Trash2, X, Pause, ShieldAlert, Check
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { safeRandomUUID } from '@/lib/utils';
-import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline } from '@/lib/taskUtils';
+import { safeRandomUUID, cn } from '@/lib/utils';
+import { isTaskExpired, formatDeadline } from '@/lib/taskUtils';
 
 export default function ScrumModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -54,6 +62,7 @@ export default function ScrumModule({ userProfile }) {
   const [historyStaffFilter, setHistoryStaffFilter] = useState('all');
   const [now, setNow] = useState(Date.now());
   const [optimisticScrum, setOptimisticScrum] = useState({});
+
   const setOptimistic = (id, patch) =>
     setOptimisticScrum(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...patch } }));
   const clearOptimistic = (id) =>
@@ -62,6 +71,36 @@ export default function ScrumModule({ userProfile }) {
       delete next[id];
       return next;
     });
+
+  const toDate = (ts) => {
+    if (!ts) return null;
+    if (typeof ts === 'string') {
+      const d = new Date(ts);
+      return isNaN(d) ? null : d;
+    }
+    if (typeof ts === 'bigint') return new Date(Number(ts) / 1000000);
+    const n = Number(ts);
+    if (!Number.isFinite(n)) return null;
+    return new Date(n > 1e12 ? n / 1000000 : n);
+  };
+
+  const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
+
+  const formatScrumDateTime = (timestamp) => {
+    const date = toDate(timestamp);
+    return date ? format(date, 'yyyy-MM-dd hh:mm a') : '';
+  };
+
+  const formatUserLabelSafe = (u) => {
+    const first = u?.firstName || '';
+    const last = u?.lastName || '';
+    const name = [first, last].filter(Boolean).join(' ').trim();
+    if (name) return name;
+    if (u?.username) return u.username;
+    if (u?.name) return u.name;
+    return toIdText(u?.userId || u?.id || '');
+  };
+
   const formatDuration = (fromTs) => {
     const start = toDate(fromTs);
     if (!start) return '';
@@ -73,6 +112,7 @@ export default function ScrumModule({ userProfile }) {
     const ss = String(secs % 60).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   };
+
   const formatDurationBetween = (fromTs, toTs) => {
     const start = toDate(fromTs);
     const end = toDate(toTs);
@@ -85,6 +125,7 @@ export default function ScrumModule({ userProfile }) {
     const ss = String(secs % 60).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   };
+
   const formatPausedDuration = (note) => {
     let secs = Math.floor(
       typeof note.timer === 'number'
@@ -108,6 +149,7 @@ export default function ScrumModule({ userProfile }) {
     const ss = String(secs % 60).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   };
+
   const formatRunningDuration = (note) => {
     const base =
       typeof note.timer === 'number'
@@ -123,6 +165,7 @@ export default function ScrumModule({ userProfile }) {
     const ss = String(secs % 60).padStart(2, '0');
     return `${hh}:${mm}:${ss}`;
   };
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -185,8 +228,8 @@ export default function ScrumModule({ userProfile }) {
     e.preventDefault();
     if (!identity || !currentUserId) return;
 
-    const now = new Date();
-    const timestamp = BigInt(now.getTime() * 1000000);
+    const nowTime = new Date();
+    const timestamp = BigInt(nowTime.getTime() * 1000000);
 
     const baseNote = {
       id: editingScrum ? editingScrum.id : safeRandomUUID(),
@@ -195,7 +238,7 @@ export default function ScrumModule({ userProfile }) {
       status: scrumForm.status,
       priority: scrumForm.priority,
       blockerNotes: scrumForm.status === 'blocked' ? scrumForm.blockerNotes.trim() : '',
-      timer: editingScrum ? ((typeof editingScrum.timer === 'number' ? editingScrum.timer : (editingScrum.timer ? Number(editingScrum.timer) : (editingScrum.timmer || 0))) ) : 0,
+      timer: editingScrum ? ((typeof editingScrum.timer === 'number' ? editingScrum.timer : (editingScrum.timer ? Number(editingScrum.timer) : (editingScrum.timmer || 0)))) : 0,
       createdAt: editingScrum ? editingScrum.createdAt : timestamp,
       updatedAt: timestamp,
     };
@@ -220,13 +263,13 @@ export default function ScrumModule({ userProfile }) {
       if (editingScrum) {
         const createdDate = new Date(Number(editingScrum.createdAt) / 1000000);
         const sameDay =
-          createdDate.toISOString().split('T')[0] === now.toISOString().split('T')[0];
+          createdDate.toISOString().split('T')[0] === nowTime.toISOString().split('T')[0];
         if (!sameDay && !isAdmin) {
           toast.error('Only same-day scrums can be edited');
           return;
         }
         await updateScrumNote.mutateAsync(baseNote);
-        toast.success('Scrum updated');
+        toast.success('Scrum updated successfully');
       } else {
         await addScrumNote.mutateAsync(baseNote);
         const t = matchedTask || tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === baseNote.taskDetails);
@@ -242,7 +285,7 @@ export default function ScrumModule({ userProfile }) {
           });
         }
         setOptimistic(baseNote.id, { status: 'in_progress', timerStartMs: Date.now() });
-        toast.success('Scrum saved');
+        toast.success('Scrum started successfully');
       }
       resetScrumForm();
     } catch (error) {
@@ -348,36 +391,27 @@ export default function ScrumModule({ userProfile }) {
         pausedAt: undefined,
         updatedAt: BigInt(Date.now() * 1000000)
       });
-      toast.success('Resumed');
+      toast.success('Resumed task');
     } catch (e) {
       toast.error('Failed to resume');
     }
   };
 
-  const toDate = (ts) => {
-    if (!ts) return null;
-    if (typeof ts === 'string') {
-      const d = new Date(ts);
-      return isNaN(d) ? null : d;
+  const handleDelete = async (id) => {
+    if (confirm('Are you sure you want to delete this meeting note?')) {
+      try {
+        await deleteNote.mutateAsync(id);
+        toast.success('Meeting note deleted successfully');
+      } catch (error) {
+        toast.error('Failed to delete meeting note');
+        console.error(error);
+      }
     }
-    if (typeof ts === 'bigint') return new Date(Number(ts) / 1000000);
-    const n = Number(ts);
-    if (!Number.isFinite(n)) return null;
-    return new Date(n > 1e12 ? n / 1000000 : n);
   };
-  const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
-  const formatScrumDateTime = (timestamp) => {
+
+  const formatDate = (timestamp) => {
     const date = toDate(timestamp);
-    return date ? format(date, 'yyyy-MM-dd hh:mm a') : '';
-  };
-  const formatUserLabelSafe = (u) => {
-    const first = u?.firstName || '';
-    const last = u?.lastName || '';
-    const name = [first, last].filter(Boolean).join(' ').trim();
-    if (name) return name;
-    if (u?.username) return u.username;
-    if (u?.name) return u.name;
-    return toIdText(u?.userId || u?.id || '');
+    return date ? date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
   };
 
   const todayIso = new Date().toISOString().split('T')[0];
@@ -410,202 +444,324 @@ export default function ScrumModule({ userProfile }) {
     return users.filter(u => u.role && (u.role.hasOwnProperty('staff') || u.role.hasOwnProperty('intern') || u.role.hasOwnProperty('freelancer')));
   }, [users, isAdmin]);
 
-  const handleDelete = async (id) => {
-    if (confirm('Are you sure you want to delete this meeting note?')) {
-      try {
-        await deleteNote.mutateAsync(id);
-        toast.success('Meeting note deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete meeting note');
-        console.error(error);
+  // Real-data summary metrics calculated from visible active notes and task deadlines
+  const metrics = useMemo(() => {
+    const notesList = isAdmin ? allScrumNotes : myScrumNotes;
+    let inProgressCount = 0;
+    let completedCount = 0;
+    let expiredCount = 0;
+
+    notesList.forEach(n => {
+      const sid = toIdText(n.userId);
+      const matched = tasks.find(tt => 
+        toIdText(tt.assignedTo || tt.assignee || '') === sid && 
+        tt.title.trim().toLowerCase() === (n.taskDetails || '').trim().toLowerCase()
+      );
+      const isExpired = matched ? isTaskExpired(matched) : false;
+      if (n.status !== 'completed' && isExpired) {
+        expiredCount++;
+      } else if (n.status === 'completed') {
+        completedCount++;
+      } else if (n.status === 'in_progress') {
+        inProgressCount++;
       }
+    });
+
+    return {
+      total: notesList.length,
+      inProgress: inProgressCount,
+      completed: completedCount,
+      expired: expiredCount,
+    };
+  }, [isAdmin, allScrumNotes, myScrumNotes, tasks]);
+
+  // Priority color styling helper
+  const getPriorityBadge = (priority) => {
+    const p = (priority || 'medium').toLowerCase();
+    switch (p) {
+      case 'urgent':
+        return <Badge variant="outline" className="text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30">Urgent</Badge>;
+      case 'high':
+        return <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30">High</Badge>;
+      case 'low':
+        return <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30">Low</Badge>;
+      case 'medium':
+      default:
+        return <Badge variant="outline" className="text-[10px] bg-secondary text-muted-foreground border-border">Medium</Badge>;
     }
   };
 
-  const formatDate = (timestamp) => {
-    const date = toDate(timestamp);
-    return date ? date.toLocaleString() : '';
-  };
-
   return (
-    <div className="space-y-8">
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-          <h2 className="text-2xl md:text-2xl font-bold">Scrum & Meeting Notes</h2>
+    <div className="space-y-6 w-full pb-10">
+      {/* 1. Header Section */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
+            <ListTodo className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Scrum & Meeting Notes</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+              Track daily progress, blockers, active time, and collaborative meeting outcomes.
+            </p>
+          </div>
         </div>
-        {isStaff && (
-          <Card>
-            <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 space-y-0">
-              <div>
-                <CardTitle className="text-base md:text-lg">Daily Scrum Notepad</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Capture what you are working on today.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground md:justify-end">
-                <Clock className="h-4 w-4" />
-                <span>
-                  {formatScrumDateTime(
-                    editingScrum ? editingScrum.createdAt : BigInt(Date.now() * 1000000)
-                  )}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleScrumSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="scrum-task">Task / Work Details</Label>
-                    <Label>
-                      {(() => {
-                        const currentId = toIdText(userProfile.userId || userProfile.id || '');
-                        const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === scrumForm.taskDetails);
-                        const p = typeof t?.priority === 'string' ? t?.priority : Object.keys(t?.priority || { medium: null })[0] || 'medium';
-                        return `Priority: ${p ? p.charAt(0).toUpperCase() + p.slice(1) : '--'}`;
-                      })()}
-                    </Label>
-                  </div>
-                  <div className="grid grid-cols-1 gap-2">
-                    <div className="space-y-2">
-                      <Select
-                        value={scrumForm.taskDetails}
-                        onValueChange={(value) => setScrumForm({ ...scrumForm, taskDetails: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a task" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {tasks
-                            .filter(t => {
-                              const taskAssignee = toIdText(t.assignedTo || t.assignee || '');
-                              const currentId = toIdText(userProfile.userId || userProfile.id || '');
-                              const k = typeof t.status === 'string' ? t.status : Object.keys(t.status || {})[0];
-                              const isHidden = k === 'in_progress' || k === 'completed' || k === 'done';
-                              return taskAssignee === currentId && !isHidden;
-                            })
-                            .map(t => {
-                              const expired = isTaskExpired(t);
-                              return (
-                                <SelectItem 
-                                  key={t.id} 
-                                  value={t.title}
-                                  disabled={expired}
-                                  className={expired ? 'text-destructive opacity-75 font-medium' : ''}
-                                >
-                                  {t.title} {expired ? '— [Not Completed: Time Expired]' : ''}
-                                </SelectItem>
-                              );
-                            })}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <Textarea
-                    id="scrum-task"
-                    value={scrumForm.taskDetails}
-                    onChange={e => setScrumForm({ ...scrumForm, taskDetails: e.target.value })}
-                    placeholder="Or type details here"
-                    rows={3}
-                  />
-                  {(() => {
-                    const currentId = toIdText(userProfile.userId || userProfile.id || '');
-                    const matched = tasks.find(tt => 
-                      toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
-                      tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
-                    );
-                    if (matched && isTaskExpired(matched)) {
-                      return (
-                        <div className="p-3 rounded-md bg-red-100 dark:bg-red-950/60 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-200 text-xs font-semibold flex items-center gap-2">
-                          <span>⚠️ The assigned time for this task ended ({formatDeadline(matched) || 'Deadline passed'}). This task is marked as <strong>Not Completed</strong> and cannot be opened.</span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
-                      value={scrumForm.status}
-                      onValueChange={value =>
-                        setScrumForm({ ...scrumForm, status: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="paused">Paused</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="blocked">Blocked</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {scrumForm.status === 'blocked' && (
-                  <div className="space-y-2">
-                    <Label>Blocker Notes</Label>
-                    <Textarea
-                      value={scrumForm.blockerNotes}
-                      onChange={e =>
-                        setScrumForm({ ...scrumForm, blockerNotes: e.target.value })
-                      }
-                      placeholder="Describe what is blocking your progress"
-                      rows={3}
-                    />
-                  </div>
-                )}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  {(() => {
-                    const currentId = toIdText(userProfile.userId || userProfile.id || '');
-                    const matched = tasks.find(tt => 
-                      toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
-                      tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
-                    );
-                    const isTaskBlockedDueToExpiry = matched ? isTaskExpired(matched) : false;
-
-                    return (
-                      <Button
-                        type="submit"
-                        className={`w-full md:flex-1 ${isTaskBlockedDueToExpiry ? 'bg-red-600 hover:bg-red-700 text-white cursor-not-allowed' : ''}`}
-                        disabled={addScrumNote.isPending || updateScrumNote.isPending || isTaskBlockedDueToExpiry}
-                      >
-                        {editingScrum
-                          ? (addScrumNote.isPending || updateScrumNote.isPending ? 'Saving...' : 'Update Scrum')
-                          : isTaskBlockedDueToExpiry
-                          ? 'Task Not Completed (Time Expired — Cannot Open)'
-                          : (addScrumNote.isPending ? 'Saving...' : 'Start Scrum')}
-                      </Button>
-                    );
-                  })()}
-                  {editingScrum && (
-                    <Button type="button" variant="outline" onClick={resetScrumForm} className="w-full md:w-auto">
-                      New Entry
-                    </Button>
-                  )}
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        )}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-semibold text-sm">Scrum History</h3>
-            <span className="text-xs text-muted-foreground">
-              Daily updates sorted by latest first.
-            </span>
+      {/* 2. Scrum Overview Summary KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Total Scrum Updates</p>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-1">{metrics.total}</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+              <ListTodo className="w-5 h-5" />
+            </div>
           </div>
-          <div className="flex flex-col md:flex-row md:items-center gap-2">
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">Date</span>
+        </Card>
+
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">In Progress</p>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-teal-600 dark:text-teal-400 mt-1">{metrics.inProgress}</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+              <Play className="w-5 h-5" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Completed Tasks</p>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-1">{metrics.completed}</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Expired / Overdue</p>
+              <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-rose-600 dark:text-rose-400 mt-1">{metrics.expired}</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* 3. Daily Scrum Notepad (Staff Form) */}
+      {isStaff && (
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/70 p-4 sm:p-6 bg-card">
+            <div>
+              <CardTitle className="text-base sm:text-lg font-bold text-foreground">Daily Scrum Notepad</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Capture your current sprint focus, blockers, and start your live task timer.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-secondary/60 border border-border px-3 py-1.5 rounded-xl">
+              <Clock className="h-3.5 w-3.5 text-primary" />
+              <span className="font-mono">
+                {formatScrumDateTime(editingScrum ? editingScrum.createdAt : BigInt(Date.now() * 1000000))}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 sm:p-6">
+            <form onSubmit={handleScrumSubmit} className="space-y-4">
+              {/* Task Selection & Priority Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="scrum-task" className="text-xs font-semibold text-foreground">Select Assigned Task *</Label>
+                    {(() => {
+                      const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                      const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === scrumForm.taskDetails);
+                      const p = typeof t?.priority === 'string' ? t?.priority : Object.keys(t?.priority || { medium: null })[0] || 'medium';
+                      return (
+                        <div className="flex items-center gap-1.5 text-[11px]">
+                          <span className="text-muted-foreground">Priority:</span>
+                          <span className="font-semibold text-foreground capitalize">{p}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  <Select
+                    value={scrumForm.taskDetails}
+                    onValueChange={(value) => setScrumForm({ ...scrumForm, taskDetails: value })}
+                  >
+                    <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-background border-border">
+                      <SelectValue placeholder="Choose a task from your assigned backlog..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tasks
+                        .filter(t => {
+                          const taskAssignee = toIdText(t.assignedTo || t.assignee || '');
+                          const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                          const k = typeof t.status === 'string' ? t.status : Object.keys(t.status || {})[0];
+                          const isHidden = k === 'in_progress' || k === 'completed' || k === 'done';
+                          return taskAssignee === currentId && !isHidden;
+                        })
+                        .map(t => {
+                          const expired = isTaskExpired(t);
+                          return (
+                            <SelectItem 
+                              key={t.id} 
+                              value={t.title}
+                              disabled={expired}
+                              className={cn(expired && "text-destructive opacity-75 font-medium")}
+                            >
+                              {t.title} {expired ? '— [Not Completed: Time Expired]' : ''}
+                            </SelectItem>
+                          );
+                        })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">Initial Status</Label>
+                  <Select
+                    value={scrumForm.status}
+                    onValueChange={value => setScrumForm({ ...scrumForm, status: value })}
+                  >
+                    <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-background border-border">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="paused">Paused</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Work Details Textarea */}
+              <div className="space-y-1.5">
+                <Label htmlFor="scrum-details" className="text-xs font-semibold text-foreground">
+                  Work Details / Today's Plan
+                </Label>
+                <Textarea
+                  id="scrum-details"
+                  value={scrumForm.taskDetails}
+                  onChange={e => setScrumForm({ ...scrumForm, taskDetails: e.target.value })}
+                  placeholder="Describe your planned deliverables, key focus, or task details here..."
+                  rows={3}
+                  className="text-xs sm:text-sm rounded-xl bg-background border-border"
+                />
+              </div>
+
+              {/* Expired Task Warning Callout */}
+              {(() => {
+                const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                const matched = tasks.find(tt => 
+                  toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
+                  tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
+                );
+                if (matched && isTaskExpired(matched)) {
+                  return (
+                    <div className="p-3.5 rounded-xl bg-rose-50/60 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center gap-2.5">
+                      <ShieldAlert className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                      <span>
+                        The assigned time for this task ended ({formatDeadline(matched) || 'Deadline passed'}). This task is marked as <strong>Not Completed</strong> and cannot be worked on.
+                      </span>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
+              {/* Blocker Notes (Conditional on blocked status) */}
+              {scrumForm.status === 'blocked' && (
+                <div className="space-y-1.5 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <Label className="text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5" /> What is blocking your progress?
+                  </Label>
+                  <Textarea
+                    value={scrumForm.blockerNotes}
+                    onChange={e => setScrumForm({ ...scrumForm, blockerNotes: e.target.value })}
+                    placeholder="Describe dependency blockers, required approvals, or technical hurdles..."
+                    rows={2}
+                    className="text-xs sm:text-sm rounded-xl bg-background border-border"
+                  />
+                </div>
+              )}
+
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                {(() => {
+                  const currentId = toIdText(userProfile.userId || userProfile.id || '');
+                  const matched = tasks.find(tt => 
+                    toIdText(tt.assignedTo || tt.assignee || '') === currentId && 
+                    tt.title.trim().toLowerCase() === (scrumForm.taskDetails || '').trim().toLowerCase()
+                  );
+                  const isTaskBlockedDueToExpiry = matched ? isTaskExpired(matched) : false;
+
+                  return (
+                    <Button
+                      type="submit"
+                      className={cn(
+                        "h-10 px-6 rounded-xl font-semibold shadow-xs transition-all w-full sm:w-auto",
+                        isTaskBlockedDueToExpiry 
+                          ? "bg-rose-600 hover:bg-rose-700 text-white cursor-not-allowed opacity-80"
+                          : "bg-[#0D9488] hover:bg-[#0F766E] text-white"
+                      )}
+                      disabled={addScrumNote.isPending || updateScrumNote.isPending || isTaskBlockedDueToExpiry}
+                    >
+                      {editingScrum
+                        ? (addScrumNote.isPending || updateScrumNote.isPending ? 'Saving...' : 'Update Scrum Entry')
+                        : isTaskBlockedDueToExpiry
+                        ? 'Task Expired — Cannot Open'
+                        : (addScrumNote.isPending ? 'Starting...' : 'Start Daily Scrum')}
+                    </Button>
+                  );
+                })()}
+
+                {editingScrum && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={resetScrumForm} 
+                    className="h-10 px-4 rounded-xl border-border hover:bg-secondary text-xs sm:text-sm"
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4. Scrum History Section */}
+      <div className="space-y-4">
+        {/* Section Header & Responsive Filter Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-1">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Scrum History</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Daily sprint updates and activity logs, latest entries first.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Date Filter */}
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
               <Input
                 type="date"
-                className="h-8 w-full md:w-auto"
+                className="h-8.5 text-xs rounded-xl bg-background border-border w-36"
                 value={historyDateFilter ? format(historyDateFilter, 'yyyy-MM-dd') : ''}
                 onChange={e =>
                   setHistoryDateFilter(
@@ -614,41 +770,64 @@ export default function ScrumModule({ userProfile }) {
                 }
               />
             </div>
+
+            {/* Staff Filter (Admin only) */}
             {isAdmin && (
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">Staff</span>
-                <Select
-                  value={historyStaffFilter}
-                  onValueChange={value => setHistoryStaffFilter(value)}
-                >
-                  <SelectTrigger className="h-8 w-full md:w-40 text-xs">
-                    <SelectValue placeholder="All staff" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {staffOptions.map(staff => (
-                      <SelectItem key={(staff.userId?.toText ? staff.userId.toText() : String(staff.userId || staff.id))} value={(staff.userId?.toText ? staff.userId.toText() : String(staff.userId || staff.id))}>
-                        {staff.firstName} {staff.lastName}
+              <Select
+                value={historyStaffFilter}
+                onValueChange={value => setHistoryStaffFilter(value)}
+              >
+                <SelectTrigger className="h-8.5 text-xs rounded-xl bg-background border-border w-36">
+                  <SelectValue placeholder="All Staff" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Staff</SelectItem>
+                  {staffOptions.map(staff => {
+                    const sid = staff.userId?.toText ? staff.userId.toText() : String(staff.userId || staff.id);
+                    return (
+                      <SelectItem key={sid} value={sid}>
+                        {staff.firstName || staff.name || 'Staff'} {staff.lastName || ''}
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Reset Filter Button */}
+            {(historyDateFilter || historyStaffFilter !== 'all') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8.5 px-2 text-xs text-primary hover:bg-primary/10 rounded-xl"
+                onClick={() => {
+                  setHistoryDateFilter(null);
+                  setHistoryStaffFilter('all');
+                }}
+              >
+                <X className="h-3 w-3 mr-1" /> Reset
+              </Button>
             )}
           </div>
         </div>
 
+        {/* History Cards List */}
         {visibleScrumNotes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No scrum entries found for the selected filters.
-          </p>
+          <Card className="border border-border bg-card text-foreground rounded-2xl p-10 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-muted/60 text-muted-foreground flex items-center justify-center mx-auto mb-3">
+              <ListTodo className="w-6 h-6 opacity-40" />
+            </div>
+            <h4 className="text-sm font-semibold text-foreground">No Scrum Entries Found</h4>
+            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+              There are no recorded scrum entries matching your selected date or staff filter criteria.
+            </p>
+          </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {visibleScrumNotes.map(note => {
               const applied = optimisticScrum[note.id] ? { ...note, ...optimisticScrum[note.id] } : note;
               const createdDate = toDate(note.createdAt);
-              const isSameDay =
-                createdDate && createdDate.toISOString().split('T')[0] === todayIso;
+              const isSameDay = createdDate && createdDate.toISOString().split('T')[0] === todayIso;
               const canEdit = isSameDay || isAdmin;
 
               const sid = toIdText(applied.userId);
@@ -662,129 +841,179 @@ export default function ScrumModule({ userProfile }) {
               return (
                 <Card 
                   key={note.id}
-                  className={isTaskNotCompleted ? 'border-red-400 bg-red-50/20 dark:bg-red-950/20' : ''}
+                  className={cn(
+                    "border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 sm:p-5 transition-all",
+                    isTaskNotCompleted 
+                      ? "border-rose-300/70 bg-rose-50/20 dark:border-rose-900/40 dark:bg-rose-950/20"
+                      : "hover:border-primary/40"
+                  )}
                 >
-                  <CardHeader className="flex flex-row items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{formatScrumDateTime(applied.createdAt)}</span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className={`px-2 py-0.5 rounded-full ${
-                          isTaskNotCompleted
-                            ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200 border border-red-300 dark:border-red-800 font-semibold'
-                            : applied.status === 'completed'
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-200 font-medium border border-green-300 dark:border-green-800'
-                            : 'bg-muted'
-                        }`}>
-                          {isTaskNotCompleted
-                            ? 'Not Completed'
-                            : applied.status === 'in_progress'
-                            ? 'In Progress'
-                            : applied.status === 'paused'
-                            ? 'Paused'
-                            : applied.status === 'completed'
-                            ? 'Completed'
-                            : 'Blocked'}
-                        </span>
-                        {applied.priority && (
-                          <span className="px-2 py-0.5 rounded-full bg-muted">
-                            Priority: {applied.priority.charAt(0).toUpperCase() + applied.priority.slice(1)}
-                          </span>
-                        )}
-                        {matchedTask && (
-                          <span className={`text-[11px] ${isExpired ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-muted-foreground'}`}>
-                            {formatDeadline(matchedTask) ? `Deadline: ${formatDeadline(matchedTask)}` : ''}
-                            {isExpired && !applied.status?.includes('completed') ? ' — Expired' : ''}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      {staffOptions.length > 0 && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <ChevronDown className="h-3 w-3" />
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                    <div className="space-y-2 min-w-0 flex-1">
+                      {/* Meta Header Row */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Timestamp */}
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
+                          <Clock className="h-3.5 w-3.5 text-primary" />
+                          <span>{formatScrumDateTime(applied.createdAt)}</span>
+                        </div>
+
+                        {/* Staff Label (if admin or viewing others) */}
+                        <span className="text-xs font-semibold text-foreground px-2 py-0.5 rounded-md bg-secondary border border-border">
                           {(() => {
                             const staff = users.find(u => toIdText(u.userId || u.id) === sid);
-                            return staff ? formatUserLabelSafe(staff) : 'You';
+                            return staff ? formatUserLabelSafe(staff) : (sid === toIdText(currentUserId) ? 'You' : 'Staff');
                           })()}
                         </span>
+
+                        {/* Semantic Status Badge */}
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-md text-[11px] font-semibold border flex items-center gap-1",
+                          isTaskNotCompleted
+                            ? "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-800"
+                            : applied.status === 'completed'
+                            ? "bg-[#D1FAE5] text-[#065F46] border-[#059669]/30 dark:bg-emerald-950/80 dark:text-emerald-200 dark:border-emerald-600/60"
+                            : applied.status === 'in_progress'
+                            ? "bg-[#CCFBF1] text-[#115E59] border-[#0D9488]/30 dark:bg-teal-950/80 dark:text-teal-200 dark:border-teal-600/60"
+                            : applied.status === 'paused'
+                            ? "bg-[#FEF3C7] text-[#92400E] border-[#D97706]/30 dark:bg-amber-950/80 dark:text-amber-200 dark:border-amber-600/60"
+                            : "bg-[#FFE4E6] text-[#9F1239] border-[#E11D48]/30 dark:bg-rose-950/80 dark:text-rose-200 dark:border-rose-600/60"
+                        )}>
+                          {isTaskNotCompleted ? 'Not Completed • Expired' : (
+                            applied.status === 'in_progress' ? 'In Progress' :
+                            applied.status === 'paused' ? 'Paused' :
+                            applied.status === 'completed' ? 'Completed' : 'Blocked'
+                          )}
+                        </span>
+
+                        {/* Priority Badge */}
+                        {getPriorityBadge(applied.priority)}
+
+                        {/* Matched Task Deadline */}
+                        {matchedTask && (
+                          <span className={cn(
+                            "text-[11px] flex items-center gap-1",
+                            isExpired ? "text-rose-600 dark:text-rose-400 font-semibold" : "text-muted-foreground"
+                          )}>
+                            <Calendar className="h-3 w-3" />
+                            {formatDeadline(matchedTask) ? `Deadline: ${formatDeadline(matchedTask)}` : ''}
+                            {isExpired && !applied.status?.includes('completed') ? ' (Expired)' : ''}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Work Description Text */}
+                      <p className="text-sm font-medium text-foreground whitespace-pre-wrap leading-relaxed pt-1">
+                        {applied.taskDetails}
+                      </p>
+
+                      {/* Expired Task Context Info */}
+                      {isTaskNotCompleted && (
+                        <p className="text-xs text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1.5 pt-0.5">
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          This task was not completed within the assigned time. It cannot be opened or worked on.
+                        </p>
                       )}
-                      {applied.status !== 'completed' && (
-                        isTaskNotCompleted ? (
-                          <div className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 font-semibold py-1 px-2.5 rounded bg-red-100/60 dark:bg-red-950/50 border border-red-300 dark:border-red-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-                            <span>Task Not Completed &bull; Expired</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
+
+                      {/* Blocker Notes Alert */}
+                      {note.blockerNotes && (
+                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-300">
+                          <strong>Blocker:</strong> {applied.blockerNotes}
+                        </div>
+                      )}
+
+                      {/* Timer & Completion Details */}
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground pt-1">
+                        {applied.status === 'in_progress' && !isTaskNotCompleted && (
+                          <span className="flex items-center gap-1.5 font-mono text-teal-600 dark:text-teal-400 font-semibold">
+                            <span className="w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
+                            Active Timer: {formatRunningDuration(applied)}
+                          </span>
+                        )}
+                        {applied.status === 'paused' && !isTaskNotCompleted && (
+                          <span className="flex items-center gap-1.5 font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                            <Pause className="w-3.5 h-3.5" />
+                            Paused at: {formatPausedDuration(applied)}
+                          </span>
+                        )}
+                        {applied.status === 'completed' && (
+                          <span className="flex items-center gap-1.5 font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Completed in {formatDurationBetween(applied.createdAt, applied.updatedAt)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Controls for Staff / Admin */}
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-start pt-2 sm:pt-0">
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                          onClick={() => {
+                            setEditingScrum(applied);
+                            setScrumForm({
+                              taskDetails: applied.taskDetails,
+                              status: applied.status,
+                              priority: applied.priority || 'medium',
+                              blockerNotes: applied.blockerNotes || '',
+                            });
+                          }}
+                          title="Edit Scrum Entry"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+
+                      {applied.status !== 'completed' && !isTaskNotCompleted && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs font-semibold rounded-xl border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                            onClick={() => handleMarkCompleted(applied)}
+                            disabled={updateScrumNote.isPending}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Complete
+                          </Button>
+
+                          {applied.status === 'paused' ? (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => handleMarkCompleted(applied)}
+                              className="h-8 text-xs font-semibold rounded-xl border-teal-500/30 text-teal-700 dark:text-teal-300 hover:bg-teal-500/10"
+                              onClick={() => handleMarkResume(applied)}
                               disabled={updateScrumNote.isPending}
                             >
-                              Mark Completed
+                              <Play className="h-3.5 w-3.5 mr-1 text-teal-600" /> Resume
                             </Button>
-                            {applied.status === 'paused' ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => handleMarkResume(applied)}
-                                disabled={updateScrumNote.isPending}
-                              >
-                                Resume
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 text-xs"
-                                onClick={() => handleMarkPaused(applied)}
-                                disabled={updateScrumNote.isPending}
-                              >
-                                Pause
-                              </Button>
-                            )}
+                          ) : (
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-7 text-xs"
-                              onClick={() => handleMarkBlocked(applied)}
+                              className="h-8 text-xs font-semibold rounded-xl border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
+                              onClick={() => handleMarkPaused(applied)}
                               disabled={updateScrumNote.isPending}
                             >
-                              Block
+                              <Pause className="h-3.5 w-3.5 mr-1 text-amber-600" /> Pause
                             </Button>
-                          </div>
-                        )
+                          )}
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs font-semibold rounded-xl border-rose-500/30 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10"
+                            onClick={() => handleMarkBlocked(applied)}
+                            disabled={updateScrumNote.isPending}
+                          >
+                            Block
+                          </Button>
+                        </>
                       )}
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm whitespace-pre-wrap">{applied.taskDetails}</p>
-                    {isTaskNotCompleted && (
-                      <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
-                        This task was not completed within the assigned time. It cannot be opened or worked on.
-                      </p>
-                    )}
-                    {applied.status === 'in_progress' && !isTaskNotCompleted && (
-                      <p className="text-xs text-muted-foreground">Timer: {formatRunningDuration(applied)}</p>
-                    )}
-                    {applied.status === 'paused' && !isTaskNotCompleted && (
-                      <p className="text-xs font-bold">Timer: {formatPausedDuration(applied)}</p>
-                    )}
-                    {applied.status === 'completed' && (
-                      <p className="text-xs font-bold">Completed in {formatDurationBetween(applied.createdAt, applied.updatedAt)}</p>
-                    )}
-                    {note.blockerNotes && (
-                      <p className="text-xs text-destructive whitespace-pre-wrap">
-                        Blocker: {applied.blockerNotes}
-                      </p>
-                    )}
-                  </CardContent>
+                  </div>
                 </Card>
               );
             })}
@@ -792,49 +1021,63 @@ export default function ScrumModule({ userProfile }) {
         )}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <h3 className="font-semibold text-sm">Meeting Notes</h3>
+      {/* 5. Meeting Notes Section */}
+      <div className="space-y-4 pt-4 border-t border-border">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Meeting Notes</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Collaborative discussions, agendas, and strategic takeaways.
+            </p>
+          </div>
+
           {isAdmin && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => handleOpenDialog()} className="w-full md:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Note
+                <Button 
+                  onClick={() => handleOpenDialog()} 
+                  className="h-9 px-4 rounded-xl bg-primary hover:bg-[#0F766E] text-white text-xs sm:text-sm font-semibold shadow-xs"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Add Meeting Note
                 </Button>
               </DialogTrigger>
-              <DialogContent className="w-[95vw] max-w-2xl md:w-auto">
+              <DialogContent className="w-[95vw] max-w-xl rounded-2xl border-border bg-card text-foreground">
                 <DialogHeader>
-                  <DialogTitle className="text-base md:text-lg">{editingNote ? 'Edit Meeting Note' : 'Add Meeting Note'}</DialogTitle>
+                  <DialogTitle className="text-base font-bold text-foreground">
+                    {editingNote ? 'Edit Meeting Note' : 'Add New Meeting Note'}
+                  </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Title *</Label>
+                <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="note-title" className="text-xs font-semibold text-foreground">Meeting Title *</Label>
                     <Input
-                      id="title"
+                      id="note-title"
                       value={formData.title}
                       onChange={e => setFormData({ ...formData, title: e.target.value })}
-                      placeholder="Meeting title"
+                      placeholder="e.g. Sprint Retrospective, Client Design Review"
+                      className="h-9.5 text-xs sm:text-sm rounded-xl bg-background border-border"
                       required
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="content">Content *</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="note-content" className="text-xs font-semibold text-foreground">Notes & Key Takeaways *</Label>
                     <Textarea
-                      id="content"
+                      id="note-content"
                       value={formData.content}
                       onChange={e => setFormData({ ...formData, content: e.target.value })}
-                      placeholder="Meeting notes, summary, action items..."
-                      rows={10}
+                      placeholder="Outline key discussion points, decisions made, and follow-up action items..."
+                      rows={6}
+                      className="text-xs sm:text-sm rounded-xl bg-background border-border"
                       required
                     />
                   </div>
                   <Button
                     type="submit"
-                    className="w-full"
+                    className="w-full h-10 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold"
                     disabled={addNote.isPending || updateNote.isPending}
                   >
-                    {addNote.isPending || updateNote.isPending ? 'Saving...' : 'Save Note'}
+                    {addNote.isPending || updateNote.isPending ? 'Saving Note...' : 'Save Meeting Note'}
                   </Button>
                 </form>
               </DialogContent>
@@ -842,26 +1085,63 @@ export default function ScrumModule({ userProfile }) {
           )}
         </div>
 
-        <div className="grid grid-cols-1 gap-4">
+        {/* Meeting Notes Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {isLoading ? (
-            <p className="text-center py-8 text-muted-foreground">Loading meeting notes...</p>
+            <Card className="col-span-full border border-border bg-card text-foreground rounded-2xl p-8 text-center text-sm text-muted-foreground">
+              Loading meeting notes...
+            </Card>
           ) : notes.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No meeting notes found</p>
+            <Card className="col-span-full border border-border bg-card text-foreground rounded-2xl p-8 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-muted/60 text-muted-foreground flex items-center justify-center mx-auto mb-3">
+                <FileText className="w-6 h-6 opacity-40" />
+              </div>
+              <h4 className="text-sm font-semibold text-foreground">No Meeting Notes Recorded</h4>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                No meeting notes have been published yet. Administrators can add meeting takeaways and agendas above.
+              </p>
+            </Card>
           ) : (
             notes.map(note => (
-              <Card key={note.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle>{note.title}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
+              <Card key={note.id} className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden flex flex-col justify-between hover:border-primary/40 transition-colors">
+                <CardHeader className="p-4 sm:p-5 border-b border-border/70 pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-base font-bold text-foreground truncate">{note.title}</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1 font-mono">
+                        <Calendar className="h-3 w-3 text-primary" />
                         {formatDate(note.timestamp)}
                       </p>
                     </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+                          onClick={() => handleOpenDialog(note)}
+                          title="Edit Note"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive rounded-lg"
+                          onClick={() => handleDelete(note.id)}
+                          title="Delete Note"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-wrap">{note.content}</p>
+                <CardContent className="p-4 sm:p-5 flex-1">
+                  <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                    {note.content}
+                  </p>
                 </CardContent>
               </Card>
             ))

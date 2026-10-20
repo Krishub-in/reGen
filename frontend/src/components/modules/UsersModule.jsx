@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGetAllUsers, useCreateUser, useUpdateUser, useDeleteUser } from '../../hooks/useQueries';
-import { authFetch } from '@/lib/utils';
+import { authFetch, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, Camera, KeyRound, Filter } from 'lucide-react';
+import { Plus, Pencil, Trash2, Camera, KeyRound, Filter, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { Principal } from '@dfinity/principal';
 import { Ed25519KeyIdentity } from '@dfinity/identity';
@@ -47,14 +47,14 @@ export default function UsersModule({ userProfile }) {
 
   const isMobile = useIsMobile();
 
-  // Role styling config
+  // Role styling config - Emerald + Graphite
   const roleBadgeStyles = {
-    param:      'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 border-violet-300 dark:border-violet-700',
-    owner:      'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border-amber-300 dark:border-amber-700',
-    admin:      'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border-blue-300 dark:border-blue-700',
-    staff:      'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700',
-    intern:     'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300 border-sky-300 dark:border-sky-700',
-    freelancer: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border-orange-300 dark:border-orange-700',
+    param:      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25 font-semibold',
+    owner:      'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25 font-semibold',
+    admin:      'bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] border-[#0D9488]/25 font-semibold',
+    staff:      'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25 font-semibold',
+    intern:     'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/25 font-semibold',
+    freelancer: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25 font-semibold',
   };
   const roleOrder = { param: 0, owner: 1, admin: 2, staff: 3, intern: 4, freelancer: 5 };
   const getRoleKey = (user) => Object.keys(user.role)[0] || 'staff';
@@ -142,6 +142,24 @@ export default function UsersModule({ userProfile }) {
     const m = now.getMonth() - dob.getMonth();
     if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
     return age;
+  };
+
+  const formatSalary = (val) => {
+    if (!val && val !== 0) return '--';
+    const num = Number(String(val).replace(/[^0-9.-]+/g, ''));
+    if (isNaN(num)) return `₹${val}`;
+    return `₹${num.toLocaleString('en-IN')}`;
+  };
+
+  const formatDisplayDate = (dStr) => {
+    if (!dStr) return '--';
+    try {
+      const d = new Date(dStr + (dStr.includes('T') ? '' : 'T00:00:00'));
+      if (isNaN(d.getTime())) return dStr;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dStr;
+    }
   };
 
   // Aadhaar helpers
@@ -348,18 +366,36 @@ export default function UsersModule({ userProfile }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">{isOwner ? 'Staff Management' : 'User Management'}</h2>
+      {/* 1. Staff Management Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
+              {isOwner ? 'Staff Management' : 'User Management'}
+            </h2>
+            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
+              Manage organization team members, roles, and system credentials
+            </p>
+          </div>
+        </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => handleOpenDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              {isOwner ? 'Add User' : 'Add User'}
+            <Button 
+              onClick={() => handleOpenDialog()} 
+              className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-medium text-xs sm:text-sm rounded-xl px-4 h-9 sm:h-10 shadow-xs transition-all flex items-center gap-2 shrink-0 self-start sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>{isOwner ? 'Add Staff Member' : 'Add User'}</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl">
+          <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xl p-6">
             <DialogHeader>
-              <DialogTitle className="text-base md:text-lg">{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
+              <DialogTitle className="text-base md:text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                {editingUser ? 'Edit User Profile' : 'Add New User'}
+              </DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex flex-col items-center gap-3">
@@ -599,61 +635,179 @@ export default function UsersModule({ userProfile }) {
                   />
                 </div>
               </div>
-              <Button type="submit" tabIndex={16} className="w-full" disabled={createUser.isPending || updateUser.isPending}>
-                {(createUser.isPending || updateUser.isPending) ? 'Saving...' : 'Save User'}
+              <Button type="submit" tabIndex={16} className="w-full bg-primary hover:bg-[#0F766E] text-white font-bold rounded-xl h-11 transition-all shadow-sm" disabled={createUser.isPending || updateUser.isPending}>
+                {(createUser.isPending || updateUser.isPending) ? 'Saving...' : 'Save User Profile'}
               </Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Role filter pills */}
+      {/* 2. Role Filter Chips */}
       <div className="flex items-center gap-2 flex-wrap">
-        <Filter className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        {filterOptions.map(opt => {
-          const active = filterRole === opt.value;
-          const badgeCls = opt.value !== 'all' ? getRoleBadge(opt.value) : '';
-          return (
-            <button
-              key={opt.value}
-              onClick={() => setFilterRole(opt.value)}
-              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition-all ${
-                active
-                  ? opt.value === 'all'
-                    ? 'bg-foreground text-background border-foreground'
-                    : `${badgeCls} ring-2 ring-offset-1 ring-current`
-                  : 'bg-muted/50 text-muted-foreground border-transparent hover:bg-muted'
-              }`}
-            >
-              {opt.label}
-              <span className={`text-[10px] rounded-full px-1.5 py-0.5 ${
-                active ? 'bg-background/20 text-current' : 'bg-muted text-muted-foreground'
-              }`}>{roleCounts[opt.value] || 0}</span>
-            </button>
-          );
-        })}
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#64748B] dark:text-[#A6B5C0] mr-1">
+          <Filter className="h-3.5 w-3.5 text-[#0D9488] dark:text-[#14B8A6]" />
+          <span>Filter:</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {filterOptions.map(opt => {
+            const active = filterRole === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setFilterRole(opt.value)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-medium border transition-all cursor-pointer",
+                  active
+                    ? "bg-[#0D9488] text-white border-[#0D9488] shadow-xs font-semibold"
+                    : "bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48] text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-[#E8F0F4] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+                )}
+              >
+                <span>{opt.label}</span>
+                <span className={cn(
+                  "text-[10px] rounded-full px-1.5 py-0.2 font-semibold",
+                  active 
+                    ? "bg-white/20 text-white" 
+                    : "bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] border border-[#DFE8EC]/80 dark:border-[#2A3D48]/80"
+                )}>
+                  {roleCounts[opt.value] || 0}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{isOwner ? 'My Staff' : 'All Users'} <span className="text-sm font-normal text-muted-foreground">({visibleUsers.length})</span></CardTitle>
+      {/* 3. Staff Roster Table */}
+      <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xs overflow-hidden">
+        <CardHeader className="border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] px-6 py-4 flex flex-row items-center justify-between">
+          <CardTitle className="text-base font-bold flex items-center gap-2.5 text-[#172B3A] dark:text-[#E8F0F4]">
+            <span>{isOwner ? 'Staff Roster' : 'All Registered Users'}</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6]">
+              {visibleUsers.length} total
+            </span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           {isLoading ? (
-            <p className="text-center py-8 text-muted-foreground">Loading users...</p>
+            <div className="py-12 text-center text-xs text-[#64748B] dark:text-[#A6B5C0]">
+              Loading staff records...
+            </div>
           ) : visibleUsers.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No users found</p>
+            <div className="py-12 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
+              <p className="font-semibold text-foreground text-sm">No team members found</p>
+              <p>There are no staff matching this filter.</p>
+            </div>
           ) : (
             <>
-              <div className="space-y-3 md:hidden">
+              {/* Mobile Cards View */}
+              <div className="p-4 space-y-3 md:hidden">
                 {visibleUsers.map((user) => {
                   const uid = user.userId?.toText ? user.userId.toText() : String(user.userId || user.id);
                   const name = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
                   return (
-                    <Card key={uid} className="border border-border shadow-sm">
-                      <CardContent className="p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted overflow-hidden">
+                    <div key={uid} className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/50 dark:bg-[#1D303B]/50 rounded-xl p-4 shadow-xs">
+                      <div className="flex items-start gap-3">
+                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted overflow-hidden border border-[#DFE8EC] dark:border-[#2A3D48]">
+                          <img
+                            src={user.avatar || getAvatarFallback(user)}
+                            alt="Profile"
+                            className="h-full w-full object-cover"
+                            onError={(e) => { e.currentTarget.src = getAvatarFallback(user); }}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold leading-tight truncate text-[#172B3A] dark:text-[#E8F0F4]">{name || '--'}</p>
+                              <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] truncate font-mono">@{user.username}</p>
+                            </div>
+                            <span className={cn("rounded-md border px-2 py-0.5 text-[11px] capitalize", getRoleBadge(getRoleKey(user)))}>
+                              {getRoleKey(user)}
+                            </span>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                            <div>
+                              <span className="block text-[10px] uppercase font-semibold tracking-wider">Department</span>
+                              <span className="text-[#172B3A] dark:text-[#E8F0F4] font-medium">{user.department || '--'}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] uppercase font-semibold tracking-wider">Designation</span>
+                              <span className="text-[#172B3A] dark:text-[#E8F0F4] font-medium">{user.designation || '--'}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] uppercase font-semibold tracking-wider">DOB</span>
+                              <span className="text-[#172B3A] dark:text-[#E8F0F4] font-medium">{formatDisplayDate(user.dateOfBirth)}</span>
+                            </div>
+                            <div>
+                              <span className="block text-[10px] uppercase font-semibold tracking-wider">Salary</span>
+                              <span className="text-[#172B3A] dark:text-[#E8F0F4] font-medium">{formatSalary(user.salary)}</span>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center justify-end gap-1.5 border-t border-[#DFE8EC] dark:border-[#2A3D48] pt-2.5">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleGenerateResetLink(user)} 
+                              title="Reset Password" 
+                              aria-label="Reset Password"
+                              className="h-8 w-8 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#0D9488]/10 rounded-lg"
+                            >
+                              <KeyRound className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleOpenDialog(user)} 
+                              title="Edit Profile"
+                              aria-label="Edit Profile"
+                              className="h-8 w-8 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#0D9488]/10 rounded-lg"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleDelete(user.userId || user.id)} 
+                              title="Delete User"
+                              aria-label="Delete User"
+                              className="h-8 w-8 text-[#64748B] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-[#F8FAFC] dark:bg-[#1D303B]/60 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+                    <TableRow className="border-[#DFE8EC] dark:border-[#2A3D48]">
+                      <TableHead className="py-3.5 pl-6 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0] w-12">Avatar</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Name</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Username</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Department</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Designation</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Date of Birth</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Age</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Role</TableHead>
+                      <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Salary</TableHead>
+                      <TableHead className="py-3.5 pr-6 text-right font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#DFE8EC]/70 dark:divide-[#2A3D48]/70">
+                    {visibleUsers.map((user) => (
+                      <TableRow 
+                        key={(user.userId?.toText ? user.userId.toText() : String(user.userId || user.id))} 
+                        className="hover:bg-[#F8FAFC] dark:hover:bg-[#1D303B]/40 transition-colors"
+                      >
+                        <TableCell className="pl-6 py-3.5">
+                          <div className="h-8 w-8 rounded-full bg-muted overflow-hidden border border-[#DFE8EC] dark:border-[#2A3D48]">
                             <img
                               src={user.avatar || getAvatarFallback(user)}
                               alt="Profile"
@@ -661,121 +815,69 @@ export default function UsersModule({ userProfile }) {
                               onError={(e) => { e.currentTarget.src = getAvatarFallback(user); }}
                             />
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold leading-tight truncate">{name || '--'}</p>
-                                <p className="text-xs text-muted-foreground truncate">@{user.username}</p>
-                              </div>
-                              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${getRoleBadge(getRoleKey(user))}`}>
-                                {getRoleKey(user)}
-                              </span>
-                            </div>
-                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Department</span>
-                                <span className="text-foreground/90">{user.department || '--'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Designation</span>
-                                <span className="text-foreground/90">{user.designation || '--'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">DOB</span>
-                                <span className="text-foreground/90">{user.dateOfBirth || '--'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[10px] uppercase tracking-wide">Salary</span>
-                                <span className="text-foreground/90">₹{user.salary?.toString() || '--'}</span>
-                              </div>
-                            </div>
-                            <div className="mt-3 flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon" onClick={() => handleGenerateResetLink(user)} title="Reset Password">
-                                <KeyRound className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleOpenDialog(user)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDelete(user.userId || user.id)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] py-3.5">
+                          {user.name || `${user.firstName || ''} ${user.lastName || ''}`}
+                        </TableCell>
+                        <TableCell className="text-[#64748B] dark:text-[#A6B5C0] py-3.5 text-xs font-mono">
+                          @{user.username}
+                        </TableCell>
+                        <TableCell className="text-[#172B3A] dark:text-[#E8F0F4] py-3.5 text-xs">
+                          {user.department || '--'}
+                        </TableCell>
+                        <TableCell className="text-[#64748B] dark:text-[#A6B5C0] py-3.5 text-xs">
+                          {user.designation || '--'}
+                        </TableCell>
+                        <TableCell className="text-[#64748B] dark:text-[#A6B5C0] py-3.5 text-xs">
+                          {formatDisplayDate(user.dateOfBirth)}
+                        </TableCell>
+                        <TableCell className="text-[#172B3A] dark:text-[#E8F0F4] py-3.5 text-xs">
+                          {(user.age ?? computeAge(user.dateOfBirth)) ?? '--'}
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          <span className={cn("inline-flex rounded-md border px-2.5 py-0.5 text-[11px] capitalize", getRoleBadge(getRoleKey(user)))}>
+                            {getRoleKey(user)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-[#172B3A] dark:text-[#E8F0F4] py-3.5 font-medium">
+                          {formatSalary(user.salary)}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 py-3.5">
+                          <div className="flex justify-end items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleGenerateResetLink(user)}
+                              title="Reset Password"
+                              aria-label="Reset Password"
+                              className="hover:bg-[#0D9488]/10 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] rounded-lg h-7 w-7 transition-colors"
+                            >
+                              <KeyRound className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDialog(user)}
+                              title="Edit User"
+                              aria-label="Edit User"
+                              className="hover:bg-[#0D9488]/10 text-[#64748B] hover:text-[#0D9488] dark:hover:text-[#14B8A6] rounded-lg h-7 w-7 transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDelete(user.userId || user.id)}
+                              title="Delete User"
+                              aria-label="Delete User"
+                              className="hover:bg-rose-500/10 text-[#64748B] hover:text-rose-600 dark:hover:text-rose-400 rounded-lg h-7 w-7 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-              <div className="hidden md:block">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Avatar</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Username</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Designation</TableHead>
-                      <TableHead>Date of Birth</TableHead>
-                      <TableHead>Age</TableHead>
-                      <TableHead>Role</TableHead>
-                      <TableHead>Salary</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                {visibleUsers.map((user) => (
-                  <TableRow key={(user.userId?.toText ? user.userId.toText() : String(user.userId || user.id))} className="hover:bg-accent">
-                    <TableCell>
-                      <div className="h-8 w-8 rounded-full bg-muted overflow-hidden">
-                        <img
-                          src={user.avatar || getAvatarFallback(user)}
-                          alt="Profile"
-                          className="h-full w-full object-cover"
-                          onError={(e) => { e.currentTarget.src = getAvatarFallback(user); }}
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{user.name || `${user.firstName || ''} ${user.lastName || ''}`}</TableCell>
-                    <TableCell>{user.username}</TableCell>
-                    <TableCell>{user.department}</TableCell>
-                    <TableCell>{user.designation}</TableCell>
-                    <TableCell>{user.dateOfBirth || '--'}</TableCell>
-                    <TableCell>{(user.age ?? computeAge(user.dateOfBirth)) ?? '--'}</TableCell>
-                    <TableCell>
-                      <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize ${getRoleBadge(getRoleKey(user))}`}>
-                        {getRoleKey(user)}
-                      </span>
-                    </TableCell>
-                    <TableCell>₹{user.salary?.toString()}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleGenerateResetLink(user)}
-                          title="Reset Password"
-                        >
-                          <KeyRound className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenDialog(user)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(user.userId || user.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { useCustomAuth } from '../hooks/useCustomAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User } from 'lucide-react';
+import { 
+  Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, 
+  Building2, LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search 
+} from 'lucide-react';
 import UsersModule from '../components/modules/UsersModule';
 import AttendanceModule from '../components/modules/AttendanceModule';
 import SchedulesModule from '../components/modules/SchedulesModule';
@@ -22,20 +25,69 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
 
+const getInitialModule = () => {
+  if (typeof window === 'undefined') return 'home';
+
+  const pathname = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+  if (pathname === '/settings' || pathname === '/profile') {
+    return 'profile';
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const tab = (params.get('tab') || params.get('module') || '').toLowerCase();
+  if (tab === 'settings' || tab === 'profile') {
+    return 'profile';
+  }
+  if (tab) {
+    return tab;
+  }
+
+  const pathSegment = pathname.replace(/^\/+/, '');
+  if (pathSegment && pathSegment !== 'superadmin') {
+    return pathSegment;
+  }
+
+  return 'home';
+};
+
 export default function Dashboard({ userProfile }) {
   const { logout } = useCustomAuth();
   const queryClient = useQueryClient();
-  const [activeModule, setActiveModule] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || params.get('module') || 'profile';
-  });
+  const [activeModule, setActiveModule] = useState(getInitialModule);
   const isMobile = useIsMobile();
-  const [logoError, setLogoError] = useState(false);
-  const [logoSrc, setLogoSrc] = useState('/logo.jpeg');
   const [showNotif, setShowNotif] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const { data: myNotifications = [] } = useGetUserNotifications(userProfile.id);
+  const { data: myNotifications = [] } = useGetUserNotifications(userProfile?.id);
   const [seenNotifications, setSeenNotifications] = useState({});
+
+  const navigateToModule = (moduleId, replace = false) => {
+    const targetModule = moduleId === 'settings' ? 'profile' : moduleId;
+    setActiveModule(targetModule);
+
+    let newUrl = '/';
+    if (targetModule === 'profile' || targetModule === 'settings') {
+      newUrl = '/settings';
+    } else if (targetModule && targetModule !== 'home') {
+      newUrl = `/?tab=${targetModule}`;
+    }
+
+    const currentUrl = window.location.pathname + window.location.search;
+    if (currentUrl !== newUrl) {
+      if (replace) {
+        window.history.replaceState(null, '', newUrl);
+      } else {
+        window.history.pushState(null, '', newUrl);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveModule(getInitialModule());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (userProfile?.mustChangePassword) {
@@ -55,11 +107,14 @@ export default function Dashboard({ userProfile }) {
     });
   }, [myNotifications]);
 
-  const isAdmin = userProfile.role.hasOwnProperty('admin');
-  const isOwner = userProfile.role.hasOwnProperty('owner') || userProfile.role.hasOwnProperty('param');
-  const isStaff = userProfile.role.hasOwnProperty('staff') || userProfile.role.hasOwnProperty('intern') || userProfile.role.hasOwnProperty('freelancer');
+  const isAdmin = userProfile?.role?.hasOwnProperty('admin');
+  const isOwner = userProfile?.role?.hasOwnProperty('owner') || userProfile?.role?.hasOwnProperty('param');
+  const isStaff = userProfile?.role?.hasOwnProperty('staff') || userProfile?.role?.hasOwnProperty('intern') || userProfile?.role?.hasOwnProperty('freelancer');
 
   const handleLogout = async () => {
+    if (typeof window !== 'undefined' && (window.location.pathname === '/settings' || window.location.pathname === '/profile')) {
+      window.history.replaceState(null, '', '/');
+    }
     await logout();
     queryClient.clear();
   };
@@ -80,7 +135,7 @@ export default function Dashboard({ userProfile }) {
   const renderModule = () => {
     switch (activeModule) {
       case 'home':
-        return <DashboardHome userProfile={userProfile} onNavigate={setActiveModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
       case 'users':
         return <UsersModule userProfile={userProfile} />;
       case 'attendance':
@@ -98,161 +153,227 @@ export default function Dashboard({ userProfile }) {
       case 'company':
         return <CompanyModule userProfile={userProfile} />;
       case 'profile':
+      case 'settings':
         return <StaffProfileModule userProfile={userProfile} />;
       default:
-        return <DashboardHome userProfile={userProfile} onNavigate={setActiveModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
     }
   };
 
   return (
-    <div className="bg-background text-foreground flex min-h-svh flex-col">
-      <header className="sticky top-[env(safe-area-inset-top,0px)] z-10 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex h-16 items-center gap-3 px-3 md:px-6 flex-wrap md:flex-nowrap">
-          <div className="flex items-center gap-3">
-            <button
-              className="md:hidden inline-flex items-center justify-center rounded-md p-2 hover:bg-accent"
-              onClick={() => setMobileNavOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            {logoError ? (
-              <div className="h-8 w-8 md:h-10 md:w-10" />
-            ) : (
-              <img
-                src={logoSrc}
-                alt="reGen"
-                className="h-8 w-8 md:h-10 md:w-10"
-                onError={() => {
-                  if (logoSrc === '/logo.jpeg') {
-                    setLogoSrc('/logo.png');
-                  } else {
-                    setLogoError(true);
-                  }
-                }}
-              />
-            )}
-            <div className="hidden md:block">
-              <h2 className="font-bold text-lg">reGen</h2>
-              <p className="text-xs text-muted-foreground">{userProfile?.name}</p>
-            </div>
-            <div className="md:hidden">
-              <h2 className="font-semibold text-base">reGen</h2>
-            </div>
-          </div>
-          <nav className="hidden md:flex md:flex-1 md:overflow-x-auto md:no-scrollbar">
-            <div className="flex items-center gap-1">
-              {menuItems.filter(item => item.show).map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveModule(item.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-md transition-colors flex-shrink-0",
-                    activeModule === item.id 
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  <span className="text-sm">{item.label}</span>
-                </button>
-              ))}
-            </div>
-          </nav>
-          <div className="flex items-center gap-2 pl-2 relative ml-auto">
-            <button
-              className="relative rounded-md p-2 hover:bg-accent"
-              onClick={() => setShowNotif(v => !v)}
-              aria-label="Notifications"
-            >
-              <Bell className="h-5 w-5" />
-              {myNotifications.length > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                  {Math.min(9, myNotifications.length)}
-                </span>
-              )}
-            </button>
-            {showNotif && (
-              <div className="absolute right-2 md:right-20 top-12 z-20 w-72 border border-border bg-popover text-popover-foreground rounded-md shadow-md">
-                <div className="px-3 py-2 text-sm font-medium border-b">Notifications</div>
-                <div className="max-h-64 overflow-y-auto">
-                  {(myNotifications.slice(0,5)).map(n => (
-                    <div key={n.id} className="px-3 py-2 text-sm border-b last:border-b-0">
-                      <div className="font-semibold">{n.title}</div>
-                      <div className="text-muted-foreground">{n.message}</div>
-                    </div>
-                  ))}
-                  {myNotifications.length === 0 && (
-                    <div className="px-3 py-4 text-sm text-muted-foreground">No notifications</div>
-                  )}
-                </div>
-              </div>
-            )}
-            {userProfile?.role === 'param' && (
-              <Button 
-                variant="default" 
-                size="sm" 
-                onClick={() => window.location.href = '/superadmin'}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-sm px-3"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Super Admin Console</span>
-              </Button>
-            )}
-            <ModeToggle />
-            <Button variant="outline" onClick={handleLogout} className="hidden md:inline-flex">
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
+    <div className="bg-background text-foreground flex min-h-svh w-full">
+      {/* Desktop Left Sidebar (Matching Reference Image) */}
+      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
+        {/* Brand Logo */}
+        <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
+          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigateToModule('home')}>
+            <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+            <span className="w-2 h-2 rounded-full bg-primary" />
           </div>
         </div>
-      </header>
-      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="w-72">
-          <SheetHeader>
-            <SheetTitle>Navigation</SheetTitle>
-          </SheetHeader>
-          <div className="mt-4 flex flex-col gap-1">
-            {menuItems.filter(item => item.show).map((item) => (
+
+        {/* Sidebar Nav Items */}
+        <nav className="flex-1 px-3 py-4 space-y-1">
+          {menuItems.filter(item => item.show).map((item) => {
+            const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
+            return (
               <button
                 key={item.id}
-                onClick={() => {
-                  setActiveModule(item.id);
-                  setMobileNavOpen(false);
-                }}
+                onClick={() => navigateToModule(item.id)}
                 className={cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  activeModule === item.id
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent"
+                  "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
+                  isActive
+                    ? "bg-primary text-white font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className={cn("w-4 h-4 shrink-0", isActive ? "text-white" : "text-muted-foreground")} />
                 <span>{item.label}</span>
               </button>
-            ))}
-            <div className="mt-2 border-t border-border pt-2">
+            );
+          })}
+        </nav>
+
+        {/* Superadmin button if param */}
+        {userProfile?.role === 'param' && (
+          <div className="p-3 border-t border-border">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => window.location.href = '/superadmin'}
+              className="w-full text-xs font-semibold justify-start gap-2 border-primary/30 text-primary hover:bg-primary/10 rounded-xl"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>Super Admin Console</span>
+            </Button>
+          </div>
+        )}
+
+        {/* Sidebar Logout */}
+        <div className="p-3 border-t border-border">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar Header (Matching Reference Image) */}
+        <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-4">
+          {/* Mobile hamburger + brand */}
+          <div className="flex items-center gap-3 md:hidden">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="p-2 rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
+              <span className="text-lg font-bold tracking-tight text-foreground">reGen</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            </div>
+          </div>
+
+          {/* Search Box (Matching Reference Image) */}
+          <div className="hidden sm:flex items-center flex-1 max-w-md">
+            <div className="relative w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search employees, departments..."
+                className="w-full h-10 pl-10 pr-4 rounded-xl bg-background border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Right Action Icons: Notification, Theme Switcher, Profile Badge */}
+          <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+            {/* Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotif(v => !v)}
+                className="relative w-9 h-9 rounded-xl border border-border bg-card hover:bg-secondary text-foreground flex items-center justify-center transition-colors shadow-xs"
+                aria-label="Notifications"
+              >
+                <Bell className="w-4 h-4 text-muted-foreground" />
+                {myNotifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                    {Math.min(9, myNotifications.length)}
+                  </span>
+                )}
+              </button>
+
+              {showNotif && (
+                <div className="absolute right-0 top-12 z-50 w-80 border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden">
+                  <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider border-b border-border bg-secondary/50 flex items-center justify-between">
+                    <span>Notifications</span>
+                    {myNotifications.length > 0 && (
+                      <span className="text-[10px] font-semibold text-primary">{myNotifications.length} New</span>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto divide-y divide-border">
+                    {myNotifications.slice(0, 6).map(n => (
+                      <div key={n.id} className="p-3.5 hover:bg-secondary/40 transition-colors">
+                        <div className="font-semibold text-xs text-foreground">{n.title}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{n.message}</div>
+                      </div>
+                    ))}
+                    {myNotifications.length === 0 && (
+                      <div className="py-8 text-center text-xs text-muted-foreground">No new notifications</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Theme Toggle (Sun/Moon Switcher) */}
+            <ModeToggle />
+
+            {/* User Profile Badge (Rightmost Topbar matching Reference Image) */}
+            <div 
+              onClick={() => navigateToModule('profile')}
+              className="hidden sm:flex items-center gap-2.5 pl-2 py-1 pr-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 transition-all cursor-pointer"
+              title="View Account / Settings"
+            >
+              <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 bg-muted">
+                <img 
+                  src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
+                  alt="" 
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+              <div className="text-left">
+                <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
+                <p className="text-[10px] text-muted-foreground font-medium capitalize">
+                  {isAdmin ? 'Admin' : (isOwner ? 'Owner' : 'Staff')}
+                </p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Mobile Navigation Drawer Sheet */}
+        <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+          <SheetContent side="left" className="w-72 bg-card border-r border-border p-0 flex flex-col">
+            <SheetHeader className="p-6 border-b border-border">
+              <SheetTitle className="flex items-center gap-2">
+                <span className="text-xl font-bold tracking-tight text-foreground">reGen</span>
+                <span className="w-2 h-2 rounded-full bg-primary" />
+              </SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+              {menuItems.filter(item => item.show).map((item) => {
+                const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      navigateToModule(item.id);
+                      setMobileNavOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all text-left",
+                      isActive
+                        ? "bg-primary text-white font-semibold shadow-xs"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    <item.icon className="w-4 h-4" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-4 border-t border-border">
               <button
                 onClick={async () => {
                   await handleLogout();
                   setMobileNavOpen(false);
                 }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-destructive transition-colors hover:bg-destructive/10"
+                className="flex w-full items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="w-4 h-4" />
                 <span>Logout</span>
               </button>
             </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+          </SheetContent>
+        </Sheet>
 
-      <main className={cn("flex-1 bg-background text-foreground", isMobile ? "p-4 pb-6" : "p-12")}>
-        <ErrorBoundary key={activeModule}>
-          {renderModule()}
-        </ErrorBoundary>
-      </main>
-      <Footer />
+        {/* Main Body */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full min-w-0">
+          <ErrorBoundary key={activeModule}>
+            {renderModule()}
+          </ErrorBoundary>
+        </main>
+
+        <Footer />
+      </div>
     </div>
   );
 }

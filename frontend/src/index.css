@@ -10,80 +10,117 @@ html {
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
 @layer base {
     :root {
-        --radius: 0.625rem;
-        /* Light Mode: Blue and White Background, Black Fonts */
-        --background: 0.98 0.01 250; 
-        --foreground: 0.10 0.02 250; 
+        --radius: 0.875rem;
+
+        /* Light Mode: Emerald + Graphite */
+        /* Light Background: #F4F8FA */
+        --background: 0.977 0.005 228.8;
+        /* Light Primary Text: #172B3A */
+        --foreground: 0.280 0.038 242.3;
+        
+        /* Light Card: #FFFFFF */
         --card: 1 0 0;
-        --card-foreground: 0.10 0.02 250;
+        --card-foreground: 0.280 0.038 242.3;
+        
         --popover: 1 0 0;
-        --popover-foreground: 0.10 0.02 250;
-        --primary: 0.55 0.18 250;
-        --primary-foreground: 0.99 0 0;
-        --secondary: 0.96 0.01 250;
-        --secondary-foreground: 0.145 0 0;
-        --muted: 0.96 0.01 250;
-        --muted-foreground: 0.45 0.02 250;
-        --accent: 0.96 0.01 250;
-        --accent-foreground: 0.145 0 0;
+        --popover-foreground: 0.280 0.038 242.3;
+        
+        /* Primary Emerald: #0D9488 */
+        --primary: 0.600 0.104 184.7;
+        --primary-foreground: 1 0 0;
+        
+        /* Secondary / Elevated: #F0F4F7 */
+        --secondary: 0.950 0.008 225.0;
+        --secondary-foreground: 0.280 0.038 242.3;
+        
+        --muted: 0.940 0.008 225.0;
+        /* Light Secondary Text: #64748B */
+        --muted-foreground: 0.554 0.041 257.4;
+        
+        --accent: 0.950 0.008 225.0;
+        --accent-foreground: 0.600 0.104 184.7;
+        
         --destructive: 0.577 0.245 27.325;
-        --destructive-foreground: 0.985 0 0;
-        --border: 0.90 0.02 250;
-        --input: 0.90 0.02 250;
-        --ring: 0.55 0.18 250;
-        --chart-1: 0.60 0.20 250;
-        --chart-2: 0.65 0.18 180;
+        --destructive-foreground: 1 0 0;
+        
+        /* Light Border: #DFE8EC */
+        --border: 0.925 0.011 226.0;
+        --input: 0.925 0.011 226.0;
+        --ring: 0.600 0.104 184.7;
+
+        --chart-1: 0.600 0.104 184.7; /* Emerald */
+        --chart-2: 0.511 0.086 186.4; /* Emerald Hover */
         --chart-3: 0.55 0.15 120;
         --chart-4: 0.70 0.20 30;
         --chart-5: 0.60 0.18 300;
-        --sidebar: 0.98 0.01 250;
-        --sidebar-foreground: 0.10 0.02 250;
-        --sidebar-primary: 0.55 0.18 250;
-        --sidebar-primary-foreground: 0.99 0 0;
-        --sidebar-accent: 0.96 0.01 250;
-        --sidebar-accent-foreground: 0.145 0 0;
-        --sidebar-border: 0.90 0.02 250;
-        --sidebar-ring: 0.55 0.18 250;
+
+        --sidebar: 1 0 0;
+        --sidebar-foreground: 0.280 0.038 242.3;
+        --sidebar-primary: 0.600 0.104 184.7;
+        --sidebar-primary-foreground: 1 0 0;
+        --sidebar-accent: 0.950 0.008 225.0;
+        --sidebar-accent-foreground: 0.280 0.038 242.3;
+        --sidebar-border: 0.925 0.011 226.0;
+        --sidebar-ring: 0.600 0.104 184.7;
     }
 
     .dark {
-        /* Dark Mode: Blue and Black Background, White Fonts */
-        --background: 0.10 0.05 250;
-        --foreground: 0.98 0 0;
-        --card: 0.13 0.05 250;
-        --card-foreground: 0.98 0 0;
-        --popover: 0.13 0.05 250;
-        --popover-foreground: 0.98 0 0;
-        --primary: 0.65 0.20 250;
-        --primary-foreground: 0.10 0.05 250;
-        --secondary: 0.20 0.05 250;
-        --secondary-foreground: 0.98 0 0;
-        --muted: 0.20 0.05 250;
-        --muted-foreground: 0.70 0.05 250;
-        --accent: 0.25 0.05 250;
-        --accent-foreground: 0.98 0 0;
+        /* Dark Mode: Emerald + Graphite */
+        /* Dark Background: #0B171F */
+        --background: 0.198 0.024 238.8;
+        /* Dark Primary Text: #E8F0F4 */
+        --foreground: 0.950 0.010 228.9;
+        
+        /* Dark Card: #15232D */
+        --card: 0.248 0.027 240.3;
+        --card-foreground: 0.950 0.010 228.9;
+        
+        /* Dark Elevated Surface: #1D303B */
+        --popover: 0.298 0.032 234.7;
+        --popover-foreground: 0.950 0.010 228.9;
+        
+        /* Primary Emerald: #0D9488 */
+        --primary: 0.600 0.104 184.7;
+        --primary-foreground: 1 0 0;
+        
+        /* Dark Elevated Surface: #1D303B */
+        --secondary: 0.298 0.032 234.7;
+        --secondary-foreground: 0.950 0.010 228.9;
+        
+        --muted: 0.298 0.032 234.7;
+        /* Dark Secondary Text: #A6B5C0 */
+        --muted-foreground: 0.765 0.023 239.5;
+        
+        --accent: 0.298 0.032 234.7;
+        --accent-foreground: 0.600 0.104 184.7;
+        
         --destructive: 0.60 0.22 27;
-        --destructive-foreground: 0.98 0 0;
-        --border: 0.20 0.05 250;
-        --input: 0.20 0.05 250;
-        --ring: 0.65 0.20 250;
-        --chart-1: 0.60 0.22 250;
-        --chart-2: 0.65 0.20 180;
+        --destructive-foreground: 1 0 0;
+        
+        /* Dark Border: #2A3D48 */
+        --border: 0.349 0.031 234.2;
+        --input: 0.349 0.031 234.2;
+        --ring: 0.600 0.104 184.7;
+
+        --chart-1: 0.600 0.104 184.7;
+        --chart-2: 0.511 0.086 186.4;
         --chart-3: 0.55 0.18 120;
         --chart-4: 0.70 0.22 30;
         --chart-5: 0.60 0.20 300;
-        --sidebar: 0.13 0.05 250;
-        --sidebar-foreground: 0.98 0 0;
-        --sidebar-primary: 0.65 0.20 250;
-        --sidebar-primary-foreground: 0.98 0 0;
-        --sidebar-accent: 0.22 0.05 250;
-        --sidebar-accent-foreground: 0.98 0 0;
-        --sidebar-border: 0.20 0.05 250;
-        --sidebar-ring: 0.65 0.20 250;
+
+        --sidebar: 0.248 0.027 240.3;
+        --sidebar-foreground: 0.950 0.010 228.9;
+        --sidebar-primary: 0.600 0.104 184.7;
+        --sidebar-primary-foreground: 1 0 0;
+        --sidebar-accent: 0.298 0.032 234.7;
+        --sidebar-accent-foreground: 0.950 0.010 228.9;
+        --sidebar-border: 0.349 0.031 234.2;
+        --sidebar-ring: 0.600 0.104 184.7;
     }
 
     * {
@@ -93,4 +130,52 @@ html {
         background-color: oklch(var(--background));
         color: oklch(var(--foreground));
     }
+}
+
+/* ==========================================================================
+   Super Admin & Emerald Scoped Theme Helpers
+   ========================================================================== */
+.super-admin-layout,
+.emerald-theme {
+  --radius: 0.875rem;
+  --primary: 0.600 0.104 184.7;
+  --primary-foreground: 1 0 0;
+}
+
+:root:not(.dark) .super-admin-layout,
+:root:not(.dark) .emerald-theme,
+.super-admin-layout.light,
+.emerald-theme.light {
+  --background: 0.977 0.005 228.8;
+  --foreground: 0.280 0.038 242.3;
+  --card: 1 0 0;
+  --card-foreground: 0.280 0.038 242.3;
+  --popover: 1 0 0;
+  --popover-foreground: 0.280 0.038 242.3;
+  --secondary: 0.950 0.008 225.0;
+  --secondary-foreground: 0.280 0.038 242.3;
+  --muted: 0.940 0.008 225.0;
+  --muted-foreground: 0.554 0.041 257.4;
+  --border: 0.925 0.011 226.0;
+  --input: 0.925 0.011 226.0;
+  --ring: 0.600 0.104 184.7;
+}
+
+.dark .super-admin-layout,
+.dark .emerald-theme,
+.super-admin-layout.dark,
+.emerald-theme.dark {
+  --background: 0.198 0.024 238.8;
+  --foreground: 0.950 0.010 228.9;
+  --card: 0.248 0.027 240.3;
+  --card-foreground: 0.950 0.010 228.9;
+  --popover: 0.298 0.032 234.7;
+  --popover-foreground: 0.950 0.010 228.9;
+  --secondary: 0.298 0.032 234.7;
+  --secondary-foreground: 0.950 0.010 228.9;
+  --muted: 0.298 0.032 234.7;
+  --muted-foreground: 0.765 0.023 239.5;
+  --border: 0.349 0.031 234.2;
+  --input: 0.349 0.031 234.2;
+  --ring: 0.600 0.104 184.7;
 }

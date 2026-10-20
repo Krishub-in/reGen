@@ -23,9 +23,9 @@ export default function MaintenancePage() {
           <AlertIcon />
         </div>
         <div className="space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tighter text-white">Scheduled Maintenance</h1>
-          <p className="text-white text-lg">
-            Our services are currently undergoing scheduled maintenance to enhance performance and security.
+          <h1 className="text-4xl font-extrabold tracking-tighter text-white">Server Under Maintenance</h1>
+          <p className="text-zinc-300 text-sm leading-relaxed">
+            Our services are currently undergoing maintenance or required services are offline.
             <br />
             We appreciate your patience and will be back online shortly.
           </p>

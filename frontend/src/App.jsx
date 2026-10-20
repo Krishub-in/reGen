@@ -37,38 +37,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  if (isMaintenance) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#111',
-        color: '#fff',
-        fontSize: '2rem',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        padding: '2rem',
-      }}>
-        Server Under Maintenance
-      </div>
-    );
-  }
-
   const isSuperAdminPath = window.location.pathname.startsWith('/superadmin');
-
-  const isAuthenticated = !!identity;
-  const resetToken = new URLSearchParams(window.location.search).get('resetToken');
 
   if (isSuperAdminPath) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="sa_theme">
         <SuperAdminDashboard />
         <Toaster />
       </ThemeProvider>
     );
   }
+
+  if (isMaintenance) {
+    return <MaintenancePage />;
+  }
+
+  const isAuthenticated = !!identity;
+  const resetToken = new URLSearchParams(window.location.search).get('resetToken');
 
   useEffect(() => {
     if (resetToken && isAuthenticated) {

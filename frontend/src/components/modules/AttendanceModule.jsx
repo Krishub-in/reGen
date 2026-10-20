@@ -390,213 +390,293 @@ export default function AttendanceModule({ userProfile }) {
       setIsCheckingOut(false);
     }
   };
-
   // --- Render Mobile/User View ---
   if (!isAdmin) {
     return (
-      <div className="max-w-md mx-auto space-y-6 pb-20">
+      <div className="w-full space-y-6 pb-12">
         {/* Header Section */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground">{greeting}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Logged in as <span className="font-semibold text-foreground">{userProfile?.name || userProfile?.username || (userProfile?.id?.toText ? userProfile.id.toText() : String(userProfile?.id || ''))}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={cn(
+              "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
+              isCheckedIn && !isCheckedOut
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                : isCheckedOut
+                ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30"
+                : "bg-muted text-muted-foreground border border-border"
+            )}>
+              <span className={cn(
+                "w-2 h-2 rounded-full",
+                isCheckedIn && !isCheckedOut ? "bg-emerald-500 animate-pulse" : isCheckedOut ? "bg-purple-500" : "bg-muted-foreground"
+              )} />
+              {isCheckedIn && !isCheckedOut ? "Clocked In & Active" : isCheckedOut ? "Shift Completed" : "Not Clocked In"}
+            </span>
+          </div>
+        </div>
+
+        {/* Top Metric & Status Cards (Full-Width Responsive 4-Column Grid) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Clock & Date Card */}
+          <Card className="border border-border bg-gradient-to-br from-[#0D9488] to-[#0F766E] text-white rounded-2xl shadow-sm p-5 relative overflow-hidden flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-emerald-100 uppercase tracking-wider">{format(currentTime, 'EEEE')}</span>
+              <div className="flex items-center gap-1 text-[11px] text-emerald-100 bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-xs">
+                <MapPin className="h-3 w-3" /> Office Main
+              </div>
+            </div>
+            <div className="my-3">
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight font-mono">
+                {format(currentTime, 'hh:mm')}
+                <span className="text-base font-normal ml-1 opacity-90">{format(currentTime, 'a')}</span>
+              </h1>
+              <p className="text-xs text-emerald-100 mt-1">{format(currentTime, 'MMMM d, yyyy')}</p>
+            </div>
+            <p className="text-[11px] text-emerald-100/80">Realtime synced with office attendance zone</p>
+          </Card>
+
+          {/* Active Shift / Duration Card */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {isCheckedOut ? "Shift Duration" : "Working Hours"}
+              </span>
+              <div className={cn(
+                "p-2 rounded-xl",
+                isCheckedIn && !isCheckedOut ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+              )}>
+                <Timer className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="my-2">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight font-mono text-foreground">
+                {isCheckedOut
+                  ? (calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord), true) || '0 mins')
+                  : isCheckedIn
+                  ? (calculateDuration(getCheckInTime(todayRecord), currentTime, true) || '0 mins')
+                  : '--'}
+              </span>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isCheckedIn ? `In: ${formatTime(getCheckInTime(todayRecord))}` : 'Punch in to start timer'}
+                {isCheckedOut && ` • Out: ${formatTime(getCheckOutTime(todayRecord))}`}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span className={cn(
+                "w-1.5 h-1.5 rounded-full",
+                isCheckedIn && !isCheckedOut ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
+              )} />
+              <span>{isCheckedIn && !isCheckedOut ? "Currently logging active shift" : "Shift idle"}</span>
+            </div>
+          </Card>
+
+          {/* Last Month Attendance % */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{prevMonthName} Attendance</span>
+              <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                <Clock className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="my-2">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                {prevMonthPercentage > 0 ? `${prevMonthPercentage}%` : 'N/A'}
+              </span>
+              <p className="text-xs text-muted-foreground mt-1">On-time adherence record</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Calculated across working days</p>
+          </Card>
+
+          {/* Pending Tasks */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending Tasks</span>
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <ListTodo className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="my-2">
+              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+                {myPendingTasks}
+              </span>
+              <p className="text-xs text-muted-foreground mt-1">Assigned deliverables</p>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Check Scrum / Schedules for details</p>
+          </Card>
+        </div>
+
+        {/* Action Punch Cards (Full-Width Responsive 2-Column Grid) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+          {/* Check In Action Card */}
+          <div
+            onClick={!isCheckedIn && !isCheckingIn ? handleCheckIn : undefined}
+            className={cn(
+              "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
+              isCheckedIn
+                ? "bg-secondary/40 border-border opacity-80 cursor-default"
+                : "bg-card border-border hover:border-emerald-500/50 hover:shadow-md cursor-pointer group"
+            )}
+          >
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
+                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white"
+              )}>
+                {isCheckingIn ? (
+                  <div className="h-6 w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <LogIn className="h-7 w-7" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isCheckedIn ? `Punched in at ${formatTime(getCheckInTime(todayRecord))}` : 'Tap here to mark your arrival for today'}
+                </p>
+              </div>
+            </div>
+            <Button
+              disabled={isCheckedIn || isCheckingIn}
+              className={cn(
+                "rounded-xl px-5 h-10 font-semibold shadow-xs",
+                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-600 hover:bg-emerald-700 text-white"
+              )}
+            >
+              {isCheckedIn ? 'Done' : 'Check In'}
+            </Button>
+          </div>
+
+          {/* Check Out Action Card */}
+          <div
+            onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : undefined}
+            className={cn(
+              "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
+              !isCheckedIn || isCheckedOut
+                ? "bg-secondary/40 border-border opacity-80 cursor-default"
+                : "bg-card border-border hover:border-red-500/50 hover:shadow-md cursor-pointer group"
+            )}
+          >
+            <div className="flex items-center gap-4">
+              <div className={cn(
+                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
+                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-500/10 text-red-600 dark:text-red-400 group-hover:bg-red-500 group-hover:text-white"
+              )}>
+                {isCheckingOut ? (
+                  <div className="h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <LogOut className="h-7 w-7" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">
+                  {isCheckingOut ? 'Checking Out...' : isCheckedOut ? 'Checked Out' : 'Check Out'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {isCheckedOut
+                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))}`
+                    : isCheckedIn
+                    ? 'Tap here when you finish your shift'
+                    : 'Check in required first'}
+                </p>
+              </div>
+            </div>
+            <Button
+              disabled={!isCheckedIn || isCheckedOut || isCheckingOut}
+              className={cn(
+                "rounded-xl px-5 h-10 font-semibold shadow-xs",
+                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-600 hover:bg-red-700 text-white"
+              )}
+            >
+              {isCheckedOut ? 'Done' : 'Check Out'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Full-Width Recent History Table */}
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+          <CardHeader className="border-b border-border bg-card px-6 py-4 flex flex-row items-center justify-between">
             <div>
-                <h2 className="text-xl font-bold">{greeting}</h2>
-                <p className="text-muted-foreground">{userProfile?.name || userProfile?.username || (userProfile?.id?.toText ? userProfile.id.toText() : String(userProfile?.id || ''))}</p>
+              <CardTitle className="text-lg font-bold text-foreground">Recent Attendance History</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Log of your daily check-in, check-out and total working duration</p>
             </div>
-            <div className="h-10 w-10 bg-muted rounded-full flex items-center justify-center">
-                <User className="h-6 w-6 text-muted-foreground" />
-            </div>
-        </div>
-
-        {/* Date & Time Card */}
-        <Card className="bg-primary text-primary-foreground border-none shadow-lg">
-            <CardContent className="p-6 text-center space-y-2">
-                <p className="text-primary-foreground/80 text-sm">{format(currentTime, 'EEEE, MMMM d, yyyy')}</p>
-                <h1 className="text-4xl font-bold tracking-wider">
-                    {format(currentTime, 'hh:mm')}
-                    <span className="text-lg ml-1 font-normal">{format(currentTime, 'a')}</span>
-                </h1>
-                <div className="flex justify-center gap-2 items-center text-primary-foreground/80 text-sm mt-2">
-                    <MapPin className="h-4 w-4" />
-                    <span>Office Main Location</span>
-                </div>
-            </CardContent>
-        </Card>
-
-        {/* Working Duration Card (Visible when checked in) */}
-        {isCheckedIn && (
-            <Card className="border-border/60 shadow-sm bg-gradient-to-br from-card via-card to-muted/40 overflow-hidden">
-                <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className={cn(
-                                "h-11 w-11 rounded-xl flex items-center justify-center transition-all",
-                                isCheckedOut ? "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            )}>
-                                <Timer className="h-6 w-6" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h4 className="text-sm font-semibold">
-                                        {isCheckedOut ? "Total Working Hours" : "Active Working Hours"}
-                                    </h4>
-                                    <span className={cn(
-                                        "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1",
-                                        isCheckedOut ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                                    )}>
-                                        {!isCheckedOut && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                                        {isCheckedOut ? "Completed" : "In Progress"}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                    In: {formatTime(getCheckInTime(todayRecord))}
-                                    {isCheckedOut && ` • Out: ${formatTime(getCheckOutTime(todayRecord))}`}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="text-right">
-                            <span className="text-xl font-extrabold tracking-tight text-foreground font-mono">
-                                {isCheckedOut
-                                    ? (calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord), true) || '0 mins')
-                                    : (calculateDuration(getCheckInTime(todayRecord), currentTime, true) || '0 mins')}
-                            </span>
-                            <p className="text-[11px] text-muted-foreground">
-                                {isCheckedOut ? "Check-in to Check-out" : "Elapsed time"}
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-        )}
-
-        {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-4">
             <Button 
-                className={cn(
-                    "h-32 flex flex-col gap-2 rounded-2xl shadow-sm hover:shadow-md transition-all",
-                    isCheckedIn ? "bg-muted text-muted-foreground border-2 border-transparent" : "bg-card text-green-600 border-2 border-green-100 dark:border-green-900 hover:border-green-200 hover:bg-green-50 dark:hover:bg-green-900/20"
-                )}
-                variant="ghost"
-                disabled={isCheckedIn || isCheckingIn}
-                onClick={handleCheckIn}
+              variant="outline" 
+              size="sm"
+              className="text-xs font-semibold rounded-xl border-border"
+              onClick={() => setShowAllHistory(!showAllHistory)}
             >
-                <div className={cn("h-12 w-12 rounded-full flex items-center justify-center", isCheckedIn ? "bg-muted" : "bg-green-100 dark:bg-green-900/30")}>
-                    {isCheckingIn ? (
-                        <div className="h-6 w-6 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        <LogIn className={cn("h-6 w-6", isCheckedIn ? "text-muted-foreground" : "text-green-600 dark:text-green-400")} />
-                    )}
-                </div>
-                <span className="font-semibold text-lg">{isCheckingIn ? 'Checking In...' : 'Check In'}</span>
-                {isCheckedIn && <span className="text-xs">Done at {formatTime(getCheckInTime(todayRecord))}</span>}
+              {showAllHistory ? "View Less" : "View All"}
             </Button>
-
-            <Button 
-                className={cn(
-                    "h-32 flex flex-col gap-2 rounded-2xl shadow-sm hover:shadow-md transition-all",
-                    !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground border-2 border-transparent" : "bg-card text-red-600 border-2 border-red-100 dark:border-red-900 hover:border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20"
-                )}
-                variant="ghost"
-                disabled={!isCheckedIn || isCheckedOut || isCheckingOut}
-                onClick={handleCheckOut}
-            >
-                <div className={cn("h-12 w-12 rounded-full flex items-center justify-center", !isCheckedIn || isCheckedOut ? "bg-muted" : "bg-red-100 dark:bg-red-900/30")}>
-                    {isCheckingOut ? (
-                        <div className="h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        <LogOut className={cn("h-6 w-6", !isCheckedIn || isCheckedOut ? "text-muted-foreground" : "text-red-600 dark:text-red-400")} />
-                    )}
-                </div>
-                <span className="font-semibold text-lg">{isCheckingOut ? 'Checking Out...' : 'Check Out'}</span>
-                {isCheckedOut && (
-                    <div className="flex flex-col items-center">
-                        <span className="text-xs">Done at {formatTime(getCheckOutTime(todayRecord))}</span>
-                        {calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord)) && (
-                            <span className="text-[11px] font-bold text-foreground/80">
-                                {calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord))}
-                            </span>
-                        )}
-                    </div>
-                )}
-            </Button>
-        </div>
-
-        {/* Status Overview */}
-        <div className="grid grid-cols-2 gap-4">
-             <Card>
-                <CardContent className="p-4 flex flex-col items-center justify-center gap-2 text-center">
-                    <Clock className="h-6 w-6 text-blue-500" />
-                    <span className="text-[12px] whitespace-nowrap text-muted-foreground">{prevMonthName} Attendance</span>
-                    <span className="font-bold text-lg">{prevMonthPercentage > 0 ? `${prevMonthPercentage}%` : 'N/A'}</span>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardContent className="p-4 flex flex-col items-center justify-center gap-2 text-center">
-                    <ListTodo className="h-6 w-6 text-orange-500" />
-                    <span className="text-[12px] whitespace-nowrap text-muted-foreground">Pending Tasks</span>
-                    <span className="font-bold text-lg">{myPendingTasks}</span>
-                </CardContent>
-            </Card>
-        </div>
-
-        {/* Recent History */}
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h3 className="font-bold text-lg">Recent History</h3>
-                <Button 
-                    variant="link" 
-                    className="text-blue-600 h-auto p-0" 
-                    onClick={() => setShowAllHistory(!showAllHistory)}
-                >
-                    {showAllHistory ? "View Less" : "View All"}
-                </Button>
-            </div>
-            
-            <div className="space-y-3">
-                {(showAllHistory ? userAttendance : userAttendance.slice(0, 5)).map((record) => {
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-secondary/40 border-b border-border">
+                  <TableRow>
+                    <TableHead className="pl-6 py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</TableHead>
+                    <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+                    <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Check In</TableHead>
+                    <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Check Out</TableHead>
+                    <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Working Hours</TableHead>
+                    <TableHead className="pr-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(showAllHistory ? userAttendance : userAttendance.slice(0, 8)).map((record) => {
                     const inTime = getCheckInTime(record);
                     const outTime = getCheckOutTime(record);
                     const durationStr = calculateDuration(inTime, outTime, true);
                     return (
-                        <div key={record.id || record._id} className="flex items-center justify-between p-3.5 bg-card rounded-xl border border-border shadow-sm">
-                            <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xs">
-                                    {new Date(record.date).getDate()}
-                                </div>
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <p className="font-semibold text-foreground text-sm">
-                                            {record.status === 'present' ? 'Present' : (record.status || 'Present')}
-                                        </p>
-                                        {durationStr && (
-                                            <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-bold">
-                                                {durationStr}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
-                                        {formatTime(inTime)} - {outTime ? formatTime(outTime) : 'Ongoing'}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="text-right flex flex-col items-end gap-1">
-                                <span className={cn(
-                                    "px-2.5 py-0.5 rounded-full text-xs font-medium capitalize",
-                                    record.status === 'present' ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
-                                )}>
-                                    {record.status || 'present'}
-                                </span>
-                                {durationStr && (
-                                    <span className="text-[11px] text-muted-foreground font-mono">
-                                        {calculateDuration(inTime, outTime)}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
+                      <TableRow key={record.id || record._id} className="hover:bg-secondary/30 transition-colors border-b border-border/50">
+                        <TableCell className="pl-6 py-3.5 font-medium text-foreground text-sm">
+                          {record.date || (inTime ? format(new Date(inTime), 'yyyy-MM-dd') : '--')}
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          <span className={cn(
+                            "px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize",
+                            record.status === 'present'
+                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200"
+                          )}>
+                            {record.status || 'present'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3.5 font-mono text-xs text-foreground">
+                          {formatTime(inTime)}
+                        </TableCell>
+                        <TableCell className="py-3.5 font-mono text-xs text-foreground">
+                          {outTime ? formatTime(outTime) : <span className="text-muted-foreground italic">Ongoing</span>}
+                        </TableCell>
+                        <TableCell className="py-3.5 font-mono text-xs font-semibold text-primary">
+                          {durationStr || '--'}
+                        </TableCell>
+                        <TableCell className="pr-6 py-3.5 text-right text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" /> {record.location || 'Office Main'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
                     );
-                })}
+                  })}
+                  {userAttendance.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                        No previous attendance records recorded yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
             </div>
-        </div>
-
-        {/* Leave Requests moved to Calendar page */}
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -622,42 +702,61 @@ export default function AttendanceModule({ userProfile }) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Present Today</CardTitle>
-            <User className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.present}</div>
-          </CardContent>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Present Today</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <User className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-foreground mt-2">{stats.present}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">Clocked in</p>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Absent Today</CardTitle>
-            <User className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.absent}</div>
-          </CardContent>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Absent Today</span>
+            <div className="p-2 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400">
+              <User className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-foreground mt-2">{stats.absent}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">Unexcused / Absent</p>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Late Arrivals</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.late}</div>
-          </CardContent>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Late Arrivals</span>
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <Clock className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-foreground mt-2">{stats.late}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">After shift start</p>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">On Leave</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.halfDay}</div>
-          </CardContent>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">On Leave</span>
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-foreground mt-2">{stats.halfDay}</div>
+          <p className="text-[11px] text-muted-foreground mt-1">Approved time off</p>
+        </Card>
+        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 col-span-2 sm:col-span-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Attendance Rate</span>
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-bold text-foreground mt-2">
+            {(() => {
+              const totalLogged = stats.present + stats.absent + stats.late + stats.halfDay;
+              return totalLogged > 0 ? `${Math.round(((stats.present + stats.late) / totalLogged) * 100)}%` : '100%';
+            })()}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">Today's turnout</p>
         </Card>
       </div>
 
@@ -734,7 +833,7 @@ export default function AttendanceModule({ userProfile }) {
         </div>
 
         <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white w-full md:w-auto" onClick={handleExport}>
+          <Button className="bg-[#0D9488] hover:bg-[#0F766E] text-white w-full md:w-auto shadow-sm" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
             Export Report
           </Button>
@@ -767,10 +866,10 @@ export default function AttendanceModule({ userProfile }) {
                     </div>
                     <span className={cn(
                       "capitalize px-2 py-0.5 rounded-full text-[11px] font-medium",
-                      status === 'present' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                      status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                      status === 'late' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                      'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                      status === 'present' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' :
+                      status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
+                      status === 'late' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300' :
+                      'bg-primary/15 text-primary border border-primary/20'
                     )}>
                       {status}
                     </span>
@@ -840,11 +939,11 @@ export default function AttendanceModule({ userProfile }) {
                       </TableCell>
                       <TableCell>
                         <span className={cn(
-                          "capitalize px-2 py-1 rounded-full text-xs font-medium",
-                          status === 'present' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                          status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                          status === 'late' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                          'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          "capitalize px-2.5 py-1 rounded-full text-xs font-semibold",
+                          status === 'present' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' :
+                          status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
+                          status === 'late' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300' :
+                          'bg-primary/15 text-primary border border-primary/20'
                         )}>
                           {status}
                         </span>
@@ -860,8 +959,16 @@ export default function AttendanceModule({ userProfile }) {
               })}
               {paginatedData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={showHistory ? 9 : 8} className="text-center py-8 text-muted-foreground">
-                    No attendance records found.
+                  <TableCell colSpan={showHistory ? 9 : 8} className="text-center py-16 text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="p-3 rounded-2xl bg-muted/60 mb-3 text-muted-foreground">
+                        <Clock className="w-8 h-8 opacity-40" />
+                      </div>
+                      <p className="font-semibold text-sm text-foreground">No attendance records found</p>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                        No check-ins logged matching your current filters or date. Try clearing filters or selecting another date.
+                      </p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}

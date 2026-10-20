@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Company from '../models/Company.js';
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -269,9 +270,16 @@ export const updateUser = async (req, res) => {
     }
     // Remove skills if present (no longer supported)
     delete body.skills;
+    // Status can only be changed by Super Admin via toggleUserStatus
+    delete body.status;
 
     // FIND EXISTING USER TO CHECK AVATAR CHANGE
-    const findFilter = { userId: id };
+    const findFilter = {
+      $or: [
+        { userId: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ]
+    };
     if (req.companyId) findFilter.companyId = req.companyId;
     const existingUser = await User.findOne(findFilter);
     if (!existingUser) return res.status(404).json({ message: 'User not found' });
@@ -338,7 +346,12 @@ export const toggleUserStatus = async (req, res) => {
     const { id } = req.params;
     const { action, companyId, company } = req.body; // 'suspend' | 'activate'
 
-    const user = await User.findOne({ userId: id });
+    const user = await User.findOne({
+      $or: [
+        { userId: id },
+        ...(mongoose.isValidObjectId(id) ? [{ _id: id }] : [])
+      ]
+    });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (user.role === 'param') {
