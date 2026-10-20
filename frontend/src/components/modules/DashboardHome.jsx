@@ -1,13 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   useGetAllUsers, useGetUserAttendance, useGetUserLeaveRequests, 
-  useGetUserPayments, useGetAllAttendance, useGetAllTasks 
+  useGetUserPayments, useGetAllAttendance, useGetAllTasks, useGetAllLeaveRequests 
 } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { 
-  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight
+  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,7 +20,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   const currentUserId = userProfile?.userId || userProfile?.id || userProfile?.StaffId || identity?.getPrincipal() || null;
   const { data: users = [] } = useGetAllUsers();
   const { data: attendance = [] } = useGetUserAttendance(currentUserId);
-  const { data: leaves = [] } = useGetUserLeaveRequests(currentUserId);
+  const { data: userLeaves = [] } = useGetUserLeaveRequests(currentUserId);
+  const { data: allLeaves = [] } = useGetAllLeaveRequests();
   const { data: payments = [] } = useGetUserPayments(currentUserId);
   const { data: allAttendance = [] } = useGetAllAttendance();
   const { data: allTasks = [] } = useGetAllTasks();
@@ -47,64 +48,193 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return false;
   }, [userProfile]);
 
-  // Computed Real Stats
+  // Helper to determine if a role represents an owner / company head
+  const isOwnerRole = useCallback((role) => {
+    if (!role) return false;
+    if (typeof role === 'string') {
+      const lower = role.toLowerCase().trim();
+      return lower === 'owner' || lower === 'param';
+    }
+    if (typeof role === 'object') {
+      const keys = Object.keys(role).map(k => k.toLowerCase());
+      return keys.includes('owner') || keys.includes('param');
+    }
+    return false;
+  }, []);
+
+  const toIdText = useCallback((val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val.toText) return val.toText();
+    return String(val);
+  }, []);
+
+  // Filter employees excluding the owner
   const activeCompanyEmployees = useMemo(() => {
-    return users.filter(u => {
-      const rk = Object.keys(u.role || {})[0];
-      return rk !== 'param';
-    });
-  }, [users]);
+    return users.filter(u => !isOwnerRole(u.role));
+  }, [users, isOwnerRole]);
 
-  const totalEmployeesCount = activeCompanyEmployees.length || users.length || 248;
+  // Real employee count strictly without the owner
+  const totalEmployeesCount = activeCompanyEmployees.length;
+
+  const employeeIdSet = useMemo(() => {
+    return new Set(
+      activeCompanyEmployees.map(u => toIdText(u.userId || u.id))
+    );
+  }, [activeCompanyEmployees, toIdText]);
+
   const departmentsList = useMemo(() => {
-    return Array.from(new Set(users.map(u => u.department).filter(Boolean)));
-  }, [users]);
-  const totalDepartments = departmentsList.length || 8;
+    return Array.from(new Set(activeCompanyEmployees.map(u => u.department).filter(Boolean)));
+  }, [activeCompanyEmployees]);
+  const totalDepartments = departmentsList.length;
 
+  // Real Today's Attendance Stats
   const todayDate = new Date().toISOString().split('T')[0];
-  const todayAttendance = allAttendance.filter(a => a.date === todayDate);
-  const activeUsersToday = todayAttendance.length > 0 
-    ? new Set(todayAttendance.map(a => a.userId?.toText ? a.userId.toText() : String(a.userId))).size
-    : Math.max(1, Math.round(totalEmployeesCount * 0.89));
+  const todayAttendance = useMemo(() => {
+    return allAttendance.filter(a => {
+      if (!a.date) return false;
+      const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+      return aDate === todayDate;
+    });
+  }, [allAttendance, todayDate]);
+
+  const presentCount = useMemo(() => {
+    const presentUsers = todayAttendance
+      .filter(a => a.status === 'present' || a.status === 'late' || a.status === 'half_day')
+      .map(a => toIdText(a.userId));
+    const matched = employeeIdSet.size > 0
+      ? presentUsers.filter(id => employeeIdSet.has(id))
+      : presentUsers;
+    return new Set(matched).size;
+  }, [todayAttendance, employeeIdSet, toIdText]);
+
+  const lateCount = useMemo(() => {
+    const lateUsers = todayAttendance
+      .filter(a => a.status === 'late')
+      .map(a => toIdText(a.userId));
+    const matched = employeeIdSet.size > 0
+      ? lateUsers.filter(id => employeeIdSet.has(id))
+      : lateUsers;
+    return new Set(matched).size;
+  }, [todayAttendance, employeeIdSet, toIdText]);
+
+  const absentCount = Math.max(0, totalEmployeesCount - presentCount);
+  const activeUsersToday = presentCount;
 
   const attendanceRate = totalEmployeesCount > 0 
-    ? Math.min(100, Math.round((activeUsersToday / totalEmployeesCount) * 100))
-    : 89;
+    ? Math.min(100, Math.round((presentCount / totalEmployeesCount) * 100))
+    : 0;
 
-  const presentCount = activeUsersToday;
-  const absentCount = Math.max(0, totalEmployeesCount - presentCount - 9);
-  const lateCount = Math.min(9, Math.round(totalEmployeesCount * 0.04)) || 9;
+  // Real Attendance Trend computed from actual records
+  const trendData = useMemo(() => {
+    // 1. Week trend (Mon-Sun of current week)
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const now = new Date();
+    const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - dayOfWeek);
+    startOfWeek.setHours(0, 0, 0, 0);
 
-  // Chart Data for Attendance Trend
-  const trendDataMap = {
-    week: [
-      { name: 'Mon', rate: 82 },
-      { name: 'Tue', rate: 88 },
-      { name: 'Wed', rate: 75 },
-      { name: 'Thu', rate: 91 },
-      { name: 'Fri', rate: 84 },
-      { name: 'Sat', rate: 68 },
-      { name: 'Sun', rate: 74 },
-    ],
-    month: [
-      { name: 'Week 1', rate: 85 },
-      { name: 'Week 2', rate: 89 },
-      { name: 'Week 3', rate: 84 },
-      { name: 'Week 4', rate: 92 },
-    ],
-    year: [
-      { name: 'Q1', rate: 82 },
-      { name: 'Q2', rate: 87 },
-      { name: 'Q3', rate: 89 },
-      { name: 'Q4', rate: 91 },
-    ],
-  };
+    const weekList = days.map((name, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const dIso = d.toISOString().split('T')[0];
 
-  const currentTrendData = trendDataMap[trendRange] || trendDataMap.week;
+      const recordsOnDay = allAttendance.filter(a => {
+        if (!a.date) return false;
+        const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+        return aDate === dIso;
+      });
 
-  // Filtered employees for table
+      const presentUsersOnDay = new Set(
+        recordsOnDay
+          .filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day')
+          .map(r => toIdText(r.userId))
+          .filter(id => (employeeIdSet.size > 0 ? employeeIdSet.has(id) : true))
+      );
+
+      const rate = totalEmployeesCount > 0
+        ? Math.min(100, Math.round((presentUsersOnDay.size / totalEmployeesCount) * 100))
+        : 0;
+
+      return { name, rate, date: dIso, present: presentUsersOnDay.size };
+    });
+
+    // 2. Month trend (Weeks 1 to 4 of current month)
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    const monthWeeks = [
+      { name: 'Week 1', start: 1, end: 7 },
+      { name: 'Week 2', start: 8, end: 14 },
+      { name: 'Week 3', start: 15, end: 21 },
+      { name: 'Week 4', start: 22, end: lastDayOfMonth },
+    ];
+
+    const monthList = monthWeeks.map(w => {
+      const recordsInWeek = allAttendance.filter(a => {
+        if (!a.date) return false;
+        const d = new Date(a.date);
+        return d.getFullYear() === year && d.getMonth() === month && d.getDate() >= w.start && d.getDate() <= w.end;
+      });
+
+      const dateSet = new Set(
+        recordsInWeek.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
+      );
+      const totalPossible = (dateSet.size || 1) * (totalEmployeesCount || 1);
+
+      const presentRecords = recordsInWeek.filter(r => {
+        const isPresent = r.status === 'present' || r.status === 'late' || r.status === 'half_day';
+        const uid = toIdText(r.userId);
+        return isPresent && (employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true);
+      }).length;
+
+      const rate = totalPossible > 0 ? Math.min(100, Math.round((presentRecords / totalPossible) * 100)) : 0;
+      return { name: w.name, rate };
+    });
+
+    // 3. Year trend (Q1, Q2, Q3, Q4)
+    const quarters = [
+      { name: 'Q1', months: [0, 1, 2] },
+      { name: 'Q2', months: [3, 4, 5] },
+      { name: 'Q3', months: [6, 7, 8] },
+      { name: 'Q4', months: [9, 10, 11] },
+    ];
+
+    const yearList = quarters.map(q => {
+      const recordsInQuarter = allAttendance.filter(a => {
+        if (!a.date) return false;
+        const d = new Date(a.date);
+        return d.getFullYear() === year && q.months.includes(d.getMonth());
+      });
+
+      const dateSet = new Set(
+        recordsInQuarter.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
+      );
+      const totalPossible = (dateSet.size || 1) * (totalEmployeesCount || 1);
+
+      const presentRecords = recordsInQuarter.filter(r => {
+        const isPresent = r.status === 'present' || r.status === 'late' || r.status === 'half_day';
+        const uid = toIdText(r.userId);
+        return isPresent && (employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true);
+      }).length;
+
+      const rate = totalPossible > 0 ? Math.min(100, Math.round((presentRecords / totalPossible) * 100)) : 0;
+      return { name: q.name, rate };
+    });
+
+    return {
+      week: weekList,
+      month: monthList,
+      year: yearList,
+    };
+  }, [allAttendance, totalEmployeesCount, employeeIdSet, toIdText]);
+
+  const currentTrendData = trendData[trendRange] || trendData.week;
+
+  // Filtered employees for table (strictly without owner)
   const displayedEmployees = useMemo(() => {
-    let list = activeCompanyEmployees.length > 0 ? activeCompanyEmployees : users;
+    let list = activeCompanyEmployees;
     if (empSearch.trim()) {
       const q = empSearch.toLowerCase();
       list = list.filter(u => {
@@ -121,26 +251,84 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       list = list.filter(u => (statusFilter === 'active' ? !u.isSuspended : u.isSuspended));
     }
     return list.slice(0, 5);
-  }, [activeCompanyEmployees, users, empSearch, deptFilter, statusFilter]);
+  }, [activeCompanyEmployees, empSearch, deptFilter, statusFilter]);
 
-  // Upcoming Leaves Mock / Real data
-  const upcomingLeavesList = useMemo(() => {
-    if (leaves && leaves.length > 0) {
-      return leaves.slice(0, 4).map(l => ({
-        id: l._id || l.id,
-        name: userProfile?.name || 'Staff Member',
-        type: l.leaveType || 'Annual Leave',
-        range: `${l.startDate || '12 Apr'} - ${l.endDate || '16 Apr'}`,
-        avatar: userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name}`,
-      }));
+  const formatLeaveRange = (start, end) => {
+    if (!start) return 'Upcoming';
+    try {
+      const sd = new Date(start);
+      if (isNaN(sd.getTime())) return start;
+      const opts = { day: '2-digit', month: 'short' };
+      const sStr = sd.toLocaleDateString('en-GB', opts);
+      if (!end) return sStr;
+      const ed = new Date(end);
+      if (isNaN(ed.getTime()) || sd.getTime() === ed.getTime()) return sStr;
+      const eStr = ed.toLocaleDateString('en-GB', opts);
+      return `${sStr} – ${eStr}`;
+    } catch {
+      return `${start}${end ? ' - ' + end : ''}`;
     }
-    return [
-      { id: '1', name: 'Sneha Priya', type: 'Annual Leave', range: '12 Apr – 16 Apr', seed: 'Sneha' },
-      { id: '2', name: 'Amit Verma', type: 'Sick Leave', range: '14 Apr', seed: 'Amit' },
-      { id: '3', name: 'Kavya Iyer', type: 'Casual Leave', range: '18 Apr', seed: 'Kavya' },
-      { id: '4', name: 'Rohit Kumar', type: 'Personal Leave', range: '21 Apr', seed: 'Rohit' },
-    ];
-  }, [leaves, userProfile]);
+  };
+
+  const formatLeaveType = (type) => {
+    if (!type) return 'Leave';
+    if (typeof type === 'string') return type.charAt(0).toUpperCase() + type.slice(1);
+    if (typeof type === 'object') {
+      const key = Object.keys(type)[0];
+      if (key) return key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    return String(type);
+  };
+
+  // Real Upcoming Leaves:
+  // - Company view: shows any employee who applied for leave with their actual name
+  // - User view: shows only the leaves the logged-in user applied for
+  const upcomingLeavesList = useMemo(() => {
+    const rawLeaves = isCompanyLogin ? allLeaves : userLeaves;
+    if (!Array.isArray(rawLeaves) || rawLeaves.length === 0) return [];
+
+    const todayAtMidnight = new Date();
+    todayAtMidnight.setHours(0, 0, 0, 0);
+
+    const filtered = rawLeaves.filter(l => {
+      const status = typeof l.status === 'string' ? l.status.toLowerCase() : Object.keys(l.status || {})[0]?.toLowerCase();
+      if (status === 'rejected') return false;
+
+      if (!l.endDate && !l.startDate) return true;
+      const d = new Date(l.endDate || l.startDate);
+      if (isNaN(d.getTime())) return true;
+      return d >= todayAtMidnight;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const da = new Date(a.startDate || 0).getTime();
+      const db = new Date(b.startDate || 0).getTime();
+      return da - db;
+    });
+
+    return sorted.slice(0, 5).map(l => {
+      const uid = toIdText(l.userId || l.staffId || l.applicantId);
+      const employee = users.find(u => toIdText(u.userId || u.id) === uid);
+
+      const empName = isCompanyLogin
+        ? (employee?.name || `${employee?.firstName || ''} ${employee?.lastName || ''}`.trim() || employee?.username || l.displayId || 'Team Member')
+        : (userProfile?.name || `${userProfile?.firstName || ''} ${userProfile?.lastName || ''}`.trim() || 'My Leave');
+
+      const avatar = employee?.avatar || userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${empName}`;
+      const leaveType = formatLeaveType(l.leaveType || l.type || 'Annual Leave');
+      const status = typeof l.status === 'string' ? l.status : Object.keys(l.status || {})[0] || 'pending';
+      const range = formatLeaveRange(l.startDate, l.endDate);
+
+      return {
+        id: l._id || l.id || Math.random(),
+        name: empName,
+        type: leaveType,
+        status: status,
+        range: range,
+        avatar: avatar,
+      };
+    });
+  }, [isCompanyLogin, allLeaves, userLeaves, users, userProfile, toIdText]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -314,43 +502,44 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       {/* 4. Bottom Row: Employees Table (col-span-2) + Upcoming Leaves (col-span-1) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Employees Table (col-span-2) */}
-        {isCompanyLogin ? (
-          <Card className="lg:col-span-2 border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
-            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h3 className="text-base font-bold text-foreground">Employees</h3>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={empSearch}
-                    onChange={(e) => setEmpSearch(e.target.value)}
-                    className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
-                  />
-                </div>
+        <Card className="lg:col-span-2 border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+          <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <h3 className="text-base font-bold text-foreground">Employees</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={empSearch}
+                  onChange={(e) => setEmpSearch(e.target.value)}
+                  className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
+                />
+              </div>
 
-                <select
-                  value={deptFilter}
-                  onChange={(e) => setDeptFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="all">All Departments</option>
-                  {departmentsList.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">All Departments</option>
+                {departmentsList.map(d => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
 
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+              </select>
 
+              {/* + Add Employee only shown for company/owner dashboard, removed for user dashboard */}
+              {isCompanyLogin && (
                 <Button
                   onClick={() => onNavigate('users')}
                   size="sm"
@@ -358,171 +547,75 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                 >
                   + Add Employee
                 </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-5">Name</th>
-                    <th className="py-3 px-4">Department</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Joining Date</th>
-                    <th className="py-3 px-4 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {displayedEmployees.map((emp, idx) => {
-                    const name = emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
-                    const avatar = emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
-                    const dept = emp.department || 'Engineering';
-                    const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
-                    const isActive = !emp.isSuspended;
-                    const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
-
-                    return (
-                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
-                        <td className="py-3 px-5 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                            <img src={avatar} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <span className="font-semibold text-foreground text-xs">{name}</span>
-                        </td>
-                        <td className="py-3 px-4 text-foreground/90">{dept}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{role}</td>
-                        <td className="py-3 px-4">
-                          <span className={cn(
-                            "px-2.5 py-0.5 rounded-full text-[10px] font-semibold border",
-                            isActive
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          )}>
-                            {isActive ? 'Active' : 'Pending'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
-                        <td className="py-3 px-4 text-right">
-                          <button 
-                            onClick={() => onNavigate('users')}
-                            className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-        ) : (
-          <div className="lg:col-span-2 space-y-3">
-            <div className="pb-3 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h3 className="text-base font-bold text-foreground">Employees</h3>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={empSearch}
-                    onChange={(e) => setEmpSearch(e.target.value)}
-                    className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
-                  />
-                </div>
-
-                <select
-                  value={deptFilter}
-                  onChange={(e) => setDeptFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="all">All Departments</option>
-                  {departmentsList.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="pending">Pending</option>
-                </select>
-
-                <Button
-                  onClick={() => onNavigate('users')}
-                  size="sm"
-                  className="h-8 bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl text-xs px-3 shadow-xs"
-                >
-                  + Add Employee
-                </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="py-3 px-5">Name</th>
-                    <th className="py-3 px-4">Department</th>
-                    <th className="py-3 px-4">Role</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Joining Date</th>
-                    <th className="py-3 px-4 text-right"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {displayedEmployees.map((emp, idx) => {
-                    const name = emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
-                    const avatar = emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
-                    const dept = emp.department || 'Engineering';
-                    const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
-                    const isActive = !emp.isSuspended;
-                    const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
-
-                    return (
-                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
-                        <td className="py-3 px-5 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                            <img src={avatar} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <span className="font-semibold text-foreground text-xs">{name}</span>
-                        </td>
-                        <td className="py-3 px-4 text-foreground/90">{dept}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{role}</td>
-                        <td className="py-3 px-4">
-                          <span className={cn(
-                            "px-2.5 py-0.5 rounded-full text-[10px] font-semibold border",
-                            isActive
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          )}>
-                            {isActive ? 'Active' : 'Pending'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
-                        <td className="py-3 px-4 text-right">
-                          <button 
-                            onClick={() => onNavigate('users')}
-                            className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              )}
             </div>
           </div>
-        )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="py-3 px-5">Name</th>
+                  <th className="py-3 px-4">Department</th>
+                  <th className="py-3 px-4">Role</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Joining Date</th>
+                  <th className="py-3 px-4 text-right"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {displayedEmployees.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                      No employees found
+                    </td>
+                  </tr>
+                ) : (
+                  displayedEmployees.map((emp, idx) => {
+                    const name = emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
+                    const avatar = emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+                    const dept = emp.department || 'Engineering';
+                    const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
+                    const isActive = !emp.isSuspended;
+                    const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
+
+                    return (
+                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
+                        <td className="py-3 px-5 flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
+                            <img src={avatar} alt="" className="w-full h-full object-cover" />
+                          </div>
+                          <span className="font-semibold text-foreground text-xs">{name}</span>
+                        </td>
+                        <td className="py-3 px-4 text-foreground/90">{dept}</td>
+                        <td className="py-3 px-4 text-muted-foreground">{role}</td>
+                        <td className="py-3 px-4">
+                          <span className={cn(
+                            "px-2.5 py-0.5 rounded-full text-[10px] font-semibold border",
+                            isActive
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          )}>
+                            {isActive ? 'Active' : 'Pending'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
+                        <td className="py-3 px-4 text-right">
+                          <button 
+                            onClick={() => onNavigate('users')}
+                            className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
 
         {/* Upcoming Leaves (col-span-1) */}
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
@@ -536,28 +629,54 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                 View all
               </button>
             </div>
-            <div className="space-y-4">
-              {upcomingLeavesList.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                      <img 
-                        src={item.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.seed || item.name}`} 
-                        alt="" 
-                        className="w-full h-full object-cover" 
-                      />
+
+            {upcomingLeavesList.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                <Calendar className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                <p>{isCompanyLogin ? "No upcoming employee leaves" : "You have no upcoming leaves"}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 text-xs h-7 rounded-lg"
+                  onClick={() => onNavigate('calendar')}
+                >
+                  {isCompanyLogin ? "View Leave Calendar" : "Apply for Leave"}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {upcomingLeavesList.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
+                        <img 
+                          src={item.avatar} 
+                          alt="" 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate leading-tight">{item.name}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-muted-foreground truncate">{item.type}</span>
+                          <span className={cn(
+                            "text-[9px] px-1.5 py-0.2 rounded-full font-medium border capitalize",
+                            item.status === 'approved'
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          )}>
+                            {item.status}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-foreground truncate leading-tight">{item.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate mt-0.5">{item.type}</p>
-                    </div>
+                    <span className="text-[11px] font-medium text-muted-foreground shrink-0 bg-secondary/60 px-2 py-0.5 rounded-md">
+                      {item.range}
+                    </span>
                   </div>
-                  <span className="text-[11px] font-medium text-muted-foreground shrink-0 bg-secondary/60 px-2 py-0.5 rounded-md">
-                    {item.range}
-                  </span>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </Card>
       </div>
