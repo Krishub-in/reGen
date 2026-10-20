@@ -373,7 +373,7 @@ export default function UsersModule({ userProfile }) {
             <Users className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4]">
+            <h2 className="text-2xl font-light tracking-normal leading-snug text-[#172B3A] dark:text-[#E8F0F4]">
               {isOwner ? 'Staff & Employee Management' : 'User Management'}
             </h2>
             <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
@@ -393,7 +393,7 @@ export default function UsersModule({ userProfile }) {
           </DialogTrigger>
           <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xl p-6">
             <DialogHeader>
-              <DialogTitle className="text-base md:text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+              <DialogTitle className="text-base md:text-lg font-medium text-[#172B3A] dark:text-[#E8F0F4]">
                 {editingUser ? (isOwner ? 'Edit Employee' : 'Edit User Profile') : (isOwner ? 'Add New Employee' : 'Add New User')}
               </DialogTitle>
             </DialogHeader>
@@ -635,7 +635,7 @@ export default function UsersModule({ userProfile }) {
                   />
                 </div>
               </div>
-              <Button type="submit" tabIndex={16} className="w-full bg-primary hover:bg-[#0F766E] text-white font-bold rounded-xl h-11 transition-all shadow-sm" disabled={createUser.isPending || updateUser.isPending}>
+              <Button type="submit" tabIndex={16} className="w-full bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl h-11 transition-all shadow-sm" disabled={createUser.isPending || updateUser.isPending}>
                 {(createUser.isPending || updateUser.isPending) ? 'Saving...' : 'Save User Profile'}
               </Button>
             </form>
@@ -681,7 +681,7 @@ export default function UsersModule({ userProfile }) {
       {/* 3. Staff Roster Table */}
       <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xs overflow-hidden">
         <CardHeader className="border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] px-6 py-4 flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-bold flex items-center gap-2.5 text-[#172B3A] dark:text-[#E8F0F4]">
+          <CardTitle className="text-base font-medium flex items-center gap-2.5 text-[#172B3A] dark:text-[#E8F0F4]">
             <span>{isOwner ? 'Staff Roster' : 'All Registered Users'}</span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6]">
               {visibleUsers.length} total
@@ -816,7 +816,7 @@ export default function UsersModule({ userProfile }) {
                             />
                           </div>
                         </TableCell>
-                        <TableCell className="font-semibold text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] py-3.5">
+                        <TableCell className="font-medium text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] py-3.5">
                           {user.name || `${user.firstName || ''} ${user.lastName || ''}`}
                         </TableCell>
                         <TableCell className="text-[#64748B] dark:text-[#A6B5C0] py-3.5 text-xs font-mono">

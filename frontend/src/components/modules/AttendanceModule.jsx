@@ -404,8 +404,8 @@ export default function AttendanceModule({ userProfile }) {
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">{greeting}</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h2 className="text-2xl font-light tracking-normal text-foreground leading-snug">{greeting}</h2>
+            <p className="text-sm text-muted-foreground mt-0.5 font-normal">
               Logged in as <span className="font-semibold text-foreground">{userProfile?.name || userProfile?.username || (userProfile?.id?.toText ? userProfile.id.toText() : String(userProfile?.id || ''))}</span>
             </p>
           </div>
@@ -438,13 +438,13 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-3">
-              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight font-mono">
+              <h1 className="text-3xl sm:text-4xl font-light tracking-normal font-mono">
                 {format(currentTime, 'hh:mm')}
                 <span className="text-base font-normal ml-1 opacity-90">{format(currentTime, 'a')}</span>
               </h1>
-              <p className="text-xs text-emerald-100 mt-1">{format(currentTime, 'MMMM d, yyyy')}</p>
+              <p className="text-xs text-emerald-100 mt-1 font-normal">{format(currentTime, 'MMMM d, yyyy')}</p>
             </div>
-            <p className="text-[11px] text-emerald-100/80">Realtime synced with office attendance zone</p>
+            <p className="text-[11px] text-emerald-100/80 font-normal">Realtime synced with office attendance zone</p>
           </Card>
 
           {/* Active Shift / Duration Card */}
@@ -461,14 +461,14 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-2">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight font-mono text-foreground">
+              <span className="text-2xl sm:text-3xl font-semibold tracking-normal font-mono text-foreground">
                 {isCheckedOut
                   ? (calculateDuration(getCheckInTime(todayRecord), getCheckOutTime(todayRecord), true) || '0 mins')
                   : isCheckedIn
                   ? (calculateDuration(getCheckInTime(todayRecord), currentTime, true) || '0 mins')
                   : '--'}
               </span>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 font-normal">
                 {isCheckedIn ? `In: ${formatTime(getCheckInTime(todayRecord))}` : 'Punch in to start timer'}
                 {isCheckedOut && ` • Out: ${formatTime(getCheckOutTime(todayRecord))}`}
               </p>
@@ -478,7 +478,7 @@ export default function AttendanceModule({ userProfile }) {
                 "w-1.5 h-1.5 rounded-full",
                 isCheckedIn && !isCheckedOut ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground"
               )} />
-              <span>{isCheckedIn && !isCheckedOut ? "Currently logging active shift" : "Shift idle"}</span>
+              <span className="font-normal">{isCheckedIn && !isCheckedOut ? "Currently logging active shift" : "Shift idle"}</span>
             </div>
           </Card>
 
@@ -491,12 +491,12 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-2">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <span className="text-2xl sm:text-3xl font-semibold tracking-normal text-foreground">
                 {prevMonthPercentage > 0 ? `${prevMonthPercentage}%` : 'N/A'}
               </span>
-              <p className="text-xs text-muted-foreground mt-1">On-time adherence record</p>
+              <p className="text-xs text-muted-foreground mt-1 font-normal">On-time adherence record</p>
             </div>
-            <p className="text-[11px] text-muted-foreground">Calculated across working days</p>
+            <p className="text-[11px] text-muted-foreground font-normal">Calculated across working days</p>
           </Card>
 
           {/* Pending Tasks */}
@@ -508,12 +508,12 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-2">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <span className="text-2xl sm:text-3xl font-semibold tracking-normal text-foreground">
                 {myPendingTasks}
               </span>
-              <p className="text-xs text-muted-foreground mt-1">Assigned deliverables</p>
+              <p className="text-xs text-muted-foreground mt-1 font-normal">Assigned deliverables</p>
             </div>
-            <p className="text-[11px] text-muted-foreground">Check Scrum / Schedules for details</p>
+            <p className="text-[11px] text-muted-foreground font-normal">Check Scrum / Schedules for details</p>
           </Card>
         </div>
 
@@ -610,8 +610,8 @@ export default function AttendanceModule({ userProfile }) {
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
           <CardHeader className="border-b border-border bg-card px-6 py-4 flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="text-lg font-bold text-foreground">Recent Attendance History</CardTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Log of your daily check-in, check-out and total working duration</p>
+              <CardTitle className="text-lg font-medium text-foreground">Recent Attendance History</CardTitle>
+              <p className="text-xs text-muted-foreground mt-0.5 font-normal">Log of your daily check-in, check-out and total working duration</p>
             </div>
             <Button 
               variant="outline" 
@@ -692,7 +692,7 @@ export default function AttendanceModule({ userProfile }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-        <h2 className="text-xl md:text-2xl font-bold leading-tight">
+        <h2 className="text-xl md:text-2xl font-light tracking-normal leading-tight text-foreground">
           {showHistory ? 'Attendance History' : 'Daily Attendance Overview'}
         </h2>
         <div className="flex items-center gap-2">
@@ -717,8 +717,8 @@ export default function AttendanceModule({ userProfile }) {
               <User className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-2">{stats.present}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Clocked in</p>
+          <div className="text-2xl font-semibold tracking-normal text-foreground mt-2">{stats.present}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 font-normal">Clocked in</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
@@ -727,8 +727,8 @@ export default function AttendanceModule({ userProfile }) {
               <User className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-2">{stats.absent}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Unexcused / Absent</p>
+          <div className="text-2xl font-semibold tracking-normal text-foreground mt-2">{stats.absent}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 font-normal">Unexcused / Absent</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
@@ -737,8 +737,8 @@ export default function AttendanceModule({ userProfile }) {
               <Clock className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-2">{stats.late}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">After shift start</p>
+          <div className="text-2xl font-semibold tracking-normal text-foreground mt-2">{stats.late}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 font-normal">After shift start</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
@@ -747,8 +747,8 @@ export default function AttendanceModule({ userProfile }) {
               <Calendar className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-2">{stats.halfDay}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Approved time off</p>
+          <div className="text-2xl font-semibold tracking-normal text-foreground mt-2">{stats.halfDay}</div>
+          <p className="text-[11px] text-muted-foreground mt-1 font-normal">Approved time off</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4 col-span-2 sm:col-span-1">
           <div className="flex items-center justify-between">
@@ -757,7 +757,7 @@ export default function AttendanceModule({ userProfile }) {
               <CheckCircle className="h-4 w-4" />
             </div>
           </div>
-          <div className="text-2xl font-bold text-foreground mt-2">
+          <div className="text-2xl font-semibold tracking-normal text-foreground mt-2">
             {(() => {
               const totalLogged = stats.present + stats.absent + stats.late + stats.halfDay;
               return totalLogged > 0 ? `${Math.round(((stats.present + stats.late) / totalLogged) * 100)}%` : '100%';

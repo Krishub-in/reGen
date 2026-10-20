@@ -15,6 +15,10 @@ export default {
             }
         },
         extend: {
+            fontFamily: {
+                sans: ['Manrope', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+                manrope: ['Manrope', 'sans-serif'],
+            },
             colors: {
                 border: 'oklch(var(--border))',
                 input: 'oklch(var(--input))',

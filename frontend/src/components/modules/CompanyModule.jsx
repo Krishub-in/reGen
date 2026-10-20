@@ -304,7 +304,7 @@ export default function CompanyModule({ userProfile }) {
           <Building className="w-5 h-5" />
         </div>
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">
+          <h2 className="text-xl font-light tracking-normal leading-snug text-foreground">
             {isOwner || isAdmin ? 'Company Overview' : 'Company Details'}
           </h2>
           <p className="text-xs text-muted-foreground">Manage organizational profile, departmental capacity, terms, and policies</p>
@@ -328,7 +328,7 @@ export default function CompanyModule({ userProfile }) {
                    </div>
                    <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Employees</p>
-                      <h3 className="text-2xl font-bold text-foreground mt-0.5">{ownerDepartments.reduce((sum, d) => sum + d.staff.length, 0)}</h3>
+                      <h3 className="text-2xl font-semibold text-foreground mt-0.5">{ownerDepartments.reduce((sum, d) => sum + d.staff.length, 0)}</h3>
                    </div>
                 </CardContent>
               </Card>
@@ -339,7 +339,7 @@ export default function CompanyModule({ userProfile }) {
                    </div>
                    <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Core Departments</p>
-                      <h3 className="text-2xl font-bold text-foreground mt-0.5">{ownerDepartments.length} Active</h3>
+                      <h3 className="text-2xl font-semibold text-foreground mt-0.5">{ownerDepartments.length} Active</h3>
                    </div>
                 </CardContent>
               </Card>
@@ -350,7 +350,7 @@ export default function CompanyModule({ userProfile }) {
                    </div>
                    <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Industry Segment</p>
-                      <h3 className="text-xl font-bold text-foreground truncate max-w-[140px] mt-0.5">{formData.about || formData.category || 'N/A'}</h3>
+                      <h3 className="text-xl font-semibold text-foreground truncate max-w-[140px] mt-0.5">{formData.about || formData.category || 'N/A'}</h3>
                    </div>
                 </CardContent>
               </Card>
@@ -358,7 +358,7 @@ export default function CompanyModule({ userProfile }) {
 
             <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
               <CardHeader className="border-b border-border bg-card px-6 py-4">
-                <CardTitle className="text-base font-bold flex items-center gap-2 text-foreground">
+                <CardTitle className="text-base font-medium flex items-center gap-2 text-foreground">
                   <LayoutDashboard className="w-5 h-5 text-primary" />
                   Department Health & Allocation
                 </CardTitle>
@@ -376,7 +376,7 @@ export default function CompanyModule({ userProfile }) {
                         className="border border-border rounded-2xl p-5 flex flex-col gap-3 bg-secondary/30 hover:border-primary/40 transition-all group"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold tracking-tight text-foreground group-hover:text-primary transition-colors">{dept.name}</span>
+                          <span className="font-medium tracking-normal text-foreground group-hover:text-primary transition-colors">{dept.name}</span>
                         </div>
                         <div className="space-y-2">
                            <div className="flex justify-between text-xs">

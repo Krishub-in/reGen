@@ -785,7 +785,7 @@ export default function PrivateChatModule({ userProfile }) {
                       <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{uInitials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">{u.name || u.username}</p>
+                      <p className="text-sm font-medium truncate text-foreground group-hover:text-primary transition-colors">{u.name || u.username}</p>
                       <p className="text-xs text-muted-foreground truncate">{u.designation || u.department || 'Team Member'}</p>
                     </div>
                   </button>
@@ -797,7 +797,7 @@ export default function PrivateChatModule({ userProfile }) {
               <div className="p-3 rounded-2xl bg-muted/60 mb-3 text-muted-foreground">
                 <MessageSquare className="h-8 w-8 opacity-40" />
               </div>
-              <p className="text-sm font-semibold text-foreground">No conversations yet</p>
+              <p className="text-sm font-medium text-foreground">No conversations yet</p>
               <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
                 Search for any colleague above to start your first secure chat.
               </p>
@@ -828,7 +828,7 @@ export default function PrivateChatModule({ userProfile }) {
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
-                      <p className={cn("text-sm truncate", isSelected ? "font-bold text-foreground" : "font-semibold text-foreground")}>
+                      <p className={cn("text-sm truncate", isSelected ? "font-semibold text-foreground" : "font-medium text-foreground")}>
                         {cPeer?.name || cPeer?.username}
                       </p>
                       {lastMsg?.timestamp && (
@@ -879,7 +879,7 @@ export default function PrivateChatModule({ userProfile }) {
                   <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">{initials}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                  <h3 className="font-bold text-sm text-foreground truncate leading-tight">{peer?.name || peer?.username}</h3>
+                  <h3 className="font-medium text-sm text-foreground truncate leading-tight">{peer?.name || peer?.username}</h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[11px] text-muted-foreground truncate">
                       {peer?.designation || peer?.department || 'Colleague'}
@@ -1102,7 +1102,7 @@ export default function PrivateChatModule({ userProfile }) {
                   <div className="w-14 h-14 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-3">
                     <Lock className="w-6 h-6" />
                   </div>
-                  <h4 className="font-bold text-sm text-foreground">
+                  <h4 className="font-medium text-sm text-foreground">
                     Direct conversation with {peer?.name || peer?.username}
                   </h4>
                   <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">

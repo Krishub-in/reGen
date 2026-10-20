@@ -149,8 +149,8 @@ export default function PaymentsModule({ userProfile }) {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-            <h2 className="text-2xl font-bold">Payments & Payroll</h2>
-            <p className="text-muted-foreground">Manage employee salaries, bonuses, and payment records.</p>
+            <h2 className="text-2xl font-light tracking-normal leading-snug text-foreground">Payments & Payroll</h2>
+            <p className="text-muted-foreground text-sm font-normal">Manage employee salaries, bonuses, and payment records.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={exportToCSV} variant="outline">
@@ -170,38 +170,38 @@ export default function PaymentsModule({ userProfile }) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Payroll</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Payroll</span>
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">${stats.totalPayroll.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Total distributed to date</p>
+            <div className="text-2xl sm:text-3xl font-semibold tracking-normal text-foreground mt-1">${stats.totalPayroll.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1 font-normal">Total distributed to date</p>
           </div>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Avg. Salary</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg. Salary</span>
             <div className="p-2 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
               <TrendingUp className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">${stats.avgSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-            <p className="text-xs text-muted-foreground mt-1">Per employee average</p>
+            <div className="text-2xl sm:text-3xl font-semibold tracking-normal text-foreground mt-1">${stats.avgSalary.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+            <p className="text-xs text-muted-foreground mt-1 font-normal">Per employee average</p>
           </div>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
           <div className="flex items-center justify-between pb-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Employees</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Active Employees</span>
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
               <Users className="h-4 w-4" />
             </div>
           </div>
           <div>
-            <div className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground mt-1">{stats.employeeCount}</div>
-            <p className="text-xs text-muted-foreground mt-1">Recipients of payments</p>
+            <div className="text-2xl sm:text-3xl font-semibold tracking-normal text-foreground mt-1">{stats.employeeCount}</div>
+            <p className="text-xs text-muted-foreground mt-1 font-normal">Recipients of payments</p>
           </div>
         </Card>
       </div>

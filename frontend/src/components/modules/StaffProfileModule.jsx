@@ -190,8 +190,8 @@ export default function StaffProfileModule({ userProfile }) {
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Settings</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          <h1 className="text-2xl sm:text-3xl font-light tracking-normal text-foreground leading-snug">Settings</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-normal">
             Manage your personal profile, workplace information, and account security.
           </p>
         </div>
@@ -202,8 +202,8 @@ export default function StaffProfileModule({ userProfile }) {
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-700 dark:text-amber-300 flex items-start gap-3 shadow-xs">
           <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
           <div className="text-xs sm:text-sm">
-            <p className="font-bold">Security Action Required</p>
-            <p className="mt-0.5 text-xs opacity-90">
+            <p className="font-medium">Security Action Required</p>
+            <p className="mt-0.5 text-xs opacity-90 font-normal">
               You are currently using a default temporary password. Please update your password below to secure your account.
             </p>
           </div>
@@ -253,7 +253,7 @@ export default function StaffProfileModule({ userProfile }) {
           {/* Core Employee Details */}
           <div className="flex-1 min-w-0 text-center sm:text-left">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-foreground truncate">
+              <h2 className="text-xl sm:text-2xl font-medium text-foreground truncate">
                 {name || userProfile.name || userProfile.username}
               </h2>
               <Badge variant="outline" className="capitalize text-xs font-semibold px-2 py-0.5 bg-primary/10 text-primary border-primary/20">
@@ -308,8 +308,8 @@ export default function StaffProfileModule({ userProfile }) {
                     <User className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold text-foreground">Personal Information</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
+                    <CardTitle className="text-base font-medium text-foreground">Personal Information</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground font-normal">
                       Your identity, contact, and personal demographic details.
                     </CardDescription>
                   </div>
@@ -432,8 +432,8 @@ export default function StaffProfileModule({ userProfile }) {
                     <Briefcase className="h-4 w-4" />
                   </div>
                   <div>
-                    <CardTitle className="text-base font-bold text-foreground">Workplace & Employment Information</CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
+                    <CardTitle className="text-base font-medium text-foreground">Workplace & Employment Information</CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground font-normal">
                       Company designation, assigned department, and employment terms.
                     </CardDescription>
                   </div>
@@ -557,8 +557,8 @@ export default function StaffProfileModule({ userProfile }) {
                   <Key className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Account Security</CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">
+                  <CardTitle className="text-base font-medium text-foreground">Account Security</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground font-normal">
                     Change your account password anytime.
                   </CardDescription>
                 </div>
@@ -624,8 +624,8 @@ export default function StaffProfileModule({ userProfile }) {
                   <ShieldCheck className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Account Status</CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground">
+                  <CardTitle className="text-base font-medium text-foreground">Account Status</CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground font-normal">
                     System permissions and credentials
                   </CardDescription>
                 </div>
