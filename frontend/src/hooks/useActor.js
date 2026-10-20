@@ -405,7 +405,7 @@ const safePrincipal = (id) => {
     try {
         return Principal.fromText(id);
     } catch (e) {
-        return { toText: () => id, _isPrincipal: false };
+        return { toText: () => id, toString: () => String(id), _isPrincipal: false };
     }
 };
 
@@ -1052,9 +1052,42 @@ export const createHttpActor = (identity) => {
             method: 'DELETE',
             headers
         }));
+    },
+
+    // ─── Notifications ──────────────────────────────────────────
+    getUserNotifications: async (userId) => {
+        const idStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : String(userId));
+        return fetchJson(`${API_BASE}/notifications/user/${idStr}`, []);
+    },
+    markNotificationRead: async (id) => {
+        return handleResponse(await fetch(`${API_BASE}/notifications/${id}/read`, {
+            method: 'PUT',
+            headers
+        }));
+    },
+    markAllNotificationsRead: async (userId) => {
+        const idStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : String(userId));
+        return handleResponse(await fetch(`${API_BASE}/notifications/user/${idStr}/read-all`, {
+            method: 'PUT',
+            headers
+        }));
+    },
+    updateNotificationAction: async (id, actionStatus) => {
+        return handleResponse(await fetch(`${API_BASE}/notifications/${id}/action`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ actionStatus })
+        }));
+    },
+    deleteNotification: async (id) => {
+        return handleResponse(await fetch(`${API_BASE}/notifications/${id}`, {
+            method: 'DELETE',
+            headers
+        }));
     }
   };
 };
+
 
 export const useActor = () => {
   const { identity, isAuthenticated } = useCustomAuth();

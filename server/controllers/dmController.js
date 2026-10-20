@@ -1,7 +1,9 @@
 import Conversation from '../models/Conversation.js';
 import DirectMessage from '../models/DirectMessage.js';
+import User from '../models/User.js';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
 import { emitToCompany } from '../socket.js';
+import { createAndSendNotification } from './notificationController.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -26,6 +28,12 @@ const extFromMime = (mime) => {
   if (m === 'image/gif') return 'gif';
   if (m === 'image/webp') return 'webp';
   if (m === 'application/pdf') return 'pdf';
+  if (m.includes('webm')) return 'webm';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('mp3') || m.includes('mpeg')) return 'mp3';
+  if (m.includes('m4a') || m.includes('mp4')) return 'm4a';
+  if (m.includes('aac')) return 'aac';
   return 'bin';
 };
 const sanitizeFileBase = (name) => {
@@ -57,7 +65,8 @@ const normalizeAttachment = async (att, seed, index) => {
     const marker = '/assets/';
     const idx = finalPath.lastIndexOf(marker);
     if (idx >= 0) finalPath = `/assets/${finalPath.slice(idx + marker.length)}`;
-    return { path: finalPath, name: att.name || finalPath.split('/').pop(), type: att.type, size: att.size };
+    const detectedType = att.type || (finalPath.endsWith('.webm') ? 'audio/webm' : (finalPath.endsWith('.wav') ? 'audio/wav' : (finalPath.endsWith('.mp3') ? 'audio/mp3' : undefined)));
+    return { path: finalPath, name: att.name || finalPath.split('/').pop(), type: detectedType, size: att.size };
   }
   return null;
 };
@@ -197,7 +206,32 @@ export const sendDirectMessage = async (req, res) => {
       senderId: myId
     });
 
+    // Send persistent & real-time notification to the recipient
+    const recipientId = convo.participants.find(p => p !== myId);
+    if (recipientId) {
+      const isVoice = body.isVoice || (Array.isArray(body.attachments) && body.attachments.some(a => a.type?.startsWith('audio') || a.isVoice));
+      const senderUser = await User.findOne({ userId: myId }).select('name username').lean();
+      const senderName = senderUser?.name || senderUser?.username || req.user?.username || myId;
+
+      await createAndSendNotification({
+        companyId: convo.companyId,
+        userId: recipientId,
+        type: isVoice ? 'voice_message' : 'text_message',
+        title: senderName,
+        message: isVoice ? 'Sent a voice message' : (body.encrypted ? '🔒 Encrypted message' : (body.content || 'Sent an attachment')),
+        senderId: myId,
+        senderName,
+        conversationId: convo._id.toString(),
+        metadata: {
+          messageId: msg._id.toString(),
+          isVoice: !!isVoice,
+          encrypted: !!body.encrypted
+        }
+      });
+    }
+
     res.status(201).json(msg);
+
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

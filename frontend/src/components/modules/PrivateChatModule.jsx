@@ -13,19 +13,25 @@ import {
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Send, Paperclip, X, ArrowLeft, Search, ShieldCheck, Lock, Pencil, Trash2, Check,
-  MessageSquare, ChevronUp, ChevronDown
+  MessageSquare, ChevronUp, ChevronDown, Phone, Video, Mic, Square, AlertCircle, RotateCw, Volume2
 } from 'lucide-react';
+import { cn } from '../../lib/utils';
+
 import { toast } from 'sonner';
 import {
   generateKeyPair, hasKeyPair, deriveSharedKey,
   encryptMessage, decryptMessage, getStoredPrivateKey
 } from '../../utils/e2e';
+import { stopMediaStream, parseMediaError } from '../../lib/mediaUtils';
+import EmojiPicker from '../EmojiPicker';
+import VoiceConfirmDialog from '../VoiceConfirmDialog';
 
 export default function PrivateChatModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -46,6 +52,23 @@ export default function PrivateChatModule({ userProfile }) {
   const [sharedKey, setSharedKey] = useState(null);
   const [e2eReady, setE2eReady] = useState(false);
   const bottomRef = useRef(null);
+  const textInputRef = useRef(null);
+
+  const handleSelectEmoji = (emoji) => {
+    const input = textInputRef.current;
+    if (!input) {
+      setContent((prev) => prev + emoji);
+      return;
+    }
+    const start = input.selectionStart ?? content.length;
+    const end = input.selectionEnd ?? content.length;
+    const updated = content.slice(0, start) + emoji + content.slice(end);
+    setContent(updated);
+    setTimeout(() => {
+      input.focus();
+      input.setSelectionRange(start + emoji.length, start + emoji.length);
+    }, 0);
+  };
 
   // Edit state
   const [editingId, setEditingId] = useState(null);
@@ -56,6 +79,284 @@ export default function PrivateChatModule({ userProfile }) {
   const [msgSearchTerm, setMsgSearchTerm] = useState('');
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
   const matchRefs = useRef([]);
+
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordDuration, setRecordDuration] = useState(0);
+  const [voiceError, setVoiceError] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const speechRecognitionRef = useRef(null);
+  const liveTranscriptRef = useRef('');
+  const [recordedVoiceModal, setRecordedVoiceModal] = useState(null);
+
+  // Voice-to-text (Speech dictation) state
+  const [isDictating, setIsDictating] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const toggleVoiceToText = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error('Voice typing is not supported in this browser. Please use Google Chrome or Edge.');
+      return;
+    }
+
+    if (isDictating) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsDictating(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsDictating(true);
+        toast.info('Listening... Speak into your microphone');
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setContent((prev) => {
+          const trimmed = prev.trim();
+          return trimmed ? `${trimmed} ${transcript.trim()}` : transcript.trim();
+        });
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsDictating(false);
+        if (event.error !== 'no-speech') {
+          toast.error(`Speech recognition: ${event.error}`);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsDictating(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Speech recognition initiation error:', err);
+      setIsDictating(false);
+      toast.error('Could not start speech recognition');
+    }
+  };
+
+  // Clean up any ongoing recording when component unmounts
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.stream) {
+          stopMediaStream(mediaRecorderRef.current.stream);
+        }
+        try {
+          if (mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+        } catch {}
+      }
+    };
+  }, []);
+
+
+  // Voice record timer
+  useEffect(() => {
+    let t = null;
+    if (isRecording) {
+      t = setInterval(() => setRecordDuration((d) => d + 1), 1000);
+    } else {
+      setRecordDuration(0);
+    }
+    return () => clearInterval(t);
+  }, [isRecording]);
+
+  const startVoiceRecording = async () => {
+    setVoiceError(null);
+    liveTranscriptRef.current = '';
+    try {
+      // Audio-only constraint for voice messages without hardcoded device IDs
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      // Start speech recognition in background to transcribe live
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        try {
+          const rec = new SpeechRecognition();
+          rec.continuous = true;
+          rec.interimResults = true;
+          rec.lang = navigator.language || 'en-US';
+          rec.onresult = (event) => {
+            let transcript = '';
+            for (let i = 0; i < event.results.length; i++) {
+              transcript += event.results[i][0].transcript + ' ';
+            }
+            liveTranscriptRef.current = transcript.trim();
+          };
+          rec.onerror = (e) => {
+            console.warn('[PrivateChatModule] Live transcription notice:', e?.error);
+          };
+          rec.start();
+          speechRecognitionRef.current = rec;
+        } catch (e) {
+          console.warn('[PrivateChatModule] Speech recognition start notice:', e);
+        }
+      }
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stopMediaStream(stream);
+        if (speechRecognitionRef.current) {
+          try { speechRecognitionRef.current.stop(); } catch {}
+          speechRecognitionRef.current = null;
+        }
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const base64Data = reader.result;
+          const audioUrl = URL.createObjectURL(audioBlob);
+          // Ask the user: Send as voice note, convert to normal text, or edit
+          setRecordedVoiceModal({
+            audioBlob,
+            base64Data,
+            audioUrl,
+            duration: recordDuration,
+            transcript: liveTranscriptRef.current.trim()
+          });
+        };
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      setRecordDuration(0);
+    } catch (err) {
+      console.error('[PrivateChatModule] startVoiceRecording error:', err);
+      const parsed = parseMediaError(err, 'voice');
+      setVoiceError({
+        ...parsed,
+        onRetry: () => {
+          setVoiceError(null);
+          startVoiceRecording();
+        },
+        onCancel: () => {
+          setVoiceError(null);
+          cancelVoiceRecording();
+        },
+      });
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch {}
+      speechRecognitionRef.current = null;
+    }
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const cancelVoiceRecording = () => {
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch {}
+      speechRecognitionRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.stream) {
+        stopMediaStream(mediaRecorderRef.current.stream);
+      }
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch {}
+      mediaRecorderRef.current = null;
+    }
+    audioChunksRef.current = [];
+    setIsRecording(false);
+    setRecordDuration(0);
+  };
+
+  const handleConfirmSendVoice = async () => {
+    if (!recordedVoiceModal?.base64Data || !activeConvoId) return;
+    try {
+      await sendDM.mutateAsync({
+        conversationId: activeConvoId,
+        message: {
+          senderName: userProfile?.name || userProfile?.username || 'Me',
+          content: '🎤 Voice message',
+          isVoice: true,
+          attachments: [
+            {
+              name: `voice-${Date.now()}.webm`,
+              type: 'audio/webm',
+              data: recordedVoiceModal.base64Data,
+              path: recordedVoiceModal.base64Data,
+            },
+          ],
+        },
+      });
+      toast.success('Voice message sent');
+    } catch (err) {
+      toast.error('Failed to send voice message');
+    } finally {
+      if (recordedVoiceModal.audioUrl) URL.revokeObjectURL(recordedVoiceModal.audioUrl);
+      setRecordedVoiceModal(null);
+    }
+  };
+
+  const handleConfirmSendText = async (convertedText) => {
+    if (!convertedText || !convertedText.trim() || !activeConvoId) return;
+    try {
+      await sendDM.mutateAsync({
+        conversationId: activeConvoId,
+        message: {
+          senderName: userProfile?.name || userProfile?.username || 'Me',
+          content: convertedText.trim(),
+          isVoice: false,
+          attachments: [],
+        },
+      });
+      toast.success('Converted text sent');
+    } catch (err) {
+      toast.error('Failed to send text message');
+    } finally {
+      if (recordedVoiceModal?.audioUrl) URL.revokeObjectURL(recordedVoiceModal.audioUrl);
+      setRecordedVoiceModal(null);
+    }
+  };
+
+  const handleConfirmEditText = (convertedText) => {
+    setContent(convertedText || '');
+    if (recordedVoiceModal?.audioUrl) URL.revokeObjectURL(recordedVoiceModal.audioUrl);
+    setRecordedVoiceModal(null);
+    setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleCancelVoiceModal = () => {
+    if (recordedVoiceModal?.audioUrl) URL.revokeObjectURL(recordedVoiceModal.audioUrl);
+    setRecordedVoiceModal(null);
+  };
+
 
   const toIdText = useCallback((value) => {
     if (typeof value === 'string') return value;
@@ -162,7 +463,7 @@ export default function PrivateChatModule({ userProfile }) {
   }, [activeConvoId]);
 
   // ─── Open conversation with a user ─────────────────────────────
-  const openChat = async (userId) => {
+  const openChat = useCallback(async (userId) => {
     try {
       const convo = await getOrCreate.mutateAsync(userId);
       setActiveConvoId(convo._id);
@@ -173,7 +474,33 @@ export default function PrivateChatModule({ userProfile }) {
     } catch (err) {
       toast.error(err.message || 'Failed to open conversation');
     }
-  };
+  }, [getOrCreate]);
+
+  // Listen to open-conversation event and check pending storage from notifications
+  useEffect(() => {
+    const handleOpen = (convId, recId) => {
+      if (convId) {
+        setActiveConvoId(convId);
+      } else if (recId) {
+        openChat(recId);
+      }
+    };
+
+    const pending = localStorage.getItem('pending_open_conversation');
+    if (pending) {
+      localStorage.removeItem('pending_open_conversation');
+      try {
+        const parsed = JSON.parse(pending);
+        handleOpen(parsed.conversationId, parsed.recipientId);
+      } catch {}
+    }
+
+    const onOpenConvo = (e) => {
+      handleOpen(e.detail?.conversationId, e.detail?.recipientId);
+    };
+    window.addEventListener('open-conversation', onOpenConvo);
+    return () => window.removeEventListener('open-conversation', onOpenConvo);
+  }, [openChat]);
 
   // ─── Send message ──────────────────────────────────────────────
   const handleSend = async (e) => {
@@ -268,17 +595,45 @@ export default function PrivateChatModule({ userProfile }) {
   const isOwnMessage = (senderId) => myId === toIdText(senderId);
 
   const toPublicPath = (p) => {
-    if (!p) return p;
+    if (!p) return '';
+    if (typeof p !== 'string') return '';
+    if (p.startsWith('data:') || p.startsWith('blob:') || p.startsWith('http://') || p.startsWith('https://')) return p;
     if (p.startsWith('/assets/')) return p;
     const marker = '/assets/';
     const idx = p.lastIndexOf(marker);
     if (idx >= 0) return `/assets/${p.slice(idx + marker.length)}`;
     return p;
   };
+
+  const getAttachmentSrc = (att) => {
+    if (!att) return '';
+    if (typeof att === 'string') return toPublicPath(att);
+    if (att.data) return att.data;
+    if (att.url) return toPublicPath(att.url);
+    if (att.path) return toPublicPath(att.path);
+    return '';
+  };
+
   const isImageAtt = (att) => {
-    if (!att?.path) return false;
-    if (att.type?.startsWith('image/')) return true;
-    return /\.(png|jpe?g|gif|webp|svg)$/i.test(att.path);
+    if (!att) return false;
+    const type = typeof att === 'object' ? (att.type || '') : '';
+    const src = getAttachmentSrc(att);
+    if (type.startsWith('image/')) return true;
+    return /\.(png|jpe?g|gif|webp|svg)$/i.test(src) || (typeof att === 'object' && /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name || ''));
+  };
+
+  const isAudioAtt = (att) => {
+    if (!att) return false;
+    const type = typeof att === 'object' ? (att.type || '') : '';
+    const name = typeof att === 'object' ? (att.name || att.path || '') : att;
+    const src = getAttachmentSrc(att);
+    return (
+      type.startsWith('audio') ||
+      /\.(webm|wav|mp3|ogg|m4a|aac)$/i.test(name) ||
+      /\.(webm|wav|mp3|ogg|m4a|aac)$/i.test(src) ||
+      src.startsWith('data:audio') ||
+      name.includes('voice-')
+    );
   };
 
   // Group messages by date
@@ -377,10 +732,50 @@ export default function PrivateChatModule({ userProfile }) {
               )}
             </p>
           </div>
+          <Button
+
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('start-direct-call', {
+                  detail: {
+                    recipientId: toIdText(peer?.userId || peer?.id),
+                    recipientName: peer?.name || peer?.username,
+                    mediaType: 'voice',
+                  },
+                })
+              );
+            }}
+            title="Voice Call"
+            className="hover:text-emerald-500"
+          >
+            <Phone className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              window.dispatchEvent(
+                new CustomEvent('start-direct-call', {
+                  detail: {
+                    recipientId: toIdText(peer?.userId || peer?.id),
+                    recipientName: peer?.name || peer?.username,
+                    mediaType: 'video',
+                  },
+                })
+              );
+            }}
+            title="Video Call"
+            className="hover:text-indigo-500"
+          >
+            <Video className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={() => { setSearchOpen(o => !o); setMsgSearchTerm(''); }}>
             <Search className="h-4 w-4" />
           </Button>
         </div>
+
 
         {/* Search bar */}
         {searchOpen && (
@@ -472,18 +867,46 @@ export default function PrivateChatModule({ userProfile }) {
                       <p className="text-sm break-words whitespace-pre-wrap">{displayContent}</p>
                     )}
 
-                    {/* Attachments */}
+                    {/* Attachments & Voice Notes */}
                     {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
-                      <div className="mt-2 space-y-1">
+                      <div className="mt-2 space-y-2">
                         {msg.attachments.map((att, idx) => {
                           if (!att) return null;
-                          const publicPath = toPublicPath(att.path);
+                          const mediaSrc = getAttachmentSrc(att);
+                          const attName = typeof att === 'object' ? (att.name || 'attachment') : String(att).split('/').pop();
+                          const isAudio = isAudioAtt(att);
+
                           return (
-                            <div key={idx} className="rounded border border-border/50 p-1.5 bg-background/40">
-                              {isImageAtt(att) && <img src={publicPath} alt={att.name} className="max-h-40 rounded object-contain mb-1" />}
-                              <a href={publicPath} download={att.name} className="text-xs underline flex items-center gap-1">
-                                <Paperclip className="h-3 w-3" />{att.name}
-                              </a>
+                            <div key={idx} className="rounded-lg border border-border/40 p-2 bg-background/50 text-foreground">
+                              {isImageAtt(att) && (
+                                <img src={mediaSrc} alt={attName} className="max-h-48 rounded-md object-contain mb-1.5" />
+                              )}
+                              {isAudio ? (
+                                <div className="space-y-1.5 min-w-[220px]">
+                                  <div className="flex items-center justify-between text-xs font-semibold px-0.5">
+                                    <span className="flex items-center gap-1.5 text-primary">
+                                      <Mic className="h-3.5 w-3.5" />
+                                      Voice Note
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                                      {attName}
+                                    </span>
+                                  </div>
+                                  <audio
+                                    controls
+                                    preload="metadata"
+                                    src={mediaSrc}
+                                    className="h-9 w-full rounded-md focus:outline-none"
+                                  >
+                                    Your browser does not support audio playback.
+                                  </audio>
+                                </div>
+                              ) : (
+                                <a href={mediaSrc} download={attName} className="text-xs underline flex items-center gap-1.5 text-foreground hover:text-primary">
+                                  <Paperclip className="h-3.5 w-3.5" />
+                                  <span className="truncate max-w-[200px]">{attName}</span>
+                                </a>
+                              )}
                             </div>
                           );
                         })}
@@ -514,11 +937,15 @@ export default function PrivateChatModule({ userProfile }) {
         {/* Input */}
         <div className="pt-2 border-t">
           <form onSubmit={handleSend} className="flex items-center gap-2">
-            <Label htmlFor="dm-files" className="p-2 rounded-md bg-muted hover:bg-muted/80 cursor-pointer shrink-0">
-              <Paperclip className="h-4 w-4" />
-            </Label>
-            <Input id="dm-files" type="file" multiple className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
-            {files.length > 0 && (
+            {!isRecording && (
+              <>
+                <Label htmlFor="dm-files" className="p-2 rounded-md bg-muted hover:bg-muted/80 cursor-pointer shrink-0">
+                  <Paperclip className="h-4 w-4" />
+                </Label>
+                <Input id="dm-files" type="file" multiple className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+              </>
+            )}
+            {files.length > 0 && !isRecording && (
               <div className="flex items-center gap-1 max-w-[30%] overflow-x-auto">
                 {files.map((f, idx) => (
                   <Badge key={idx} variant="secondary" className="flex items-center gap-1 whitespace-nowrap text-xs">
@@ -530,21 +957,153 @@ export default function PrivateChatModule({ userProfile }) {
                 ))}
               </div>
             )}
-            <Input
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={e2eReady ? '🔒 Type an encrypted message…' : 'Type a message…'}
-              disabled={sendDM.isPending}
-              className="flex-1"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); }
-              }}
-            />
-            <Button type="submit" size="icon" disabled={sendDM.isPending || (!content.trim() && files.length === 0)}>
-              <Send className="h-4 w-4" />
-            </Button>
+            {isRecording ? (
+              <div className="flex-1 flex items-center justify-between bg-destructive/10 text-destructive px-3 py-1.5 rounded-md border border-destructive/20 animate-pulse">
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-full bg-red-600 animate-ping" />
+                  <span className="text-sm font-semibold">Recording voice message...</span>
+                  <span className="text-xs font-mono ml-2 font-bold">{recordDuration}s</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={cancelVoiceRecording} className="h-7 text-xs text-destructive hover:bg-destructive/20">
+                    <X className="h-4 w-4 mr-1" /> Cancel
+                  </Button>
+                  <Button type="button" size="sm" onClick={stopVoiceRecording} className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white">
+                    <Square className="h-3 w-3 mr-1 fill-current" /> Send
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <EmojiPicker onSelectEmoji={handleSelectEmoji} disabled={sendDM.isPending} />
+                <Input
+                  ref={textInputRef}
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={isDictating ? '🎙️ Listening... Speak now to transcribe' : (e2eReady ? '🔒 Type an encrypted message…' : 'Type a message…')}
+                  disabled={sendDM.isPending}
+                  className={cn("flex-1", isDictating && "border-primary ring-2 ring-primary/40 bg-primary/5")}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); }
+                  }}
+                />
+                {/* Voice-to-Text (Speech dictation into text box) */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleVoiceToText}
+                  title={isDictating ? 'Stop Voice Typing' : 'Voice Typing (Speech to Text)'}
+                  className={cn(
+                    "shrink-0 transition-colors",
+                    isDictating ? "text-primary animate-pulse bg-primary/20 hover:bg-primary/30" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Volume2 className="h-4 w-4" />
+                </Button>
+                {/* Voice Note Recording button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={startVoiceRecording}
+                  title="Record Voice Message (Voice Note)"
+                  className="shrink-0 hover:text-red-500 text-muted-foreground"
+                >
+                  <Mic className="h-4 w-4" />
+                </Button>
+                <Button type="submit" size="icon" disabled={sendDM.isPending || (!content.trim() && files.length === 0)}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </form>
         </div>
+
+        {/* Device & Permission Error Dialog with Retry for Voice Recording */}
+        <Dialog
+          open={Boolean(voiceError)}
+          onOpenChange={(open) => {
+            if (!open) {
+              const cancelFn = voiceError?.onCancel;
+              setVoiceError(null);
+              if (cancelFn) cancelFn();
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md bg-zinc-950 border border-red-500/30 text-white shadow-2xl">
+            <DialogHeader>
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shrink-0">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="text-left">
+                  <DialogTitle className="text-base font-semibold text-white">
+                    {voiceError?.title || 'Microphone Error'}
+                  </DialogTitle>
+                  <p className="text-xs text-zinc-400 mt-0.5">Microphone Hardware & Permissions</p>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2 text-sm text-zinc-300">
+              <p className="leading-relaxed">{voiceError?.message}</p>
+
+              {voiceError?.troubleshooting && voiceError.troubleshooting.length > 0 && (
+                <div className="bg-zinc-900/90 rounded-lg p-3 border border-white/10 space-y-2">
+                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">How to resolve:</p>
+                  <ul className="text-xs text-zinc-300 space-y-1.5 list-disc pl-4">
+                    {voiceError.troubleshooting.map((step, idx) => (
+                      <li key={idx} className="leading-relaxed">{step}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="flex sm:justify-between items-center gap-2 pt-3 border-t border-white/10">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const cancelFn = voiceError?.onCancel;
+                  setVoiceError(null);
+                  if (cancelFn) cancelFn();
+                }}
+                className="text-zinc-400 hover:text-white hover:bg-zinc-800"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  const retryFn = voiceError?.onRetry;
+                  setVoiceError(null);
+                  if (retryFn) retryFn();
+                }}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
+              >
+                <RotateCw className="h-3.5 w-3.5" />
+                Retry
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Voice Recording Choice Dialog: Send Voice Note or Normal Text */}
+        <VoiceConfirmDialog
+          isOpen={Boolean(recordedVoiceModal)}
+          audioUrl={recordedVoiceModal?.audioUrl}
+          duration={recordedVoiceModal?.duration || 0}
+          initialText={recordedVoiceModal?.transcript || ''}
+          onSendVoice={handleConfirmSendVoice}
+          onSendText={handleConfirmSendText}
+          onEditText={handleConfirmEditText}
+          onCancel={handleCancelVoiceModal}
+          isPending={sendDM.isPending}
+        />
       </div>
     );
   }

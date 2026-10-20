@@ -17,13 +17,25 @@ import { io } from 'socket.io-client';
 
 /** Map server event → React Query key(s) to invalidate */
 const EVENT_TO_QUERY_KEYS = {
-  'attendance:change': [['attendance']],
-  'task:change':       [['tasks']],
-  'message:change':    [['messages']],
-  'scrum:change':      [['scrumNotes']],
-  'dm:change':         [['dm-conversations'], ['dm-messages']],
-  'dm:key-exchange':   [['dm-conversations']],
+  'attendance:change':   [['attendance']],
+  'task:change':         [['tasks']],
+  'message:change':      [['messages']],
+  'scrum:change':        [['scrumNotes']],
+  'dm:change':           [['dm-conversations'], ['dm-messages']],
+  'dm:key-exchange':     [['dm-conversations']],
+  'notification:new':    [['notifications']],
+  'notification:change': [['notifications']],
+  'notification:read':   [['notifications']],
+  'notification:read_all': [['notifications']],
+  'meeting:started':     [['notifications']],
 };
+
+let globalSocket = null;
+
+export function getSocket() {
+  return globalSocket;
+}
+
 
 /**
  * Resolve the socket server URL.
@@ -71,6 +83,7 @@ export function useSocket() {
     });
 
     socketRef.current = socket;
+    globalSocket = socket;
 
     // Register event listeners
     for (const [event, queryKeys] of Object.entries(EVENT_TO_QUERY_KEYS)) {
@@ -80,6 +93,13 @@ export function useSocket() {
         }
       });
     }
+
+    socket.on('notification:new', (notif) => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('app-notification-new', { detail: notif }));
+      }
+    });
 
     // Force logout when company is blocked by SuperAdmin
     socket.on('company:blocked', (payload) => {
@@ -92,6 +112,7 @@ export function useSocket() {
     });
 
     socket.on('connect', () => {
+      globalSocket = socket;
       // eslint-disable-next-line no-console
       console.log('[WS] connected');
     });
@@ -104,6 +125,8 @@ export function useSocket() {
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      if (globalSocket === socket) globalSocket = null;
     };
   }, [token, queryClient]);
 }
+

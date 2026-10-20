@@ -1,6 +1,7 @@
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
+import { emitToUser } from '../socket.js';
 
 const parseMonthDay = (dob) => {
   if (!dob) return null;
@@ -130,6 +131,7 @@ export const createNotification = async (req, res) => {
     body.companyId = await resolveCompanyId(req, body);
     const notification = new Notification(body);
     await notification.save();
+    emitToUser(notification.userId, 'notification:new', notification);
     res.status(201).json(notification);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -147,15 +149,120 @@ export const getUserNotifications = async (req, res) => {
   }
 };
 
+export const markNotificationRead = async (req, res) => {
+  try {
+    const rawId = req.params.id;
+    // Find notification by id or _id
+    let notification = await Notification.findOneAndUpdate(
+      { id: rawId },
+      { $set: { read: true } },
+      { new: true }
+    );
+    if (!notification) {
+      notification = await Notification.findByIdAndUpdate(
+        rawId,
+        { $set: { read: true } },
+        { new: true }
+      );
+    }
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
+    emitToUser(notification.userId, 'notification:read', { id: notification.id, read: true });
+    res.status(200).json(notification);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const markAllNotificationsRead = async (req, res) => {
+  try {
+    const targetUserId = req.params.userId;
+    const userIds = [targetUserId];
+    if (req.user?.userId && !userIds.includes(req.user.userId)) {
+      userIds.push(req.user.userId);
+    }
+    if (req.user?.id && !userIds.includes(req.user.id)) {
+      userIds.push(req.user.id);
+    }
+    const filter = { userId: { $in: userIds }, read: false };
+    const result = await Notification.updateMany(filter, { $set: { read: true } });
+    
+    userIds.forEach(uid => {
+      emitToUser(uid, 'notification:read_all', { userId: uid });
+    });
+    res.status(200).json({ message: 'All notifications marked as read', modifiedCount: result.modifiedCount });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const updateNotificationAction = async (req, res) => {
+  try {
+    const { actionStatus } = req.body;
+    const filter = { id: req.params.id };
+    if (req.companyId) filter.companyId = req.companyId;
+    const notification = await Notification.findOneAndUpdate(
+      filter,
+      { $set: { actionStatus, read: true } },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ message: 'Notification not found' });
+    emitToUser(notification.userId, 'notification:change', notification);
+    res.status(200).json(notification);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 export const deleteNotification = async (req, res) => {
   try {
     const filter = { id: req.params.id };
     if (req.companyId) filter.companyId = req.companyId;
     const n = await Notification.findOneAndDelete(filter);
     if (!n) return res.status(404).json({ message: 'Notification not found' });
+    emitToUser(n.userId, 'notification:change', { id: n.id, deleted: true });
     res.status(200).json({ message: 'Notification deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+export const createAndSendNotification = async (payload) => {
+  try {
+    const doc = {
+      id: payload.id || `notif-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      companyId: payload.companyId,
+      userId: payload.userId,
+      title: payload.title,
+      message: payload.message,
+      type: payload.type || 'general',
+      senderId: payload.senderId,
+      senderName: payload.senderName,
+      conversationId: payload.conversationId,
+      callId: payload.callId,
+      meetingId: payload.meetingId,
+      actionStatus: payload.actionStatus || 'none',
+      metadata: payload.metadata || {},
+      createdAt: payload.createdAt || new Date().toISOString(),
+      read: false
+    };
+
+    // Prevent duplicate calls if pending call notification already exists
+    if (doc.type === 'voice_call' || doc.type === 'video_call') {
+      const existing = await Notification.findOne({
+        userId: doc.userId,
+        callId: doc.callId,
+        actionStatus: 'pending'
+      });
+      if (existing) return existing;
+    }
+
+    const n = new Notification(doc);
+    await n.save();
+    emitToUser(doc.userId, 'notification:new', n);
+    return n;
+  } catch (err) {
+    console.error('[Notification] Failed to create notification:', err.message);
+    return null;
   }
 };
 
@@ -167,3 +274,4 @@ export const runBirthdayReminders = async (_req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+

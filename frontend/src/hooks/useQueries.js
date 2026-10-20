@@ -130,15 +130,106 @@ export function useGetAllTasks() {
 // Notifications
 export function useGetUserNotifications(userId) {
   const { actor, isFetching } = useActor();
+  const userIdStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : (userId ? String(userId) : ''));
   return useQuery({
-    queryKey: ['notifications', userId?.toString()],
+    queryKey: ['notifications', userIdStr],
     queryFn: async () => {
-      if (!actor || !userId) return [];
-      return actor.getUserNotifications(userId);
+      if (!actor || !userIdStr) return [];
+      return actor.getUserNotifications(userIdStr);
     },
-    enabled: !!actor && !isFetching && !!userId,
+    enabled: !!actor && !isFetching && !!userIdStr,
   });
 }
+
+export function useMarkNotificationRead() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.markNotificationRead(id);
+    },
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((n) => (n.id === id || n._id === id ? { ...n, read: true } : n));
+      });
+    },
+    onSuccess: (updatedNotif, id) => {
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((n) => (n.id === id || n.id === updatedNotif?.id ? { ...n, read: true } : n));
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.markAllNotificationsRead(userId);
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((n) => ({ ...n, read: true }));
+      });
+    },
+    onSuccess: () => {
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((n) => ({ ...n, read: true }));
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useUpdateNotificationAction() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, actionStatus }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.updateNotificationAction(id, actionStatus);
+    },
+    onMutate: async ({ id, actionStatus }) => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((n) => (n.id === id ? { ...n, actionStatus, read: true } : n));
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useDeleteNotification() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.deleteNotification(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
 
 // Task Progress Updates
 export function useGetTaskUpdatesForTask(taskId) {
@@ -471,9 +562,11 @@ export function useSendDirectMessage() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ conversationId, message }) => {
+    mutationFn: async (args) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.sendDirectMessage(conversationId, message);
+      const { conversationId, message, ...rest } = args || {};
+      const payload = message || rest;
+      return actor.sendDirectMessage(conversationId, payload);
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['dm-messages', variables.conversationId] });
