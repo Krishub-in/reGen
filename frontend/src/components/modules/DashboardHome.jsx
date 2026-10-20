@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   useGetAllUsers, useGetUserAttendance, useGetUserLeaveRequests, 
   useGetUserPayments, useGetAllAttendance, useGetAllTasks, useGetAllLeaveRequests 
@@ -17,6 +18,7 @@ import {
 
 export default function DashboardHome({ userProfile, onNavigate }) {
   const { identity } = useCustomAuth();
+  const queryClient = useQueryClient();
   const currentUserId = userProfile?.userId || userProfile?.id || userProfile?.StaffId || identity?.getPrincipal() || null;
   const { data: users = [] } = useGetAllUsers();
   const { data: attendance = [] } = useGetUserAttendance(currentUserId);
@@ -25,6 +27,24 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   const { data: payments = [] } = useGetUserPayments(currentUserId);
   const { data: allAttendance = [] } = useGetAllAttendance();
   const { data: allTasks = [] } = useGetAllTasks();
+
+  // Dynamically sync and refetch attendance immediately on check-in or socket update
+  useEffect(() => {
+    const handleAttendanceChange = () => {
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+        refetchType: 'all',
+      });
+      queryClient.refetchQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+      });
+    };
+
+    window.addEventListener('attendance:updated', handleAttendanceChange);
+    return () => {
+      window.removeEventListener('attendance:updated', handleAttendanceChange);
+    };
+  }, [queryClient]);
 
   const [trendRange, setTrendRange] = useState('week');
   const [empSearch, setEmpSearch] = useState('');
@@ -103,15 +123,25 @@ export default function DashboardHome({ userProfile, onNavigate }) {
 
   const isMyAttendance = useCallback((a) => {
     if (!a) return false;
-    const aId = toIdText(a.userId || a.id).toLowerCase().trim();
-    if (!aId) return false;
-    return myIds.has(aId);
+    const aIds = [
+      toIdText(a.userId),
+      toIdText(a.staffId),
+      toIdText(a.employeeId),
+      toIdText(a.user),
+      toIdText(a.id)
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
+    return aIds.some(id => myIds.has(id));
   }, [myIds, toIdText]);
 
   const matchesEmployee = useCallback((a, u) => {
     if (!a || !u) return false;
-    const aId = toIdText(a.userId || a.id).toLowerCase().trim();
-    if (!aId) return false;
+    const aIds = [
+      toIdText(a.userId),
+      toIdText(a.staffId),
+      toIdText(a.employeeId),
+      toIdText(a.user),
+      toIdText(a.id)
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
 
     const uIds = [
       toIdText(u.userId),
@@ -122,7 +152,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       toIdText(u.StaffId),
     ].map(s => s.toLowerCase().trim()).filter(Boolean);
 
-    return uIds.includes(aId);
+    return aIds.some(id => uIds.includes(id));
   }, [toIdText]);
 
   // Safely extract string status even if Candid variant object like { present: null } or { late: null }
@@ -174,12 +204,52 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return '';
   }, []);
 
+  // Time formatter helper
+  const formatTime = useCallback((timeVal) => {
+    if (!timeVal) return '';
+    try {
+      if (typeof timeVal === 'number' || typeof timeVal === 'bigint') {
+        const num = Number(timeVal);
+        const ms = num > 1e14 ? num / 1e6 : (num > 1e11 ? num : num * 1000);
+        const d = new Date(ms);
+        if (!isNaN(d.getTime())) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+      const d = new Date(timeVal);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      }
+      if (typeof timeVal === 'string' && timeVal.includes(':')) {
+        return timeVal.slice(0, 5);
+      }
+      return String(timeVal);
+    } catch {
+      return '';
+    }
+  }, []);
+
+  // Merged real-time attendance deduplicated by ID or user-date
+  const combinedAttendance = useMemo(() => {
+    const map = new Map();
+    (allAttendance || []).forEach(a => {
+      const d = normalizeAttendanceDate(a);
+      const u = toIdText(a.userId || a.id);
+      const key = a.id || a._id || `${u}-${d}`;
+      map.set(key, a);
+    });
+    (attendance || []).forEach(a => {
+      const d = normalizeAttendanceDate(a);
+      const u = toIdText(a.userId || a.id);
+      const key = a.id || a._id || `${u}-${d}`;
+      map.set(key, a);
+    });
+    return Array.from(map.values());
+  }, [allAttendance, attendance, toIdText, normalizeAttendanceDate]);
+
   // Real Today's Attendance Stats
   const todayDate = new Date().toISOString().split('T')[0];
   const todayAttendance = useMemo(() => {
-    const source = allAttendance.length > 0 ? allAttendance : attendance;
-    return source.filter(a => normalizeAttendanceDate(a) === todayDate);
-  }, [allAttendance, attendance, todayDate, normalizeAttendanceDate]);
+    return combinedAttendance.filter(a => normalizeAttendanceDate(a) === todayDate);
+  }, [combinedAttendance, todayDate, normalizeAttendanceDate]);
 
   const activeUsersToday = useMemo(() => {
     const presentRecords = todayAttendance.filter(a => isPresentStatus(a.status) || isLateStatus(a.status));
@@ -187,15 +257,18 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return activeCompanyEmployees.filter(u => presentRecords.some(a => matchesEmployee(a, u))).length;
   }, [todayAttendance, activeCompanyEmployees, matchesEmployee, isPresentStatus, isLateStatus]);
 
-  // Today's check-in status for user dashboard
+  // Today's check-in status and record for user dashboard
+  const userTodayRecord = useMemo(() => {
+    return todayAttendance.find(a => isMyAttendance(a));
+  }, [todayAttendance, isMyAttendance]);
+
   const userTodayStatus = useMemo(() => {
-    const myTodayRec = todayAttendance.find(a => isMyAttendance(a));
-    if (!myTodayRec) return 'Not Checked In';
-    if (isPresentStatus(myTodayRec.status)) return 'Present';
-    if (isLateStatus(myTodayRec.status)) return 'Late';
-    if (isAbsentStatus(myTodayRec.status)) return 'Absent';
+    if (!userTodayRecord) return 'Not Checked In';
+    if (isPresentStatus(userTodayRecord.status)) return 'Present';
+    if (isLateStatus(userTodayRecord.status)) return 'Late';
+    if (isAbsentStatus(userTodayRecord.status)) return 'Absent';
     return 'Present';
-  }, [todayAttendance, isMyAttendance, isPresentStatus, isLateStatus, isAbsentStatus]);
+  }, [userTodayRecord, isPresentStatus, isLateStatus, isAbsentStatus]);
 
   // Dynamic Attendance Breakdown (Present, Absent, Late, Rate) for Week, Month, Year
   const rateBreakdown = useMemo(() => {
@@ -238,7 +311,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     }
 
     const targetDatesSet = new Set(targetDates);
-    const sourceAttendance = allAttendance.length > 0 ? allAttendance : attendance;
+    const sourceAttendance = combinedAttendance;
 
     if (isCompanyLogin) {
       // Company view: all non-owner employees
@@ -280,7 +353,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       return { present, absent, late, rate };
     }
   }, [
-    trendRange, isCompanyLogin, allAttendance, attendance, 
+    trendRange, isCompanyLogin, combinedAttendance, 
     activeCompanyEmployees, totalEmployeesCount, matchesEmployee, 
     isMyAttendance, isPresentStatus, isLateStatus, isAbsentStatus, normalizeAttendanceDate
   ]);
@@ -295,11 +368,11 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const sourceRecords = isCompanyLogin
-      ? (allAttendance.length > 0 ? allAttendance : attendance).filter(a => {
+      ? combinedAttendance.filter(a => {
           if (activeCompanyEmployees.length === 0) return true;
           return activeCompanyEmployees.some(u => matchesEmployee(a, u));
         })
-      : (allAttendance.length > 0 ? allAttendance : attendance).filter(a => isMyAttendance(a));
+      : combinedAttendance.filter(a => isMyAttendance(a));
 
     const divisor = isCompanyLogin ? (totalEmployeesCount || 1) : 1;
 
@@ -372,9 +445,15 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       year: yearList,
     };
   }, [
-    allAttendance, attendance, isCompanyLogin, totalEmployeesCount, 
+    combinedAttendance, isCompanyLogin, totalEmployeesCount, 
     activeCompanyEmployees, matchesEmployee, isMyAttendance, isPresentStatus, isLateStatus, normalizeAttendanceDate
   ]);
+
+  // Today's attendance resolver for individual employees
+  const getEmployeeTodayAttendance = useCallback((emp) => {
+    if (!emp) return null;
+    return todayAttendance.find(a => matchesEmployee(a, emp));
+  }, [todayAttendance, matchesEmployee]);
 
   const currentTrendData = trendData[trendRange] || trendData.week;
 
@@ -531,20 +610,39 @@ export default function DashboardHome({ userProfile, onNavigate }) {
         {/* Active Staff Today / User Check-in Status */}
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
           <div className="flex items-start justify-between">
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-muted-foreground">
-                {isCompanyLogin ? 'Active Staff Today' : 'Today\'s Status'}
+                {isCompanyLogin ? 'Active Staff Today' : "Today's Status"}
               </p>
-              <h3 className="text-2xl font-bold tracking-tight text-foreground mt-2">
-                {isCompanyLogin ? activeUsersToday : userTodayStatus}
-              </h3>
-              <div className="mt-3 flex items-center gap-1.5">
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <h3 className="text-2xl font-bold tracking-tight text-foreground">
+                  {isCompanyLogin ? `${activeUsersToday} / ${totalEmployeesCount || 1}` : userTodayStatus}
+                </h3>
+                {!isCompanyLogin && userTodayRecord && (
+                  <span className={cn(
+                    "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                    userTodayStatus === 'Present'
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                      : (userTodayStatus === 'Late'
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                          : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20")
+                  )}>
+                    {userTodayRecord.checkIn ? `In: ${formatTime(userTodayRecord.checkIn)}` : 'Checked In'}
+                  </span>
+                )}
+              </div>
+              <div className="mt-3 flex items-center gap-1.5 flex-wrap">
                 <span className="text-[11px] font-medium text-muted-foreground">
                   <strong className="text-foreground font-semibold">{rateBreakdown.rate}%</strong> {isCompanyLogin ? `${trendRange} team rate` : `${trendRange} rate`}
                 </span>
+                {isCompanyLogin && (
+                  <span className="text-[11px] text-muted-foreground">
+                    ({activeUsersToday} present)
+                  </span>
+                )}
               </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+            <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground shrink-0 ml-2">
               <UserCheck className="w-5 h-5 text-primary" />
             </div>
           </div>
@@ -739,6 +837,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                   <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Role</th>
                   <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Today's Attendance</th>
                   <th className="py-3 px-4">Joining Date</th>
                   <th className="py-3 px-4 text-right"></th>
                 </tr>
@@ -746,7 +845,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
               <tbody className="divide-y divide-border/50">
                 {displayedEmployees.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-muted-foreground">
+                    <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
                       No employees found
                     </td>
                   </tr>
@@ -758,6 +857,11 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                     const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
                     const isActive = !emp.isSuspended;
                     const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
+
+                    const todayRec = getEmployeeTodayAttendance(emp);
+                    const isPresent = todayRec && isPresentStatus(todayRec.status);
+                    const isLate = todayRec && isLateStatus(todayRec.status);
+                    const inTimeStr = todayRec ? formatTime(todayRec.checkIn || todayRec.createdAt) : '';
 
                     return (
                       <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
@@ -778,6 +882,24 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                           )}>
                             {isActive ? 'Active' : 'Pending'}
                           </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          {isPresent ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                              Present {inTimeStr ? `(${inTimeStr})` : ''}
+                            </span>
+                          ) : isLate ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              Late {inTimeStr ? `(${inTimeStr})` : ''}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                              Absent
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
                         <td className="py-3 px-4 text-right">

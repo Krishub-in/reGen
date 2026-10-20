@@ -76,11 +76,20 @@ function setupEventListeners(socket) {
 
   // Register real-time query invalidation listeners
   for (const [event, queryKeys] of Object.entries(EVENT_TO_QUERY_KEYS)) {
-    socket.on(event, () => {
+    socket.on(event, (data) => {
       if (currentQueryClient) {
         for (const key of queryKeys) {
-          currentQueryClient.invalidateQueries({ queryKey: key });
+          currentQueryClient.invalidateQueries({
+            queryKey: key,
+            refetchType: 'all',
+          });
+          currentQueryClient.refetchQueries({
+            predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === key[0],
+          });
         }
+      }
+      if (typeof window !== 'undefined' && event === 'attendance:change') {
+        window.dispatchEvent(new CustomEvent('attendance:updated', { detail: data }));
       }
     });
   }

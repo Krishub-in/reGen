@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useGetAllAttendance, useGetUserAttendance, useRecordAttendance, useUpdateAttendance, useGetAllUsers, useGetAllLeaveRequests, useGetUserLeaveRequests, useApplyLeave, useUpdateLeaveRequest, useGetAllTasks } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Button } from '@/components/ui/button';
@@ -16,10 +17,29 @@ import { isTaskExpired } from '@/lib/taskUtils';
 
 export default function AttendanceModule({ userProfile }) {
   const { identity } = useCustomAuth();
+  const queryClient = useQueryClient();
   const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   
   const staffIdObj = userProfile.userId || userProfile.id || identity?.getPrincipal() || null;
   const staffIdStr = typeof staffIdObj === 'string' ? staffIdObj : (staffIdObj?.toText ? staffIdObj.toText() : String(staffIdObj || ''));
+
+  // Dynamically sync and refetch attendance immediately on check-in or socket update
+  useEffect(() => {
+    const handleAttendanceChange = () => {
+      queryClient.invalidateQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+        refetchType: 'all',
+      });
+      queryClient.refetchQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === 'attendance',
+      });
+    };
+
+    window.addEventListener('attendance:updated', handleAttendanceChange);
+    return () => {
+      window.removeEventListener('attendance:updated', handleAttendanceChange);
+    };
+  }, [queryClient]);
 
   // Default Work Schedule: 09:30 AM to 06:30 PM, 5 Days/week, 8 Working Hours
   const DEFAULT_SCHEDULE = useMemo(() => ({
@@ -345,8 +365,24 @@ export default function AttendanceModule({ userProfile }) {
     }
   };
 
+  // Combined attendance list ensuring instant cross-view synchronization
+  const combinedAttendanceList = useMemo(() => {
+    const map = new Map();
+    (allAttendance || []).forEach(a => {
+      const d = normalizeAttendanceDate(a);
+      const u = toIdText(a.userId || a.id);
+      map.set(a.id || a._id || `${u}-${d}`, a);
+    });
+    (userAttendance || []).forEach(a => {
+      const d = normalizeAttendanceDate(a);
+      const u = toIdText(a.userId || a.id);
+      map.set(a.id || a._id || `${u}-${d}`, a);
+    });
+    return Array.from(map.values());
+  }, [allAttendance, userAttendance, normalizeAttendanceDate, toIdText]);
+
   // -- Admin View Logic --
-  const attendanceData = isAdmin ? allAttendance : userAttendance;
+  const attendanceData = isAdmin ? combinedAttendanceList : userAttendance;
   
   const myPendingTasks = useMemo(() => {
     return allTasks.filter(t => {
@@ -635,10 +671,15 @@ export default function AttendanceModule({ userProfile }) {
 
   // -- User/Mobile View Logic --
   const todayStr = format(currentTime, 'yyyy-MM-dd');
-  const todayRecord = userAttendance.find(r => {
-    const aDate = normalizeAttendanceDate(r);
-    return aDate === todayStr || (typeof r.date === 'string' && r.date.startsWith(todayStr));
-  });
+  const todayRecord = useMemo(() => {
+    const source = combinedAttendanceList;
+    return source.find(r => {
+      const matchesMe = matchesEmployee(r, userProfile) || (staffIdStr && toIdText(r.userId) === staffIdStr);
+      if (!matchesMe) return false;
+      const aDate = normalizeAttendanceDate(r);
+      return aDate === todayStr || (typeof r.date === 'string' && r.date.startsWith(todayStr));
+    });
+  }, [combinedAttendanceList, userProfile, staffIdStr, matchesEmployee, normalizeAttendanceDate, todayStr, toIdText]);
   const isCheckedIn = !!todayRecord;
   const isCheckedOut = todayRecord && !!getCheckOutTime(todayRecord);
   const isTodayLate = todayRecord && isLateStatus(todayRecord.status);

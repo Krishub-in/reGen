@@ -187,19 +187,39 @@ export const createMockActor = (identity) => {
 
     getAllAttendance: async () => {
         const all = getDb('db_attendance', []);
-        return all.map((a) => ({
-            ...a,
-            userId: Principal.fromText(a.userId)
-        }));
+        return all.map((a) => {
+            let uid = a.userId;
+            try {
+                if (typeof a.userId === 'string' && a.userId.includes('-')) uid = Principal.fromText(a.userId);
+            } catch {
+                uid = a.userId;
+            }
+            return {
+                ...a,
+                userId: uid
+            };
+        });
     },
     getUserAttendance: async (userId) => {
         const all = getDb('db_attendance', []);
+        const targetStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : String(userId || ''));
         return all
-            .filter((a) => a.userId === userId.toText())
-            .map((a) => ({
-                ...a,
-                userId: Principal.fromText(a.userId)
-            }));
+            .filter((a) => {
+                const aStr = typeof a.userId === 'string' ? a.userId : (a.userId?.toText ? a.userId.toText() : String(a.userId || ''));
+                return aStr === targetStr;
+            })
+            .map((a) => {
+                let uid = a.userId;
+                try {
+                    if (typeof a.userId === 'string' && a.userId.includes('-')) uid = Principal.fromText(a.userId);
+                } catch {
+                    uid = a.userId;
+                }
+                return {
+                    ...a,
+                    userId: uid
+                };
+            });
     },
     recordAttendance: async (attendance) => {
         const all = getDb('db_attendance', []);
