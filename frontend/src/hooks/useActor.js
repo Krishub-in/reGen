@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useCustomAuth } from './useCustomAuth';
 import { Principal } from '@dfinity/principal';
-import { hasUserRole } from '../lib/utils';
+import { hasUserRole, safeRandomUUID } from '../lib/utils';
 
 // Helper to handle BigInt serialization
 const JSON_stringify = (data) => {
@@ -430,10 +430,16 @@ const safePrincipal = (id) => {
 };
 
 export const createHttpActor = (identity) => {
-  const principalId = localStorage.getItem('current_user') || identity.getPrincipal().toText();
+  const principalId = localStorage.getItem('current_user') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '') || 'anonymous';
   const API_BASE = '/api';
 
-  const getAuthToken = () => localStorage.getItem('auth_token');
+  const getAuthToken = () => {
+    try {
+      return localStorage.getItem('auth_token') || localStorage.getItem('sa_auth_token') || '';
+    } catch {
+      return '';
+    }
+  };
 
     const toIsoDate = (value) => {
         if (!value) return undefined;
@@ -456,13 +462,33 @@ export const createHttpActor = (identity) => {
 
   const getHeaders = () => {
     const token = getAuthToken();
-    const pid = localStorage.getItem('current_user') || identity.getPrincipal().toText();
+    let pid = '';
+    try {
+      pid = localStorage.getItem('current_user') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '');
+    } catch {
+      pid = '';
+    }
     return {
       'Content-Type': 'application/json',
-      'x-user-id': pid,
+      'x-user-id': pid || 'anonymous',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
   };
+
+  const headers = new Proxy({}, {
+    get: (_target, prop) => getHeaders()[prop],
+    has: (_target, prop) => prop in getHeaders(),
+    ownKeys: () => Object.keys(getHeaders()),
+    getOwnPropertyDescriptor: (_target, prop) => {
+      const h = getHeaders();
+      return prop in h ? {
+        value: h[prop],
+        writable: false,
+        enumerable: true,
+        configurable: true
+      } : undefined;
+    }
+  });
 
   const handleResponse = async (res) => {
     if (res.status === 503) {
@@ -1006,12 +1032,19 @@ export const createHttpActor = (identity) => {
                 : (leave.userId?.toText ? leave.userId.toText() : (
                     (typeof leave.displayId === 'string' && leave.displayId)
                         ? leave.displayId
-                        : (leave.displayId?.toText ? leave.displayId.toText() : '')
+                        : (leave.displayId?.toText ? leave.displayId.toText() : (localStorage.getItem('current_user') || ''))
                 ));
         if (!uid) throw new Error('userId is required for leave requests');
         const payload = {
-            ...leave,
-            userId: uid
+            id: leave.id || safeRandomUUID(),
+            userId: uid,
+            displayId: leave.displayId || uid,
+            type: leave.type || 'casual',
+            startDate: leave.startDate,
+            endDate: leave.endDate,
+            reason: leave.reason || '',
+            status: leave.status || 'pending',
+            createdAt: leave.createdAt || new Date().toISOString()
         };
         return handleResponse(await fetch(`${API_BASE}/leaves`, {
             method: 'POST',

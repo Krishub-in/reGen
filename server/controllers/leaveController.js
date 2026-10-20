@@ -1,9 +1,13 @@
 import Leave from '../models/Leave.js';
+import mongoose from 'mongoose';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
 
 export const createLeave = async (req, res) => {
   try {
     const body = { ...req.body };
+    if (!body.id) body.id = new mongoose.Types.ObjectId().toString();
+    if (!body.createdAt) body.createdAt = new Date().toISOString();
+    if (!body.status) body.status = 'pending';
     body.companyId = await resolveCompanyId(req, body);
     const leave = new Leave(body);
     await leave.save();
@@ -37,7 +41,7 @@ export const getUserLeaves = async (req, res) => {
 export const updateLeaveStatus = async (req, res) => {
   try {
     const id = req.params.id;
-    const filter = { id };
+    const filter = mongoose.isValidObjectId(id) ? { $or: [{ id }, { _id: id }] } : { id };
     if (req.companyId) filter.companyId = req.companyId;
     const leave = await Leave.findOneAndUpdate(filter, { status: req.body.status }, { new: true });
     if (!leave) return res.status(404).json({ message: 'Leave not found' });

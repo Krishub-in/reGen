@@ -1,10 +1,12 @@
 import Attendance from '../models/Attendance.js';
+import mongoose from 'mongoose';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
 import { emitToCompany, emitToUser, getIO } from '../socket.js';
 
 export const recordAttendance = async (req, res) => {
   try {
     const body = { ...req.body };
+    if (!body.id) body.id = new mongoose.Types.ObjectId().toString();
     const validStatuses = ['present', 'absent', 'late', 'half_day'];
     if (body.status && typeof body.status === 'object') {
       body.status = Object.keys(body.status)[0];
@@ -55,7 +57,7 @@ export const getUserAttendance = async (req, res) => {
 export const updateAttendance = async (req, res) => {
   try {
     const id = req.body.id || req.params.id;
-    const filter = { id };
+    const filter = mongoose.isValidObjectId(id) ? { $or: [{ id }, { _id: id }] } : { id };
     if (req.companyId) filter.companyId = req.companyId;
     const updateData = { ...req.body };
     const validStatuses = ['present', 'absent', 'late', 'half_day'];

@@ -496,8 +496,6 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       return;
     }
 
-    if (!identity) return;
-
     try {
       // Validate dates
       if (!leaveForm.startDate || !leaveForm.endDate) {
@@ -523,9 +521,14 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       }
 
       // Get the current user's ID
-      const uid = (typeof userProfile.userId === 'string' && userProfile.userId)
+      const uid = (typeof userProfile?.userId === 'string' && userProfile?.userId)
         ? userProfile.userId
-        : (userProfile.id?.toText ? userProfile.id.toText() : String(userProfile.id));
+        : (userProfile?.id?.toText ? userProfile.id.toText() : (userProfile?.id ? String(userProfile.id) : (userProfile?.username || localStorage.getItem('current_user') || '')));
+
+      if (!uid) {
+        toast.error('User identification failed. Please log in again.');
+        return;
+      }
 
       // Build set of unavailable dates (holidays + approved leaves)
       const unavailableDates = new Set();

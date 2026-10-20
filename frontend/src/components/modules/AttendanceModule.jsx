@@ -122,7 +122,7 @@ export default function AttendanceModule({ userProfile }) {
   // Queries
   const { data: allAttendance = [] } = useGetAllAttendance();
   const { data: userAttendance = [] } = useGetUserAttendance(staffIdObj || null);
-  const { data: myLeaves = [] } = useGetUserLeaveRequests(identity?.getPrincipal() || null);
+  const { data: myLeaves = [] } = useGetUserLeaveRequests(staffIdStr || (userProfile?.userId || userProfile?.id) || null);
   const { data: allLeaves = [] } = useGetAllLeaveRequests();
   const applyLeave = useApplyLeave();
   const updateLeaveReq = useUpdateLeaveRequest();
@@ -390,6 +390,17 @@ export default function AttendanceModule({ userProfile }) {
     });
     return Array.from(map.values());
   }, [allAttendance, userAttendance, normalizeAttendanceDate, toIdText]);
+
+  // Dynamic user-specific attendance history sorted with newest records first
+  const myAttendanceHistory = useMemo(() => {
+    return (combinedAttendanceList || [])
+      .filter(r => matchesEmployee(r, userProfile) || (staffIdStr && toIdText(r.userId) === staffIdStr))
+      .sort((a, b) => {
+        const timeA = new Date(getCheckInTime(a) || a.date || 0).getTime();
+        const timeB = new Date(getCheckInTime(b) || b.date || 0).getTime();
+        return timeB - timeA;
+      });
+  }, [combinedAttendanceList, userProfile, staffIdStr, matchesEmployee, toIdText, getCheckInTime]);
 
   // -- Admin View Logic --
   const attendanceData = isAdmin ? combinedAttendanceList : userAttendance;
@@ -702,7 +713,14 @@ export default function AttendanceModule({ userProfile }) {
       toast.error('Please login first');
       return;
     }
-    if (isCheckingIn || isCheckedIn) return;
+    if (isCheckedOut) {
+      toast.info('You have already completed your shift today. Check-in will reopen tomorrow.');
+      return;
+    }
+    if (isCheckingIn || isCheckedIn) {
+      toast.info('You are already checked in for today.');
+      return;
+    }
 
     setIsCheckingIn(true);
 
@@ -839,7 +857,7 @@ export default function AttendanceModule({ userProfile }) {
                 "w-2 h-2 rounded-full",
                 isCheckedIn && !isCheckedOut ? (isTodayLate ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse") : isCheckedOut ? "bg-purple-500" : "bg-muted-foreground"
               )} />
-              {isCheckedIn && !isCheckedOut ? (isTodayLate ? "Clocked In (Late)" : "Clocked In & Active") : isCheckedOut ? "Shift Completed" : "Not Clocked In"}
+              {isCheckedIn && !isCheckedOut ? (isTodayLate ? "Clocked In (Late)" : "Clocked In & Active") : isCheckedOut ? "Shift Completed (Reopens Tomorrow)" : "Not Clocked In"}
             </span>
           </div>
         </div>
@@ -938,10 +956,10 @@ export default function AttendanceModule({ userProfile }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
           {/* Check In Action Card */}
           <div
-            onClick={!isCheckedIn && !isCheckingIn ? handleCheckIn : undefined}
+            onClick={!isCheckedIn && !isCheckedOut && !isCheckingIn ? handleCheckIn : isCheckedOut ? () => toast.info('Shift completed for today. Check-in reopens tomorrow.') : undefined}
             className={cn(
               "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
-              isCheckedIn
+              isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-emerald-500/50 hover:shadow-md cursor-pointer group"
             )}
@@ -949,9 +967,15 @@ export default function AttendanceModule({ userProfile }) {
             <div className="flex items-center gap-4">
               <div className={cn(
                 "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
-                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white"
+                isCheckedOut
+                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                  : isCheckedIn
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white"
               )}>
-                {isCheckingIn ? (
+                {isCheckedOut ? (
+                  <CheckCircle className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                ) : isCheckingIn ? (
                   <div className="h-6 w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <LogIn className="h-7 w-7" />
@@ -959,31 +983,39 @@ export default function AttendanceModule({ userProfile }) {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-foreground">
-                  {isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
+                  {isCheckedOut ? 'Shift Completed Today' : isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {isCheckedIn ? `Punched in at ${formatTime(getCheckInTime(todayRecord))}` : 'Tap here to mark your arrival for today'}
+                  {isCheckedOut
+                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Check-in reopens tomorrow`
+                    : isCheckedIn
+                    ? `Punched in at ${formatTime(getCheckInTime(todayRecord))}`
+                    : 'Tap here to mark your arrival for today'}
                 </p>
               </div>
             </div>
             <Button
-              disabled={isCheckedIn || isCheckingIn}
+              disabled={isCheckedIn || isCheckedOut || isCheckingIn}
               onClick={(e) => {
                 e.stopPropagation();
-                if (!isCheckedIn && !isCheckingIn) handleCheckIn();
+                if (!isCheckedIn && !isCheckedOut && !isCheckingIn) handleCheckIn();
               }}
               className={cn(
                 "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
-                isCheckedIn ? "bg-muted text-muted-foreground" : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                isCheckedOut
+                  ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
+                  : isCheckedIn
+                  ? "bg-muted text-muted-foreground cursor-default"
+                  : "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
               )}
             >
-              {isCheckingIn ? 'Saving...' : isCheckedIn ? 'Done' : 'Check In'}
+              {isCheckedOut ? 'Completed' : isCheckingIn ? 'Saving...' : isCheckedIn ? 'Done' : 'Check In'}
             </Button>
           </div>
 
           {/* Check Out Action Card */}
           <div
-            onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : undefined}
+            onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : isCheckedOut ? () => toast.info('Shift already completed. Reopens tomorrow.') : undefined}
             className={cn(
               "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
               !isCheckedIn || isCheckedOut
@@ -994,9 +1026,15 @@ export default function AttendanceModule({ userProfile }) {
             <div className="flex items-center gap-4">
               <div className={cn(
                 "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
-                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-500/10 text-red-600 dark:text-red-400 group-hover:bg-red-500 group-hover:text-white"
+                isCheckedOut
+                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                  : !isCheckedIn
+                  ? "bg-muted text-muted-foreground"
+                  : "bg-red-500/10 text-red-600 dark:text-red-400 group-hover:bg-red-500 group-hover:text-white"
               )}>
-                {isCheckingOut ? (
+                {isCheckedOut ? (
+                  <CheckCircle className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                ) : isCheckingOut ? (
                   <div className="h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
                   <LogOut className="h-7 w-7" />
@@ -1004,11 +1042,11 @@ export default function AttendanceModule({ userProfile }) {
               </div>
               <div>
                 <h3 className="text-lg font-bold text-foreground">
-                  {isCheckingOut ? 'Checking Out...' : isCheckedOut ? 'Checked Out' : 'Check Out'}
+                  {isCheckedOut ? 'Shift Completed' : isCheckingOut ? 'Checking Out...' : 'Check Out'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {isCheckedOut
-                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))}`
+                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Reopens tomorrow`
                     : isCheckedIn
                     ? 'Tap here when you finish your shift'
                     : 'Check in required first'}
@@ -1023,10 +1061,14 @@ export default function AttendanceModule({ userProfile }) {
               }}
               className={cn(
                 "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
-                !isCheckedIn || isCheckedOut ? "bg-muted text-muted-foreground" : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                isCheckedOut
+                  ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
+                  : !isCheckedIn
+                  ? "bg-muted text-muted-foreground cursor-default"
+                  : "bg-red-600 hover:bg-red-700 text-white cursor-pointer"
               )}
             >
-              {isCheckingOut ? 'Saving...' : isCheckedOut ? 'Done' : 'Check Out'}
+              {isCheckedOut ? 'Completed' : isCheckingOut ? 'Saving...' : 'Check Out'}
             </Button>
           </div>
         </div>
@@ -1061,7 +1103,7 @@ export default function AttendanceModule({ userProfile }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(showAllHistory ? userAttendance : userAttendance.slice(0, 8)).map((record) => {
+                  {(showAllHistory ? myAttendanceHistory : myAttendanceHistory.slice(0, 8)).map((record) => {
                     const inTime = getCheckInTime(record);
                     const outTime = getCheckOutTime(record);
                     const durationStr = calculateDuration(inTime, outTime, true);
@@ -1111,7 +1153,7 @@ export default function AttendanceModule({ userProfile }) {
                       </TableRow>
                     );
                   })}
-                  {userAttendance.length === 0 && (
+                  {myAttendanceHistory.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
                         No previous attendance records recorded yet.
