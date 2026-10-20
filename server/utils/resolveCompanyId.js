@@ -23,7 +23,7 @@ export async function resolveCompanyId(req, body) {
   if (body.companyId) return body.companyId;
 
   // 2. Try to derive from a user reference in the body
-  const targetUserId = body.assignedTo || body.userId || body.senderId;
+  const targetUserId = body.assignedTo || body.userId || body.senderId || body.recipientId;
   if (targetUserId) {
     const user = await User.findOne({ userId: targetUserId }).select('companyId').lean();
     if (user?.companyId) return user.companyId;

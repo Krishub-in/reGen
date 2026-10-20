@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const directMessageSchema = new mongoose.Schema({
   conversationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conversation', required: true, index: true },
-  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
+  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: false, index: true },
   senderId: { type: String, required: true },
   senderName: { type: String },
   // E2E encrypted content (base64 ciphertext) — server cannot read it
