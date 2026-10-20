@@ -88,47 +88,116 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   }, [activeCompanyEmployees]);
   const totalDepartments = departmentsList.length;
 
-  const myIdStr = toIdText(currentUserId);
+  const myIds = useMemo(() => {
+    const list = [
+      toIdText(userProfile?.userId),
+      toIdText(userProfile?.id),
+      toIdText(userProfile?._id),
+      toIdText(userProfile?.username),
+      toIdText(userProfile?.staffId),
+      toIdText(userProfile?.StaffId),
+      toIdText(identity?.getPrincipal()),
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
+    return new Set(list);
+  }, [userProfile, identity, toIdText]);
+
+  const isMyAttendance = useCallback((a) => {
+    if (!a) return false;
+    const aId = toIdText(a.userId || a.id).toLowerCase().trim();
+    if (!aId) return false;
+    return myIds.has(aId);
+  }, [myIds, toIdText]);
+
+  const matchesEmployee = useCallback((a, u) => {
+    if (!a || !u) return false;
+    const aId = toIdText(a.userId || a.id).toLowerCase().trim();
+    if (!aId) return false;
+
+    const uIds = [
+      toIdText(u.userId),
+      toIdText(u.id),
+      toIdText(u._id),
+      toIdText(u.username),
+      toIdText(u.staffId),
+      toIdText(u.StaffId),
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
+
+    return uIds.includes(aId);
+  }, [toIdText]);
+
+  // Safely extract string status even if Candid variant object like { present: null } or { late: null }
+  const getAttendanceStatus = useCallback((status) => {
+    if (!status) return 'present';
+    if (typeof status === 'string') return status.toLowerCase().trim();
+    if (typeof status === 'object') {
+      const key = Object.keys(status)[0];
+      return (key || 'present').toLowerCase().trim();
+    }
+    return String(status).toLowerCase().trim();
+  }, []);
+
+  const isPresentStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'present' || s === 'half_day' || s === 'halfday';
+  }, [getAttendanceStatus]);
+
+  const isLateStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'late';
+  }, [getAttendanceStatus]);
+
+  const isAbsentStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'absent';
+  }, [getAttendanceStatus]);
+
+  // Robust date extractor from string, ISO, number or Motoko BigInt nanoseconds
+  const normalizeAttendanceDate = useCallback((a) => {
+    const raw = a?.date || a?.checkIn || a?.createdAt;
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+      if (raw.includes('T')) return raw.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      return raw.trim();
+    }
+    if (typeof raw === 'number' || typeof raw === 'bigint') {
+      const num = Number(raw);
+      const ms = num > 1e14 ? num / 1e6 : (num > 1e11 ? num : num * 1000);
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    if (raw instanceof Date) {
+      return raw.toISOString().split('T')[0];
+    }
+    return '';
+  }, []);
 
   // Real Today's Attendance Stats
   const todayDate = new Date().toISOString().split('T')[0];
   const todayAttendance = useMemo(() => {
-    return allAttendance.filter(a => {
-      if (!a.date) return false;
-      const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
-      return aDate === todayDate;
-    });
-  }, [allAttendance, todayDate]);
+    const source = allAttendance.length > 0 ? allAttendance : attendance;
+    return source.filter(a => normalizeAttendanceDate(a) === todayDate);
+  }, [allAttendance, attendance, todayDate, normalizeAttendanceDate]);
 
   const activeUsersToday = useMemo(() => {
-    const presentUsers = todayAttendance
-      .filter(a => a.status === 'present' || a.status === 'late' || a.status === 'half_day')
-      .map(a => toIdText(a.userId));
-    const matched = employeeIdSet.size > 0
-      ? presentUsers.filter(id => employeeIdSet.has(id))
-      : presentUsers;
-    return new Set(matched).size;
-  }, [todayAttendance, employeeIdSet, toIdText]);
+    const presentRecords = todayAttendance.filter(a => isPresentStatus(a.status) || isLateStatus(a.status));
+    if (activeCompanyEmployees.length === 0) return presentRecords.length;
+    return activeCompanyEmployees.filter(u => presentRecords.some(a => matchesEmployee(a, u))).length;
+  }, [todayAttendance, activeCompanyEmployees, matchesEmployee, isPresentStatus, isLateStatus]);
 
   // Today's check-in status for user dashboard
   const userTodayStatus = useMemo(() => {
-    const source = allAttendance.length > 0 ? allAttendance : attendance;
-    const todayRec = source.find(a => {
-      if (!a.date) return false;
-      const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
-      return aDate === todayDate && toIdText(a.userId) === myIdStr;
-    });
-    if (!todayRec) return 'Not Checked In';
-    if (todayRec.status === 'present') return 'Present';
-    if (todayRec.status === 'late') return 'Late';
-    if (todayRec.status === 'half_day') return 'Half Day';
-    if (todayRec.status === 'absent') return 'Absent';
-    return 'Checked In';
-  }, [allAttendance, attendance, todayDate, myIdStr, toIdText]);
+    const myTodayRec = todayAttendance.find(a => isMyAttendance(a));
+    if (!myTodayRec) return 'Not Checked In';
+    if (isPresentStatus(myTodayRec.status)) return 'Present';
+    if (isLateStatus(myTodayRec.status)) return 'Late';
+    if (isAbsentStatus(myTodayRec.status)) return 'Absent';
+    return 'Present';
+  }, [todayAttendance, isMyAttendance, isPresentStatus, isLateStatus, isAbsentStatus]);
 
   // Dynamic Attendance Breakdown (Present, Absent, Late, Rate) for Week, Month, Year
-  // - In Company dashboard: calculates across ALL company employees (excluding owner)
-  // - In User dashboard: calculates specifically for THAT employee
   const rateBreakdown = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -169,49 +238,52 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     }
 
     const targetDatesSet = new Set(targetDates);
-    const totalWorkingDays = targetDates.length || 1;
+    const sourceAttendance = allAttendance.length > 0 ? allAttendance : attendance;
 
     if (isCompanyLogin) {
       // Company view: all non-owner employees
-      const relevantRecords = allAttendance.filter(a => {
-        if (!a.date) return false;
-        const dIso = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+      const relevantRecords = sourceAttendance.filter(a => {
+        const dIso = normalizeAttendanceDate(a);
         if (!targetDatesSet.has(dIso)) return false;
-        const uid = toIdText(a.userId);
-        return employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true;
+        if (activeCompanyEmployees.length === 0) return true;
+        return activeCompanyEmployees.some(u => matchesEmployee(a, u));
       });
 
-      const present = relevantRecords.filter(r => r.status === 'present' || r.status === 'half_day').length;
-      const late = relevantRecords.filter(r => r.status === 'late').length;
+      const present = relevantRecords.filter(r => isPresentStatus(r.status)).length;
+      const late = relevantRecords.filter(r => isLateStatus(r.status)).length;
       const attended = present + late;
-      const totalExpected = (totalEmployeesCount || 1) * totalWorkingDays;
-      const absent = Math.max(0, totalExpected - attended);
-      const rate = totalExpected > 0 ? Math.min(100, Math.round((attended / totalExpected) * 100)) : 0;
+      const explicitAbsent = relevantRecords.filter(r => isAbsentStatus(r.status)).length;
+      
+      const totalExpected = (totalEmployeesCount || 1) * targetDates.length;
+      const absent = explicitAbsent > 0 ? explicitAbsent : Math.max(0, totalExpected - attended);
+      const totalBasis = Math.max(attended + absent, totalExpected);
+      const rate = totalBasis > 0 ? Math.min(100, Math.round((attended / totalBasis) * 100)) : 0;
 
       return { present, absent, late, rate };
     } else {
       // User view: only this employee
-      const mySourceAttendance = allAttendance.length > 0 ? allAttendance : attendance;
-      const myRecords = mySourceAttendance.filter(a => {
-        const uid = toIdText(a.userId);
-        return uid === myIdStr;
-      });
+      const myRecords = sourceAttendance.filter(a => isMyAttendance(a));
 
       const recordsInRange = myRecords.filter(a => {
-        if (!a.date) return false;
-        const dIso = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
+        const dIso = normalizeAttendanceDate(a);
         return targetDatesSet.has(dIso);
       });
 
-      const present = recordsInRange.filter(r => r.status === 'present' || r.status === 'half_day').length;
-      const late = recordsInRange.filter(r => r.status === 'late').length;
+      const present = recordsInRange.filter(r => isPresentStatus(r.status)).length;
+      const late = recordsInRange.filter(r => isLateStatus(r.status)).length;
       const attended = present + late;
-      const absent = Math.max(0, totalWorkingDays - attended);
-      const rate = totalWorkingDays > 0 ? Math.min(100, Math.round((attended / totalWorkingDays) * 100)) : 0;
+      const explicitAbsent = recordsInRange.filter(r => isAbsentStatus(r.status)).length;
+      const absent = explicitAbsent > 0 ? explicitAbsent : Math.max(0, targetDates.length - attended);
+      const totalBasis = Math.max(attended + absent, targetDates.length);
+      const rate = totalBasis > 0 ? Math.min(100, Math.round((attended / totalBasis) * 100)) : 0;
 
       return { present, absent, late, rate };
     }
-  }, [trendRange, isCompanyLogin, allAttendance, attendance, employeeIdSet, totalEmployeesCount, myIdStr, toIdText]);
+  }, [
+    trendRange, isCompanyLogin, allAttendance, attendance, 
+    activeCompanyEmployees, totalEmployeesCount, matchesEmployee, 
+    isMyAttendance, isPresentStatus, isLateStatus, isAbsentStatus, normalizeAttendanceDate
+  ]);
 
   // Real Attendance Trend computed from actual records
   const trendData = useMemo(() => {
@@ -223,11 +295,11 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const sourceRecords = isCompanyLogin
-      ? allAttendance.filter(a => {
-          const uid = toIdText(a.userId);
-          return employeeIdSet.size > 0 ? employeeIdSet.has(uid) : true;
+      ? (allAttendance.length > 0 ? allAttendance : attendance).filter(a => {
+          if (activeCompanyEmployees.length === 0) return true;
+          return activeCompanyEmployees.some(u => matchesEmployee(a, u));
         })
-      : (allAttendance.length > 0 ? allAttendance : attendance).filter(a => toIdText(a.userId) === myIdStr);
+      : (allAttendance.length > 0 ? allAttendance : attendance).filter(a => isMyAttendance(a));
 
     const divisor = isCompanyLogin ? (totalEmployeesCount || 1) : 1;
 
@@ -237,20 +309,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       d.setDate(startOfWeek.getDate() + i);
       const dIso = d.toISOString().split('T')[0];
 
-      const recordsOnDay = sourceRecords.filter(a => {
-        if (!a.date) return false;
-        const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0];
-        return aDate === dIso;
-      });
-
-      const attendedCount = isCompanyLogin
-        ? new Set(
-            recordsOnDay
-              .filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day')
-              .map(r => toIdText(r.userId))
-          ).size
-        : recordsOnDay.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
-
+      const recordsOnDay = sourceRecords.filter(a => normalizeAttendanceDate(a) === dIso);
+      const attendedCount = recordsOnDay.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
       const rate = Math.min(100, Math.round((attendedCount / divisor) * 100));
       return { name, rate, date: dIso, present: attendedCount };
     });
@@ -268,17 +328,16 @@ export default function DashboardHome({ userProfile, onNavigate }) {
 
     const monthList = monthWeeks.map(w => {
       const recordsInWeek = sourceRecords.filter(a => {
-        if (!a.date) return false;
-        const d = new Date(a.date);
+        const dIso = normalizeAttendanceDate(a);
+        if (!dIso) return false;
+        const d = new Date(dIso);
         return d.getFullYear() === year && d.getMonth() === month && d.getDate() >= w.start && d.getDate() <= w.end;
       });
 
-      const dateSet = new Set(
-        recordsInWeek.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
-      );
+      const dateSet = new Set(recordsInWeek.map(a => normalizeAttendanceDate(a)));
       const totalPossible = (dateSet.size || 1) * divisor;
 
-      const attended = recordsInWeek.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
+      const attended = recordsInWeek.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
       const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
       return { name: w.name, rate };
     });
@@ -293,17 +352,16 @@ export default function DashboardHome({ userProfile, onNavigate }) {
 
     const yearList = quarters.map(q => {
       const recordsInQuarter = sourceRecords.filter(a => {
-        if (!a.date) return false;
-        const d = new Date(a.date);
+        const dIso = normalizeAttendanceDate(a);
+        if (!dIso) return false;
+        const d = new Date(dIso);
         return d.getFullYear() === year && q.months.includes(d.getMonth());
       });
 
-      const dateSet = new Set(
-        recordsInQuarter.map(a => typeof a.date === 'string' ? a.date.split('T')[0] : new Date(a.date).toISOString().split('T')[0])
-      );
+      const dateSet = new Set(recordsInQuarter.map(a => normalizeAttendanceDate(a)));
       const totalPossible = (dateSet.size || 1) * divisor;
 
-      const attended = recordsInQuarter.filter(r => r.status === 'present' || r.status === 'late' || r.status === 'half_day').length;
+      const attended = recordsInQuarter.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
       const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
       return { name: q.name, rate };
     });
@@ -313,7 +371,10 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       month: monthList,
       year: yearList,
     };
-  }, [allAttendance, attendance, isCompanyLogin, totalEmployeesCount, employeeIdSet, myIdStr, toIdText]);
+  }, [
+    allAttendance, attendance, isCompanyLogin, totalEmployeesCount, 
+    activeCompanyEmployees, matchesEmployee, isMyAttendance, isPresentStatus, isLateStatus, normalizeAttendanceDate
+  ]);
 
   const currentTrendData = trendData[trendRange] || trendData.week;
 
