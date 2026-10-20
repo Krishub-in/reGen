@@ -434,10 +434,14 @@ export const createHttpActor = (identity) => {
         return undefined;
     };
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'x-user-id': principalId,
-    ...(getAuthToken() ? { 'Authorization': `Bearer ${getAuthToken()}` } : {})
+  const getHeaders = () => {
+    const token = getAuthToken();
+    const pid = localStorage.getItem('current_user') || identity.getPrincipal().toText();
+    return {
+      'Content-Type': 'application/json',
+      'x-user-id': pid,
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    };
   };
 
   const handleResponse = async (res) => {
@@ -455,7 +459,7 @@ export const createHttpActor = (identity) => {
   };
   const fetchJson = async (url, fallback = []) => {
     try {
-      const res = await fetch(url, { headers });
+      const res = await fetch(url, { headers: getHeaders() });
       return await handleResponse(res);
     } catch (e) {
       const msg = String(e?.message || '').toLowerCase();
@@ -481,27 +485,40 @@ export const createHttpActor = (identity) => {
 
   return {
     getCallerUserProfile: async () => {
-            try {
-                const me = await handleResponse(await fetch(`${API_BASE}/users/me`, { headers }));
-                if (!me) return null;
-                return {
-                    ...me,
-                    avatar: normalizeAvatar(me.avatar),
-                    role: typeof me.role === 'string' ? { [me.role]: null } : me.role,
-                    salary: me.salary ? BigInt(me.salary) : undefined
-                };
-            } catch {
-                // fallback for legacy paths
-                const users = await fetchJson(`${API_BASE}/users`, []);
-                const user = users.find((u) => u.userId === principalId || u.username === principalId);
-                if (!user) return null;
-                return {
-                    ...user,
-                    avatar: normalizeAvatar(user.avatar),
-                    role: typeof user.role === 'string' ? { [user.role]: null } : user.role,
-                    salary: user.salary ? BigInt(user.salary) : undefined
-                };
-            }
+      try {
+        const res = await fetch(`${API_BASE}/users/me`, { headers: getHeaders() });
+        if (res.status === 401 || res.status === 403) {
+          throw new Error('Invalid session. Please login again.');
+        }
+        const me = await handleResponse(res);
+        if (!me) return null;
+        return {
+          ...me,
+          avatar: normalizeAvatar(me.avatar),
+          role: typeof me.role === 'string' ? { [me.role]: null } : me.role,
+          salary: me.salary ? BigInt(me.salary) : undefined
+        };
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        if (msg.includes('invalid session') || msg.includes('token') || msg.includes('unauthorized') || msg.includes('access token required')) {
+          throw err;
+        }
+        // fallback for legacy paths if not an auth error
+        try {
+          const users = await fetchJson(`${API_BASE}/users`, []);
+          const pid = localStorage.getItem('current_user') || identity.getPrincipal().toText();
+          const user = users.find((u) => u.userId === pid || u.username === pid);
+          if (!user) return null;
+          return {
+            ...user,
+            avatar: normalizeAvatar(user.avatar),
+            role: typeof user.role === 'string' ? { [user.role]: null } : user.role,
+            salary: user.salary ? BigInt(user.salary) : undefined
+          };
+        } catch {
+          throw err;
+        }
+      }
     },
     saveCallerUserProfile: async (profile) => {
       // Resolve stored staff ID first
