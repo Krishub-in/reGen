@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer } from 'lucide-react';
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { Principal } from '@dfinity/principal';
@@ -19,6 +20,74 @@ export default function AttendanceModule({ userProfile }) {
   
   const staffIdObj = userProfile.userId || userProfile.id || identity?.getPrincipal() || null;
   const staffIdStr = typeof staffIdObj === 'string' ? staffIdObj : (staffIdObj?.toText ? staffIdObj.toText() : String(staffIdObj || ''));
+
+  // Default Work Schedule: 09:30 AM to 06:30 PM, 5 Days/week, 8 Working Hours
+  const DEFAULT_SCHEDULE = useMemo(() => ({
+    checkInTime: '09:30',
+    checkOutTime: '18:30',
+    daysPerWeek: '5',
+    workingHours: '8',
+    graceMinutes: '0',
+  }), []);
+
+  const getCompanyScheduleKey = useCallback(() => {
+    const compId = userProfile?.companyId || userProfile?.tenantId || 'global';
+    return `company_work_schedule_${compId}`;
+  }, [userProfile]);
+
+  const [workSchedule, setWorkSchedule] = useState(() => {
+    try {
+      const key = `company_work_schedule_${userProfile?.companyId || userProfile?.tenantId || 'global'}`;
+      const saved = localStorage.getItem(key) || localStorage.getItem('company_work_schedule');
+      if (saved) return { checkInTime: '09:30', checkOutTime: '18:30', daysPerWeek: '5', workingHours: '8', graceMinutes: '0', ...JSON.parse(saved) };
+    } catch (e) {
+      console.warn('Failed to parse work schedule:', e);
+    }
+    return {
+      checkInTime: '09:30',
+      checkOutTime: '18:30',
+      daysPerWeek: '5',
+      workingHours: '8',
+      graceMinutes: '0',
+    };
+  });
+
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState(workSchedule);
+
+  // Sync schedule if updated elsewhere
+  useEffect(() => {
+    const handleScheduleUpdate = () => {
+      try {
+        const key = getCompanyScheduleKey();
+        const saved = localStorage.getItem(key) || localStorage.getItem('company_work_schedule');
+        if (saved) {
+          const parsed = { ...DEFAULT_SCHEDULE, ...JSON.parse(saved) };
+          setWorkSchedule(parsed);
+          setScheduleForm(parsed);
+        }
+      } catch (e) {
+        console.warn('Error reading updated schedule', e);
+      }
+    };
+    window.addEventListener('company_work_schedule_updated', handleScheduleUpdate);
+    return () => window.removeEventListener('company_work_schedule_updated', handleScheduleUpdate);
+  }, [getCompanyScheduleKey, DEFAULT_SCHEDULE]);
+
+  const handleSaveSchedule = (e) => {
+    e?.preventDefault?.();
+    try {
+      const key = getCompanyScheduleKey();
+      localStorage.setItem(key, JSON.stringify(scheduleForm));
+      localStorage.setItem('company_work_schedule', JSON.stringify(scheduleForm));
+      setWorkSchedule(scheduleForm);
+      window.dispatchEvent(new Event('company_work_schedule_updated'));
+      setIsScheduleModalOpen(false);
+      toast.success('Work schedule updated successfully!');
+    } catch (err) {
+      toast.error('Failed to save schedule');
+    }
+  };
 
   // Queries
   const { data: allAttendance = [] } = useGetAllAttendance();
@@ -62,6 +131,129 @@ export default function AttendanceModule({ userProfile }) {
     return () => clearInterval(timer);
   }, []);
 
+  // Robust Helpers
+  const toIdText = useCallback((val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val.toText) return val.toText();
+    return String(val);
+  }, []);
+
+  const isOwnerRole = useCallback((role) => {
+    if (!role) return false;
+    const r = typeof role === 'string' ? role.toLowerCase() : Object.keys(role || {})[0]?.toLowerCase() || '';
+    return r === 'owner' || r === 'superadmin' || r === 'param';
+  }, []);
+
+  // Filter employees excluding the owner
+  const activeEmployees = useMemo(() => {
+    return users.filter(u => !isOwnerRole(u.role));
+  }, [users, isOwnerRole]);
+
+  const getUserDetails = useCallback((principalId) => {
+    if (!principalId) return null;
+    const pid = toIdText(principalId).toLowerCase().trim();
+    return users.find(u => {
+      const uIds = [
+        toIdText(u.userId),
+        toIdText(u.id),
+        toIdText(u._id),
+        toIdText(u.username),
+        toIdText(u.staffId),
+        toIdText(u.StaffId),
+      ].map(s => s.toLowerCase().trim()).filter(Boolean);
+      return uIds.includes(pid);
+    });
+  }, [users, toIdText]);
+
+  const matchesEmployee = useCallback((record, user) => {
+    if (!record || !user) return false;
+    const rId = toIdText(record.userId || record.id).toLowerCase().trim();
+    if (!rId) return false;
+    const uIds = [
+      toIdText(user.userId),
+      toIdText(user.id),
+      toIdText(user._id),
+      toIdText(user.username),
+      toIdText(user.staffId),
+      toIdText(user.StaffId),
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
+    return uIds.includes(rId);
+  }, [toIdText]);
+
+  // Safely extract string status even if Candid variant object like { present: null } or { late: null }
+  const getAttendanceStatus = useCallback((status) => {
+    if (!status) return 'present';
+    if (typeof status === 'string') return status.toLowerCase().trim();
+    if (typeof status === 'object') {
+      const key = Object.keys(status)[0];
+      return (key || 'present').toLowerCase().trim();
+    }
+    return String(status).toLowerCase().trim();
+  }, []);
+
+  const isPresentStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'present' || s === 'half_day' || s === 'halfday';
+  }, [getAttendanceStatus]);
+
+  const isLateStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'late';
+  }, [getAttendanceStatus]);
+
+  const isAbsentStatus = useCallback((status) => {
+    const s = getAttendanceStatus(status);
+    return s === 'absent';
+  }, [getAttendanceStatus]);
+
+  // Robust date extractor from string, ISO, number or Motoko BigInt nanoseconds
+  const normalizeAttendanceDate = useCallback((a) => {
+    const raw = a?.date || a?.checkIn || a?.createdAt;
+    if (!raw) return '';
+    if (typeof raw === 'string') {
+      if (raw.includes('T')) return raw.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      return raw.trim();
+    }
+    if (typeof raw === 'number' || typeof raw === 'bigint') {
+      const num = Number(raw);
+      const ms = num > 1e14 ? num / 1e6 : (num > 1e11 ? num : num * 1000);
+      const d = new Date(ms);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    if (raw instanceof Date) {
+      return raw.toISOString().split('T')[0];
+    }
+    return '';
+  }, []);
+
+  const isEmployeeOnLeaveOnDate = useCallback((user, dateStr) => {
+    if (!user || !dateStr) return false;
+    const uIds = [
+      toIdText(user.userId),
+      toIdText(user.id),
+      toIdText(user._id),
+      toIdText(user.username),
+      toIdText(user.staffId),
+      toIdText(user.StaffId),
+    ].map(s => s.toLowerCase().trim()).filter(Boolean);
+
+    return allLeaves.some(l => {
+      const lUid = toIdText(l.userId || l.employeeId || l.applicant).toLowerCase().trim();
+      if (!uIds.includes(lUid)) return false;
+      const statusKey = typeof l.status === 'string' ? l.status.toLowerCase() : Object.keys(l.status || {})[0]?.toLowerCase();
+      if (statusKey !== 'approved') return false;
+
+      const start = normalizeAttendanceDate(l.startDate || l.start) || (typeof l.startDate === 'string' ? l.startDate.slice(0, 10) : '');
+      const end = normalizeAttendanceDate(l.endDate || l.end) || (typeof l.endDate === 'string' ? l.endDate.slice(0, 10) : '') || start;
+      if (!start) return false;
+      return dateStr >= start && dateStr <= end;
+    });
+  }, [allLeaves, toIdText, normalizeAttendanceDate]);
+
   // -- Admin View Logic --
   const attendanceData = isAdmin ? allAttendance : userAttendance;
   
@@ -97,89 +289,219 @@ export default function AttendanceModule({ userProfile }) {
         return d.getMonth() === prevMonth.getMonth() && d.getFullYear() === prevMonth.getFullYear();
     });
     
-    // We treat "present", "late", and "half_day" as partially or fully present for positive attendance reinforcement
-    const presentCount = prevMonthRecords.filter(a => a.status === 'present' || a.status === 'late' || a.status === 'half_day').length;
+    const presentCount = prevMonthRecords.filter(a => isPresentStatus(a.status) || isLateStatus(a.status)).length;
     const percentage = weekdays > 0 ? Math.round((presentCount / weekdays) * 100) : 0;
     
-    // Cap at 100% just in case of weekend clock-ins going over
     return { prevMonthName: monthName, prevMonthPercentage: Math.min(percentage, 100) };
-  }, [userAttendance]);
-  
-  const stats = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    const todaysRecords = attendanceData.filter(r => r.date === today);
-    
-    return {
-      present: todaysRecords.filter(r => r.status === 'present').length,
-      absent: todaysRecords.filter(r => r.status === 'absent').length,
-      late: todaysRecords.filter(r => r.status === 'late').length,
-      halfDay: todaysRecords.filter(r => r.status === 'half_day').length,
-    };
-  }, [attendanceData]);
+  }, [userAttendance, isPresentStatus, isLateStatus]);
 
-  const getUserDetails = useCallback((principalId) => {
-    const pid = typeof principalId === 'string' ? principalId : (principalId?.toText ? principalId.toText() : String(principalId));
-    return users.find(u => {
-      const uid = u.userId?.toText ? u.userId.toText() : String(u.userId || u.id);
-      return uid === pid;
-    });
-  }, [users]);
+  // Selected date formatted for daily view
+  const selectedDateStr = useMemo(() => {
+    return showHistory ? format(currentTime, 'yyyy-MM-dd') : format(filterDate, 'yyyy-MM-dd');
+  }, [showHistory, currentTime, filterDate]);
 
-  // Dynamic department list from users
+  // Dynamic department list from active employees
   const departments = useMemo(() => {
     const deptSet = new Set();
-    users.forEach(u => { if (u.department) deptSet.add(u.department); });
+    activeEmployees.forEach(u => { if (u.department) deptSet.add(u.department); });
     return [...deptSet].sort();
-  }, [users]);
+  }, [activeEmployees]);
 
-  // Filtered + paginated attendance for admin view
+  // Comprehensive daily roster of ALL active company employees for selectedDateStr
+  const dailyRoster = useMemo(() => {
+    if (showHistory) return [];
+
+    return activeEmployees.map(emp => {
+      const empIdStr = toIdText(emp.userId || emp.id);
+      // Find matching attendance record for selectedDateStr
+      const record = attendanceData.find(a => {
+        const matchesUser = matchesEmployee(a, emp);
+        const aDate = normalizeAttendanceDate(a);
+        return matchesUser && aDate === selectedDateStr;
+      });
+
+      if (record) {
+        const rawStatus = record.status;
+        let resolvedStatus = 'present';
+        if (isLateStatus(rawStatus)) {
+          resolvedStatus = 'late';
+        } else if (isAbsentStatus(rawStatus)) {
+          resolvedStatus = 'absent';
+        } else if (getAttendanceStatus(rawStatus) === 'half_day' || getAttendanceStatus(rawStatus) === 'halfday') {
+          resolvedStatus = 'half_day';
+        } else {
+          resolvedStatus = 'present';
+        }
+
+        const inTime = getCheckInTime(record);
+        const outTime = getCheckOutTime(record);
+        const duration = calculateDuration(inTime, outTime);
+
+        return {
+          id: record.id || record._id || `att-${empIdStr}`,
+          recordId: record.id || record._id,
+          userId: empIdStr,
+          rawUser: emp,
+          name: emp.name || emp.username || 'Employee',
+          department: emp.department || 'General',
+          date: selectedDateStr,
+          checkIn: inTime,
+          checkOut: outTime,
+          duration,
+          status: resolvedStatus,
+          location: record.location || 'Office Main',
+          hasRecord: true,
+          originalRecord: record,
+        };
+      }
+
+      // If no attendance record, check if on approved leave
+      const onLeave = isEmployeeOnLeaveOnDate(emp, selectedDateStr);
+      const status = onLeave ? 'on_leave' : 'absent';
+
+      return {
+        id: `absent-${empIdStr}-${selectedDateStr}`,
+        recordId: null,
+        userId: empIdStr,
+        rawUser: emp,
+        name: emp.name || emp.username || 'Employee',
+        department: emp.department || 'General',
+        date: selectedDateStr,
+        checkIn: null,
+        checkOut: null,
+        duration: null,
+        status,
+        location: '--',
+        hasRecord: false,
+        originalRecord: null,
+      };
+    });
+  }, [showHistory, activeEmployees, attendanceData, selectedDateStr, matchesEmployee, normalizeAttendanceDate, isLateStatus, isAbsentStatus, getAttendanceStatus, isEmployeeOnLeaveOnDate, toIdText]);
+
+  // Accurate Stats: Present, Absent, Late, On Leave / Half Day, Rate
+  const stats = useMemo(() => {
+    if (!showHistory && dailyRoster.length > 0) {
+      const present = dailyRoster.filter(r => r.status === 'present').length;
+      const late = dailyRoster.filter(r => r.status === 'late').length;
+      const absent = dailyRoster.filter(r => r.status === 'absent').length;
+      const halfDay = dailyRoster.filter(r => r.status === 'half_day' || r.status === 'on_leave').length;
+      const total = activeEmployees.length || dailyRoster.length;
+      const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+
+      return {
+        present,
+        absent,
+        late,
+        halfDay,
+        rate: Math.min(100, Math.max(0, rate)),
+        total,
+      };
+    }
+
+    // If history mode, compute stats for today:
+    const today = format(new Date(), 'yyyy-MM-dd');
+    let present = 0;
+    let late = 0;
+    let halfDay = 0;
+
+    activeEmployees.forEach(emp => {
+      const record = attendanceData.find(a => matchesEmployee(a, emp) && normalizeAttendanceDate(a) === today);
+      if (record) {
+        if (isLateStatus(record.status)) late++;
+        else if (isAbsentStatus(record.status)) {} // absent
+        else if (getAttendanceStatus(record.status) === 'half_day') halfDay++;
+        else present++;
+      } else {
+        if (isEmployeeOnLeaveOnDate(emp, today)) halfDay++;
+      }
+    });
+
+    const total = activeEmployees.length;
+    const absent = Math.max(0, total - (present + late + halfDay));
+    const rate = total > 0 ? Math.round(((present + late) / total) * 100) : 0;
+
+    return {
+      present,
+      absent,
+      late,
+      halfDay,
+      rate: Math.min(100, Math.max(0, rate)),
+      total,
+    };
+  }, [showHistory, dailyRoster, activeEmployees, attendanceData, matchesEmployee, normalizeAttendanceDate, isLateStatus, isAbsentStatus, getAttendanceStatus, isEmployeeOnLeaveOnDate]);
+
+  // Filtered attendance for table display
   const filteredAttendance = useMemo(() => {
-    let data = [...attendanceData];
+    let list = [];
 
-    // Date filter — only show selected date unless history mode
     if (!showHistory) {
-      const dateStr = format(filterDate, 'yyyy-MM-dd');
-      data = data.filter(r => r.date === dateStr);
+      list = [...dailyRoster];
+    } else {
+      list = attendanceData.map(r => {
+        const user = getUserDetails(r.userId);
+        const inTime = getCheckInTime(r);
+        const outTime = getCheckOutTime(r);
+        const rawStatus = r.status;
+        let resolvedStatus = 'present';
+        if (isLateStatus(rawStatus)) resolvedStatus = 'late';
+        else if (isAbsentStatus(rawStatus)) resolvedStatus = 'absent';
+        else if (getAttendanceStatus(rawStatus) === 'half_day') resolvedStatus = 'half_day';
+        else resolvedStatus = 'present';
+
+        return {
+          id: r.id || r._id,
+          recordId: r.id || r._id,
+          userId: toIdText(r.userId),
+          rawUser: user,
+          name: user?.name || user?.username || 'Employee',
+          department: user?.department || '--',
+          date: normalizeAttendanceDate(r) || r.date || '--',
+          checkIn: inTime,
+          checkOut: outTime,
+          duration: calculateDuration(inTime, outTime),
+          status: resolvedStatus,
+          location: r.location || 'Office Main',
+          hasRecord: true,
+          originalRecord: r,
+        };
+      });
+
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }
 
     // Status filter
     if (filterStatus !== 'all') {
-      data = data.filter(r => r.status === filterStatus);
+      list = list.filter(r => r.status === filterStatus);
     }
 
     // Department filter
     if (filterDept !== 'all') {
-      data = data.filter(r => {
-        const user = getUserDetails(r.userId);
-        return user?.department === filterDept;
-      });
+      list = list.filter(r => r.department === filterDept);
     }
 
     // Employee filter
     if (filterEmployee !== 'all') {
-      data = data.filter(r => {
-        const pid = typeof r.userId === 'string' ? r.userId : (r.userId?.toText ? r.userId.toText() : String(r.userId));
-        return pid === filterEmployee;
+      const target = filterEmployee.toLowerCase();
+      list = list.filter(r => {
+        const rUid = (r.userId || '').toLowerCase();
+        const rawUid = toIdText(r.rawUser?.userId || r.rawUser?.id).toLowerCase();
+        return rUid === target || rawUid === target;
       });
     }
 
-    // Search query (name, userId)
+    // Search query (name, userId, department)
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      data = data.filter(r => {
-        const user = getUserDetails(r.userId);
-        const name = user?.name?.toLowerCase() || '';
-        const dept = user?.department?.toLowerCase() || '';
-        const uid = typeof r.userId === 'string' ? r.userId : (r.userId?.toText ? r.userId.toText() : String(r.userId));
-        return name.includes(q) || dept.includes(q) || uid.toLowerCase().includes(q);
+      list = list.filter(r => {
+        const name = (r.name || '').toLowerCase();
+        const dept = (r.department || '').toLowerCase();
+        const uid = (r.userId || '').toLowerCase();
+        return name.includes(q) || dept.includes(q) || uid.includes(q);
       });
     }
 
-    // Sort by date descending (newest first)
-    data.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-
-    return data;
-  }, [attendanceData, filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory, users]);
+    return list;
+  }, [showHistory, dailyRoster, attendanceData, filterStatus, filterDept, filterEmployee, searchQuery, getUserDetails, isLateStatus, isAbsentStatus, getAttendanceStatus, toIdText, normalizeAttendanceDate]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAttendance.length / pageSize));
   const paginatedData = filteredAttendance.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -195,16 +517,18 @@ export default function AttendanceModule({ userProfile }) {
       toast.error('No records to export');
       return;
     }
-    const headers = ['Date', 'Employee', 'Department', 'Status', 'Check In', 'Check Out'];
+    const headers = ['Date', 'Employee ID', 'Name', 'Department', 'Status', 'Check In', 'Check Out', 'Working Hours', 'Location'];
     const rows = filteredAttendance.map(r => {
-      const user = getUserDetails(r.userId);
       return [
         r.date || '',
-        user?.name || 'Unknown',
-        user?.department || '',
+        r.userId || '',
+        r.name || 'Unknown',
+        r.department || '',
         r.status || '',
-        getCheckInTime(r) || '',
-        getCheckOutTime(r) || '',
+        formatTime(r.checkIn) || '',
+        r.checkOut ? formatTime(r.checkOut) : '',
+        r.duration || '',
+        r.location || '',
       ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
     });
     const csv = [headers.join(','), ...rows].join('\n');
@@ -212,11 +536,11 @@ export default function AttendanceModule({ userProfile }) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `attendance_${format(filterDate, 'yyyy-MM-dd')}.csv`;
+    link.download = `attendance_${selectedDateStr}.csv`;
     link.click();
     URL.revokeObjectURL(url);
     toast.success('Attendance report exported');
-  }, [filteredAttendance, filterDate]);
+  }, [filteredAttendance, selectedDateStr]);
 
   const formatTime = (timeValue) => {
     if (!timeValue) return '--';
@@ -316,9 +640,13 @@ export default function AttendanceModule({ userProfile }) {
 
   // -- User/Mobile View Logic --
   const todayStr = format(currentTime, 'yyyy-MM-dd');
-  const todayRecord = userAttendance.find(r => r.date === todayStr || (typeof r.date === 'string' && r.date.startsWith(todayStr)));
+  const todayRecord = userAttendance.find(r => {
+    const aDate = normalizeAttendanceDate(r);
+    return aDate === todayStr || (typeof r.date === 'string' && r.date.startsWith(todayStr));
+  });
   const isCheckedIn = !!todayRecord;
   const isCheckedOut = todayRecord && !!getCheckOutTime(todayRecord);
+  const isTodayLate = todayRecord && isLateStatus(todayRecord.status);
 
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -335,19 +663,39 @@ export default function AttendanceModule({ userProfile }) {
     const doCheckIn = async (locationStr = '') => {
       try {
         const now = new Date();
+
+        // Evaluate if check-in is late compared to scheduled check-in time
+        let checkInStatus = 'present';
+        try {
+          const [schedH, schedM] = (workSchedule.checkInTime || '09:30').split(':').map(Number);
+          const grace = Number(workSchedule.graceMinutes) || 0;
+          const scheduledMinutes = (isNaN(schedH) ? 9 : schedH) * 60 + (isNaN(schedM) ? 30 : schedM) + grace;
+          const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+          if (currentMinutes > scheduledMinutes) {
+            checkInStatus = 'late';
+          }
+        } catch (e) {
+          console.warn('Failed to calculate late status:', e);
+        }
+
         const payload = {
           id: safeRandomUUID(),
           userId: staffIdStr,
           date: todayStr,
           checkIn: now.toISOString(),
-          status: 'present',
+          status: checkInStatus,
           workMode: 'office',
           location: locationStr,
-          notes: ''
+          notes: checkInStatus === 'late' ? `Late arrival (Shift start: ${workSchedule.checkInTime})` : ''
         };
 
         await recordAttendance.mutateAsync(payload);
-        toast.success('Check-in successful!');
+        if (checkInStatus === 'late') {
+          toast.warning(`Checked in as LATE at ${format(now, 'hh:mm a')} (Shift start: ${workSchedule.checkInTime})`);
+        } else {
+          toast.success('Check-in successful! Have a great day.');
+        }
       } catch (error) {
         console.error('Check-in failed:', error);
         toast.error(`Check-in failed: ${error.message || 'Please try again.'}`);
@@ -413,16 +761,18 @@ export default function AttendanceModule({ userProfile }) {
             <span className={cn(
               "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
               isCheckedIn && !isCheckedOut
-                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                ? isTodayLate
+                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
                 : isCheckedOut
                 ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30"
                 : "bg-muted text-muted-foreground border border-border"
             )}>
               <span className={cn(
                 "w-2 h-2 rounded-full",
-                isCheckedIn && !isCheckedOut ? "bg-emerald-500 animate-pulse" : isCheckedOut ? "bg-purple-500" : "bg-muted-foreground"
+                isCheckedIn && !isCheckedOut ? (isTodayLate ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse") : isCheckedOut ? "bg-purple-500" : "bg-muted-foreground"
               )} />
-              {isCheckedIn && !isCheckedOut ? "Clocked In & Active" : isCheckedOut ? "Shift Completed" : "Not Clocked In"}
+              {isCheckedIn && !isCheckedOut ? (isTodayLate ? "Clocked In (Late)" : "Clocked In & Active") : isCheckedOut ? "Shift Completed" : "Not Clocked In"}
             </span>
           </div>
         </div>
@@ -434,7 +784,7 @@ export default function AttendanceModule({ userProfile }) {
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-emerald-100 uppercase tracking-wider">{format(currentTime, 'EEEE')}</span>
               <div className="flex items-center gap-1 text-[11px] text-emerald-100 bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-xs">
-                <MapPin className="h-3 w-3" /> Office Main
+                <MapPin className="h-3 w-3" /> Shift {workSchedule.checkInTime}–{workSchedule.checkOutTime}
               </div>
             </div>
             <div className="my-3">
@@ -640,6 +990,12 @@ export default function AttendanceModule({ userProfile }) {
                     const inTime = getCheckInTime(record);
                     const outTime = getCheckOutTime(record);
                     const durationStr = calculateDuration(inTime, outTime, true);
+                    const rawStatus = record.status;
+                    const isLate = isLateStatus(rawStatus);
+                    const isPresent = isPresentStatus(rawStatus);
+                    const isAbsent = isAbsentStatus(rawStatus);
+                    const statusText = isLate ? 'late' : (isPresent ? 'present' : (isAbsent ? 'absent' : 'present'));
+
                     return (
                       <TableRow key={record.id || record._id} className="border-b border-border/50">
                         <TableCell className="pl-6 py-3.5 font-medium text-foreground text-sm">
@@ -647,12 +1003,20 @@ export default function AttendanceModule({ userProfile }) {
                         </TableCell>
                         <TableCell className="py-3.5">
                           <span className={cn(
-                            "px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize",
-                            record.status === 'present'
+                            "px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize inline-flex items-center gap-1",
+                            statusText === 'present'
                               ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300"
+                              : statusText === 'late'
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300"
                               : "bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200"
                           )}>
-                            {record.status || 'present'}
+                            <span className={cn(
+                              "w-1.5 h-1.5 rounded-full",
+                              statusText === 'present' ? "bg-emerald-500" :
+                              statusText === 'late' ? "bg-amber-500" :
+                              "bg-red-500"
+                            )} />
+                            {statusText}
                           </span>
                         </TableCell>
                         <TableCell className="py-3.5 font-mono text-xs text-foreground">
@@ -692,19 +1056,168 @@ export default function AttendanceModule({ userProfile }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-        <h2 className="text-xl md:text-2xl font-bold leading-tight">
-          {showHistory ? 'Attendance History' : 'Daily Attendance Overview'}
-        </h2>
-        <div className="flex items-center gap-2">
+        <div>
+          <h2 className="text-xl md:text-2xl font-bold leading-tight">
+            {showHistory ? 'Attendance History' : 'Daily Attendance Overview'}
+          </h2>
+          {/* Active schedule summary badge */}
+          <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 font-medium text-foreground bg-muted px-2 py-0.5 rounded-md">
+              <Clock className="w-3.5 h-3.5 text-primary" />
+              Office Shift: {workSchedule.checkInTime || '09:30'} – {workSchedule.checkOutTime || '18:30'}
+            </span>
+            <span>•</span>
+            <span>{workSchedule.workingHours || 8} hrs/day</span>
+            <span>•</span>
+            <span>{workSchedule.daysPerWeek || 5} days/wk</span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
             <div className="relative flex-1 md:flex-none">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search employees..."
-                  className="pl-9 w-full md:w-[250px]"
+                  className="pl-9 w-full md:w-[230px]"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
+
+            {/* Schedule Work Modal Button */}
+            <Dialog open={isScheduleModalOpen} onOpenChange={(open) => {
+              setIsScheduleModalOpen(open);
+              if (open) setScheduleForm(workSchedule);
+            }}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="flex items-center gap-2 border-primary/40 hover:border-primary hover:bg-primary/5 text-foreground font-semibold shadow-xs"
+                >
+                  <CalendarClock className="h-4 w-4 text-primary" />
+                  <span>Schedule Work</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[480px]">
+                <DialogHeader>
+                  <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-primary" />
+                    Company Work Schedule
+                  </DialogTitle>
+                  <DialogDescription>
+                    Configure shift timings, daily working hours, and weekly office days. Employees clocking in past the check-in time will automatically be marked as <strong>Late</strong>.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={handleSaveSchedule} className="space-y-4 py-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Check-in Time <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        type="time"
+                        required
+                        value={scheduleForm.checkInTime}
+                        onChange={(e) => setScheduleForm(prev => ({ ...prev, checkInTime: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Late after this time</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Check-out Time <span className="text-destructive">*</span>
+                      </label>
+                      <Input
+                        type="time"
+                        required
+                        value={scheduleForm.checkOutTime}
+                        onChange={(e) => setScheduleForm(prev => ({ ...prev, checkOutTime: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Standard shift end</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Office Days / Week
+                      </label>
+                      <Select 
+                        value={String(scheduleForm.daysPerWeek)} 
+                        onValueChange={(val) => setScheduleForm(prev => ({ ...prev, daysPerWeek: val }))}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select days" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="4">4 Days (Mon - Thu)</SelectItem>
+                          <SelectItem value="5">5 Days (Mon - Fri)</SelectItem>
+                          <SelectItem value="6">6 Days (Mon - Sat)</SelectItem>
+                          <SelectItem value="7">7 Days (Full Week)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-[11px] text-muted-foreground">Working days per week</p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-foreground">
+                        Working Hours / Day
+                      </label>
+                      <Input
+                        type="number"
+                        min="1"
+                        max="24"
+                        step="0.5"
+                        required
+                        value={scheduleForm.workingHours}
+                        onChange={(e) => setScheduleForm(prev => ({ ...prev, workingHours: e.target.value }))}
+                        placeholder="8"
+                        className="font-mono text-sm"
+                      />
+                      <p className="text-[11px] text-muted-foreground">Standard daily hours</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+                      <span>Grace Buffer (Minutes)</span>
+                      <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={scheduleForm.graceMinutes || '0'}
+                      onChange={(e) => setScheduleForm(prev => ({ ...prev, graceMinutes: e.target.value }))}
+                      placeholder="0"
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Extra buffer minutes before marking as Late (e.g. 5)
+                    </p>
+                  </div>
+
+                  <DialogFooter className="pt-2">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsScheduleModalOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white"
+                    >
+                      Save Work Schedule
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
         </div>
       </div>
 
@@ -718,7 +1231,7 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </div>
           <div className="text-2xl font-bold text-foreground mt-2">{stats.present}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Clocked in</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Clocked in on time</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
@@ -728,7 +1241,7 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </div>
           <div className="text-2xl font-bold text-foreground mt-2">{stats.absent}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">Unexcused / Absent</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Not clocked in / Absent</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
@@ -738,11 +1251,11 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </div>
           <div className="text-2xl font-bold text-foreground mt-2">{stats.late}</div>
-          <p className="text-[11px] text-muted-foreground mt-1">After shift start</p>
+          <p className="text-[11px] text-muted-foreground mt-1">After {workSchedule.checkInTime || '09:30'}</p>
         </Card>
         <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">On Leave</span>
+            <span className="text-xs font-medium text-muted-foreground">On Leave / Half Day</span>
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
               <Calendar className="h-4 w-4" />
             </div>
@@ -758,12 +1271,9 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </div>
           <div className="text-2xl font-bold text-foreground mt-2">
-            {(() => {
-              const totalLogged = stats.present + stats.absent + stats.late + stats.halfDay;
-              return totalLogged > 0 ? `${Math.round(((stats.present + stats.late) / totalLogged) * 100)}%` : '100%';
-            })()}
+            {stats.rate}%
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Today's turnout</p>
+          <p className="text-[11px] text-muted-foreground mt-1">Turnout ({stats.present + stats.late}/{stats.total})</p>
         </Card>
       </div>
 
@@ -801,8 +1311,8 @@ export default function AttendanceModule({ userProfile }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Employees</SelectItem>
-                {users.map(u => {
-                  const uid = u.userId?.toText ? u.userId.toText() : String(u.userId || u.id);
+                {activeEmployees.map(u => {
+                  const uid = toIdText(u.userId || u.id);
                   return (
                     <SelectItem key={uid} value={uid}>{u.name || u.username || uid}</SelectItem>
                   );
@@ -816,8 +1326,9 @@ export default function AttendanceModule({ userProfile }) {
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="present">Present</SelectItem>
-                <SelectItem value="absent">Absent</SelectItem>
                 <SelectItem value="late">Late</SelectItem>
+                <SelectItem value="absent">Absent</SelectItem>
+                <SelectItem value="on_leave">On Leave</SelectItem>
                 <SelectItem value="half_day">Half Day</SelectItem>
               </SelectContent>
             </Select>
@@ -860,43 +1371,49 @@ export default function AttendanceModule({ userProfile }) {
         {/* Mobile cards */}
         <div className="space-y-3 p-4 md:hidden">
           {paginatedData.map((record) => {
-            const user = getUserDetails(record.userId);
             const status = record.status;
-            const idText = user?.id?.toText ? user.id.toText() : (record.userId?.toText ? record.userId.toText() : String(record.userId));
             return (
-              <Card key={record.id || record._id} className="border border-border shadow-sm">
+              <Card key={record.id} className={cn("border border-border shadow-xs", !record.hasRecord && "bg-muted/15")}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold leading-tight truncate">{user?.name || user?.username || '--'}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">{idText}</p>
+                      <p className="text-sm font-semibold leading-tight truncate">{record.name}</p>
+                      <p className="text-[11px] font-mono text-muted-foreground truncate">{record.userId}</p>
                     </div>
                     <span className={cn(
-                      "capitalize px-2 py-0.5 rounded-full text-[11px] font-medium",
+                      "capitalize px-2 py-0.5 rounded-full text-[11px] font-semibold inline-flex items-center gap-1",
                       status === 'present' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' :
-                      status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
                       status === 'late' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300' :
-                      'bg-primary/15 text-primary border border-primary/20'
+                      status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
+                      status === 'on_leave' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300' :
+                      'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300'
                     )}>
-                      {status}
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full",
+                        status === 'present' ? 'bg-emerald-500' :
+                        status === 'late' ? 'bg-amber-500' :
+                        status === 'absent' ? 'bg-red-500' :
+                        'bg-blue-500'
+                      )} />
+                      {status === 'on_leave' ? 'On Leave' : status === 'half_day' ? 'Half Day' : status}
                     </span>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                     <div>
                       <span className="block text-[10px] uppercase tracking-wide">Date</span>
-                      <span className="text-foreground/90">{record.date || '--'}</span>
+                      <span className="text-foreground/90 font-mono">{record.date || '--'}</span>
                     </div>
                     <div>
                       <span className="block text-[10px] uppercase tracking-wide">Department</span>
-                      <span className="text-foreground/90">{user?.department || '--'}</span>
+                      <span className="text-foreground/90">{record.department || '--'}</span>
                     </div>
                     <div className="col-span-2">
                       <span className="block text-[10px] uppercase tracking-wide">In / Out & Duration</span>
-                      <span className="text-foreground/90">
-                        {formatTime(getCheckInTime(record))} - {getCheckOutTime(record) ? formatTime(getCheckOutTime(record)) : '--'}
-                        {calculateDuration(getCheckInTime(record), getCheckOutTime(record)) && (
+                      <span className="text-foreground/90 font-mono">
+                        {formatTime(record.checkIn)} - {record.checkOut ? formatTime(record.checkOut) : (record.checkIn ? 'Ongoing' : '--')}
+                        {record.duration && (
                           <span className="ml-1.5 font-bold text-primary">
-                            ({calculateDuration(getCheckInTime(record), getCheckOutTime(record))})
+                            ({record.duration})
                           </span>
                         )}
                       </span>
@@ -919,7 +1436,7 @@ export default function AttendanceModule({ userProfile }) {
             <TableHeader className="bg-muted/50">
               <TableRow>
                 {showHistory && <TableHead>Date</TableHead>}
-                <TableHead>Employee</TableHead>
+                <TableHead>Employee ID</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>In Time</TableHead>
@@ -931,34 +1448,56 @@ export default function AttendanceModule({ userProfile }) {
             </TableHeader>
             <TableBody>
               {paginatedData.map((record) => {
-                  const user = getUserDetails(record.userId);
                   const status = record.status;
+                  const inTimeFormatted = formatTime(record.checkIn);
+                  const outTimeFormatted = record.checkOut ? formatTime(record.checkOut) : (record.checkIn ? <span className="text-muted-foreground italic">Ongoing</span> : '--');
+                  
                   return (
-                    <TableRow key={record.id || record._id}>
-                      {showHistory && <TableCell className="text-muted-foreground">{record.date}</TableCell>}
-                      <TableCell className="font-medium">{user?.id?.toText ? user.id.toText() : (record.userId?.toText ? record.userId.toText() : String(record.userId))}</TableCell>
-                      <TableCell>{user?.name || user?.username || '--'}</TableCell>
-                      <TableCell>{user?.department || '--'}</TableCell>
-                      <TableCell>{formatTime(getCheckInTime(record))}</TableCell>
-                      <TableCell>{getCheckOutTime(record) ? formatTime(getCheckOutTime(record)) : '--'}</TableCell>
+                    <TableRow key={record.id} className={cn("border-b border-border/50 transition-colors", !record.hasRecord && "bg-muted/15")}>
+                      {showHistory && <TableCell className="text-muted-foreground font-mono text-xs">{record.date}</TableCell>}
+                      <TableCell className="font-mono text-xs text-muted-foreground font-medium truncate max-w-[150px]">
+                        {record.userId || '--'}
+                      </TableCell>
+                      <TableCell className="font-semibold text-foreground">
+                        {record.name}
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                          {record.department || 'General'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-foreground">
+                        {inTimeFormatted}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-foreground">
+                        {outTimeFormatted}
+                      </TableCell>
                       <TableCell className="font-mono text-xs font-semibold text-primary">
-                        {calculateDuration(getCheckInTime(record), getCheckOutTime(record)) || '--'}
+                        {record.duration || (record.hasRecord && record.checkIn && !record.checkOut ? 'In progress' : '--')}
                       </TableCell>
                       <TableCell>
                         <span className={cn(
-                          "capitalize px-2.5 py-1 rounded-full text-xs font-semibold",
+                          "capitalize px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1.5",
                           status === 'present' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300' :
-                          status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
                           status === 'late' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300' :
-                          'bg-primary/15 text-primary border border-primary/20'
+                          status === 'absent' ? 'bg-red-100 text-red-800 dark:bg-red-900/70 dark:text-red-200' :
+                          status === 'on_leave' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/70 dark:text-blue-300' :
+                          'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300'
                         )}>
-                          {status}
+                          <span className={cn(
+                            "w-1.5 h-1.5 rounded-full",
+                            status === 'present' ? 'bg-emerald-500' :
+                            status === 'late' ? 'bg-amber-500' :
+                            status === 'absent' ? 'bg-red-500' :
+                            'bg-blue-500'
+                          )} />
+                          {status === 'on_leave' ? 'On Leave' : status === 'half_day' ? 'Half Day' : status}
                         </span>
                       </TableCell>
                       <TableCell>
-                          <div className="flex items-center text-muted-foreground">
-                              <MapPin className="h-3 w-3 mr-1" />
-                              {record.location || 'Office Main'}
+                          <div className="flex items-center text-muted-foreground text-xs">
+                              <MapPin className="h-3 w-3 mr-1 text-muted-foreground/70" />
+                              {record.location || '--'}
                           </div>
                       </TableCell>
                     </TableRow>

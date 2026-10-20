@@ -204,7 +204,7 @@ export const createMockActor = (identity) => {
     recordAttendance: async (attendance) => {
         const all = getDb('db_attendance', []);
         // Serialize Principal to text for storage
-        const entry = { ...attendance, userId: attendance.userId.toText() }; 
+        const entry = { ...attendance, userId: attendance.userId?.toText ? attendance.userId.toText() : String(attendance.userId || '') }; 
         all.push(entry);
         setDb('db_attendance', all);
     },
@@ -212,7 +212,7 @@ export const createMockActor = (identity) => {
         const all = getDb('db_attendance', []);
         const idx = all.findIndex((a) => a.id === attendance.id);
         if (idx !== -1) {
-            all[idx] = { ...attendance, userId: attendance.userId.toText() };
+            all[idx] = { ...attendance, userId: attendance.userId?.toText ? attendance.userId.toText() : String(attendance.userId || '') };
             setDb('db_attendance', all);
         }
     },
