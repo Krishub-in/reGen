@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCustomAuth } from './hooks/useCustomAuth';
 import { useGetCallerUserProfile } from './hooks/useQueries';
@@ -6,9 +6,22 @@ import { useSocket } from './hooks/useSocket';
 import MaintenancePage from './components/MaintenancePage';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
-import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/Dashboard';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
+
+// Page lazy loading for optimal bundle size and initial load speed
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+
+function PageLoader({ message = 'Loading...' }) {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+        <p className="text-muted-foreground">{message}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const queryClient = useQueryClient();
@@ -116,7 +129,9 @@ export default function App() {
 
   if (isSuperAdminPath) {
     return (
-      <SuperAdminDashboard />
+      <Suspense fallback={<PageLoader message="Loading SuperAdmin..." />}>
+        <SuperAdminDashboard />
+      </Suspense>
     );
   }
 
@@ -142,7 +157,9 @@ export default function App() {
   if (resetToken) {
     return (
       <ThemeProvider attribute="class" forcedTheme="dark">
-        <LoginPage resetToken={resetToken} />
+        <Suspense fallback={<PageLoader message="Loading..." />}>
+          <LoginPage resetToken={resetToken} />
+        </Suspense>
         <Toaster />
       </ThemeProvider>
     );
@@ -152,7 +169,9 @@ export default function App() {
   if (!isAuthenticated) {
     return (
       <ThemeProvider attribute="class" forcedTheme="dark">
-        <LoginPage />
+        <Suspense fallback={<PageLoader message="Loading..." />}>
+          <LoginPage />
+        </Suspense>
         <Toaster />
       </ThemeProvider>
     );
@@ -178,13 +197,17 @@ export default function App() {
   if (showDashboard) {
     if (userProfile?.role === 'param' && !window.location.search.includes('view=ems')) {
       return (
-        <SuperAdminDashboard />
+        <Suspense fallback={<PageLoader message="Loading SuperAdmin..." />}>
+          <SuperAdminDashboard />
+        </Suspense>
       );
     }
 
     return (
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <Dashboard userProfile={userProfile} />
+        <Suspense fallback={<PageLoader message="Loading Dashboard..." />}>
+          <Dashboard userProfile={userProfile} />
+        </Suspense>
         <Toaster />
       </ThemeProvider>
     );
@@ -207,8 +230,10 @@ export default function App() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <LoginPage />
+      <Suspense fallback={<PageLoader message="Loading..." />}>
+        <LoginPage />
+      </Suspense>
       <Toaster />
     </ThemeProvider>
-    );
+  );
 }

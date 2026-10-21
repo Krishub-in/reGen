@@ -11,9 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Pencil, Trash2, Camera, KeyRound, Filter, Users } from 'lucide-react';
 import { toast } from 'sonner';
-import { Principal } from '@dfinity/principal';
-import { Ed25519KeyIdentity } from '@dfinity/identity';
 import { useIsMobile } from '../../hooks/use-mobile';
+import { useScrollPagination } from '../../hooks/useScrollPagination';
 
 export default function UsersModule({ userProfile }) {
   const { data: users = [], isLoading } = useGetAllUsers();
@@ -104,6 +103,14 @@ export default function UsersModule({ userProfile }) {
       if (ra !== rb) return ra - rb;
       return (a.name || a.username || '').localeCompare(b.name || b.username || '');
     });
+
+  // Lazy loading pagination: 6 users per page, loading next 6 on scroll down
+  const {
+    displayedItems: paginatedUsers,
+    hasMore: hasMoreUsers,
+    handleScroll: handleUsersScroll,
+    totalCount: totalUsersCount
+  } = useScrollPagination(visibleUsers, 6, [filterRole]);
 
   // Count users per role for filter badges
   const roleCounts = users.reduce((acc, user) => {
@@ -684,7 +691,7 @@ export default function UsersModule({ userProfile }) {
           <CardTitle className="text-base font-medium flex items-center gap-2.5 text-[#172B3A] dark:text-[#E8F0F4]">
             <span>{isOwner ? 'Staff Roster' : 'All Registered Users'}</span>
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6]">
-              {visibleUsers.length} total
+              {totalUsersCount} total
             </span>
           </CardTitle>
         </CardHeader>
@@ -700,9 +707,12 @@ export default function UsersModule({ userProfile }) {
             </div>
           ) : (
             <>
-              {/* Mobile Cards View */}
-              <div className="p-4 space-y-3 md:hidden">
-                {visibleUsers.map((user) => {
+              {/* Mobile Cards View with 6 per page lazy scroll */}
+              <div 
+                className="p-4 space-y-3 md:hidden max-h-[520px] overflow-y-auto"
+                onScroll={handleUsersScroll}
+              >
+                {paginatedUsers.map((user) => {
                   const uid = user.userId?.toText ? user.userId.toText() : String(user.userId || user.id);
                   const name = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim();
                   return (
@@ -781,12 +791,20 @@ export default function UsersModule({ userProfile }) {
                     </div>
                   );
                 })}
+                {hasMoreUsers && (
+                  <div className="py-2.5 text-center text-xs text-muted-foreground animate-pulse border-t border-border/50">
+                    Showing {paginatedUsers.length} of {totalUsersCount} — scroll down for next 6
+                  </div>
+                )}
               </div>
 
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
+              {/* Desktop Table View with 6 per page lazy scroll */}
+              <div 
+                className="hidden md:block max-h-[520px] overflow-y-auto"
+                onScroll={handleUsersScroll}
+              >
                 <Table>
-                  <TableHeader className="bg-[#F8FAFC] dark:bg-[#1D303B]/60 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+                  <TableHeader className="bg-[#F8FAFC] dark:bg-[#15232D] border-b border-[#DFE8EC] dark:border-[#2A3D48] sticky top-0 z-10 shadow-xs">
                     <TableRow className="border-[#DFE8EC] dark:border-[#2A3D48]">
                       <TableHead className="py-3.5 pl-6 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0] w-12">Avatar</TableHead>
                       <TableHead className="py-3.5 font-semibold text-[11px] uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0]">Name</TableHead>
@@ -801,7 +819,7 @@ export default function UsersModule({ userProfile }) {
                     </TableRow>
                   </TableHeader>
                   <TableBody className="divide-y divide-[#DFE8EC]/70 dark:divide-[#2A3D48]/70">
-                    {visibleUsers.map((user) => (
+                    {paginatedUsers.map((user) => (
                       <TableRow 
                         key={(user.userId?.toText ? user.userId.toText() : String(user.userId || user.id))} 
                         className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors"
@@ -880,6 +898,11 @@ export default function UsersModule({ userProfile }) {
                     ))}
                   </TableBody>
                 </Table>
+                {hasMoreUsers && (
+                  <div className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse">
+                    Showing {paginatedUsers.length} of {totalUsersCount} — scroll down for next 6
+                  </div>
+                )}
               </div>
             </>
           )}

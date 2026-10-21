@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo, Suspense, lazy } from 'react';
 import { useCustomAuth } from '../hooks/useCustomAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -7,18 +7,20 @@ import {
   LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search,
   Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck
 } from 'lucide-react';
-import UsersModule from '../components/modules/UsersModule';
-import AttendanceModule from '../components/modules/AttendanceModule';
-import SchedulesModule from '../components/modules/SchedulesModule';
-import MessengerModule from '../components/modules/MessengerModule';
-import ScrumModule from '../components/modules/ScrumModule';
-import CalendarModule from '../components/modules/CalendarModule';
-import PaymentsModule from '../components/modules/PaymentsModule';
-import CompanyModule from '../components/modules/CompanyModule';
 import DashboardHome from '../components/modules/DashboardHome';
-import StaffProfileModule from '../components/modules/StaffProfileModule';
-import NotificationsModule from '../components/modules/NotificationsModule';
-import CallManager from '../components/CallManager';
+
+// Lazy-loaded modules for optimized bundle splitting & faster page loads
+const UsersModule = lazy(() => import('../components/modules/UsersModule'));
+const AttendanceModule = lazy(() => import('../components/modules/AttendanceModule'));
+const SchedulesModule = lazy(() => import('../components/modules/SchedulesModule'));
+const MessengerModule = lazy(() => import('../components/modules/MessengerModule'));
+const ScrumModule = lazy(() => import('../components/modules/ScrumModule'));
+const CalendarModule = lazy(() => import('../components/modules/CalendarModule'));
+const PaymentsModule = lazy(() => import('../components/modules/PaymentsModule'));
+const CompanyModule = lazy(() => import('../components/modules/CompanyModule'));
+const StaffProfileModule = lazy(() => import('../components/modules/StaffProfileModule'));
+const NotificationsModule = lazy(() => import('../components/modules/NotificationsModule'));
+const CallManager = lazy(() => import('../components/CallManager'));
 import { useIsMobile } from '../hooks/use-mobile';
 import { cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import {
@@ -834,13 +836,22 @@ export default function Dashboard({ userProfile }) {
         {/* Main Body */}
         <main className="flex-1 p-3.5 sm:p-6 lg:p-8 w-full min-w-0">
           <ErrorBoundary key={activeModule}>
-            {renderModule()}
+            <Suspense fallback={
+              <div className="flex h-64 w-full flex-col items-center justify-center p-8 bg-card/50 rounded-2xl border border-border/50 animate-pulse">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent mb-3" />
+                <p className="text-xs font-semibold text-muted-foreground">Loading module...</p>
+              </div>
+            }>
+              {renderModule()}
+            </Suspense>
           </ErrorBoundary>
         </main>
 
         <Footer />
       </div>
-      <CallManager userProfile={userProfile} />
+      <Suspense fallback={null}>
+        <CallManager userProfile={userProfile} />
+      </Suspense>
     </div>
   );
 }

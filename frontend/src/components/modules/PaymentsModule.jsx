@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PaymentReportDialog from './PaymentReportDialog';
+import { useScrollPagination } from '../../hooks/useScrollPagination';
 
 export default function PaymentsModule({ userProfile }) {
   const queryClient = useQueryClient();
@@ -1898,6 +1899,14 @@ export default function PaymentsModule({ userProfile }) {
  * Subcomponent: Main Employee Payroll Table
  */
 function PayrollTable({ items = [], isLoading, onOpenPreview, onOpenPayment, onOpenPayslip }) {
+  const {
+    displayedItems,
+    hasMore,
+    handleScroll,
+    totalCount,
+    loadMore
+  } = useScrollPagination(items, 6);
+
   if (isLoading) {
     return (
       <Card className="border border-border bg-card rounded-2xl p-12 text-center text-muted-foreground">
@@ -1919,9 +1928,12 @@ function PayrollTable({ items = [], isLoading, onOpenPreview, onOpenPayment, onO
 
   return (
     <Card className="border border-border bg-card rounded-2xl shadow-xs overflow-hidden">
-      <div className="overflow-x-auto">
+      <div 
+        className="overflow-x-auto max-h-[520px] overflow-y-auto"
+        onScroll={handleScroll}
+      >
         <Table>
-          <TableHeader className="bg-muted/40">
+          <TableHeader className="bg-muted/90 sticky top-0 z-10 backdrop-blur-sm shadow-xs">
             <TableRow>
               <TableHead>Employee</TableHead>
               <TableHead>Sched / Act Hours</TableHead>
@@ -1936,7 +1948,7 @@ function PayrollTable({ items = [], isLoading, onOpenPreview, onOpenPayment, onO
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((emp) => {
+            {displayedItems.map((emp) => {
               const isPaid = emp.isPaid;
               const isFinalized = emp.isFinalized;
 
@@ -2111,6 +2123,28 @@ function PayrollTable({ items = [], isLoading, onOpenPreview, onOpenPayment, onO
             })}
           </TableBody>
         </Table>
+        {hasMore && (
+          <div className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse">
+            Showing {displayedItems.length} of {totalCount} — scroll down for next 6
+          </div>
+        )}
+      </div>
+
+      {/* Summary Footer */}
+      <div className="p-3 border-t flex items-center justify-between text-xs text-muted-foreground">
+        <p>
+          Showing {displayedItems.length} of {totalCount} employees (6 per batch)
+        </p>
+        {hasMore && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadMore}
+            className="h-7 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10"
+          >
+            Load next 6
+          </Button>
+        )}
       </div>
     </Card>
   );

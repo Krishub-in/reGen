@@ -1,22 +1,20 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
   useGetAllUsers, 
   useGetUserAttendance, 
   useGetUserLeaveRequests, 
-  useGetUserPayments, 
   useGetAllAttendance, 
-  useGetAllTasks, 
   useGetAllLeaveRequests,
   useGetRecentTransactions,
   useGetCompanyInfo
 } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
+import { useScrollPagination } from '../../hooks/useScrollPagination';
 import { 
-  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar,
-  Clock, DollarSign, CreditCard, TrendingUp, AlertCircle, Sparkles, FileText, CheckCircle
+  Users, Building2, UserCheck, Search, CheckCircle2, ArrowUpRight, Calendar,
+  Clock, DollarSign, CreditCard, TrendingUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -481,7 +479,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
   const currentTrendData = trendData[trendRange] || trendData.year;
 
   // Filtered employees for table (strictly in selectedYear)
-  const displayedEmployees = useMemo(() => {
+  const filteredEmployees = useMemo(() => {
     let list = employeesInYear;
     if (empSearch.trim()) {
       const q = empSearch.toLowerCase();
@@ -498,8 +496,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
     if (statusFilter !== 'all') {
       list = list.filter(u => (statusFilter === 'active' ? !u.isSuspended : u.isSuspended));
     }
-    return list.slice(0, 10);
+    return list;
   }, [employeesInYear, empSearch, deptFilter, statusFilter]);
+
+  // Pagination upon 6 per page with scroll-down lazy loading
+  const empPagination = useScrollPagination(filteredEmployees, 6, [empSearch, deptFilter, statusFilter, selectedYear]);
+  const displayedEmployees = empPagination.visibleItems;
 
   // Employee-specific annual attendance rate for employee table
   const getEmployeeAnnualAttendance = useCallback((emp) => {
@@ -621,6 +623,13 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
       return st === 'approved';
     }).length;
   }, [leavesInYear]);
+
+  // Pagination upon 6 per page with scroll-down lazy loading
+  const leavePagination = useScrollPagination(leavesInYear, 6, [selectedYear]);
+  const displayedLeaves = leavePagination.visibleItems;
+
+  const txPagination = useScrollPagination(myTransactions, 6, [selectedYear]);
+  const displayedTransactions = txPagination.visibleItems;
 
   return (
     <div className="space-y-6 pb-12">
@@ -1010,9 +1019,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div 
+              className="overflow-x-auto max-h-[440px] overflow-y-auto"
+              onScroll={empPagination.onScroll}
+            >
               <table className="w-full text-left text-xs">
-                <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider sticky top-0 bg-card z-10">
                   <tr>
                     <th className="py-3 px-5">Name</th>
                     <th className="py-3 px-4">Department</th>
@@ -1105,6 +1117,15 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                   )}
                 </tbody>
               </table>
+              {empPagination.hasMore && (
+                <div 
+                  onClick={empPagination.loadMore}
+                  className="py-2.5 px-4 text-center border-t border-border bg-secondary/30 text-[11px] text-muted-foreground flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/50 transition-colors"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                  <span>Showing {displayedEmployees.length} of {empPagination.totalCount} employees — Scroll down for next 6</span>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -1203,9 +1224,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                   <p>You have no leave records in {selectedYear}</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div 
+                  className="overflow-x-auto max-h-[360px] overflow-y-auto"
+                  onScroll={leavePagination.onScroll}
+                >
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider sticky top-0 bg-card z-10">
                       <tr>
                         <th className="py-2.5 px-3">Type</th>
                         <th className="py-2.5 px-3">Dates</th>
@@ -1214,7 +1238,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
-                      {leavesInYear.slice(0, 6).map((l, i) => {
+                      {displayedLeaves.map((l, i) => {
                         const type = formatLeaveType(l.leaveType || l.type);
                         const status = typeof l.status === 'string' ? l.status : Object.keys(l.status || {})[0] || 'pending';
                         const range = formatLeaveRange(l.startDate, l.endDate);
@@ -1240,6 +1264,15 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       })}
                     </tbody>
                   </table>
+                  {leavePagination.hasMore && (
+                    <div 
+                      onClick={leavePagination.loadMore}
+                      className="py-2 px-3 text-center border-t border-border bg-secondary/30 text-[10px] text-muted-foreground flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/50 transition-colors"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      <span>Showing {displayedLeaves.length} of {leavePagination.totalCount} leaves — Scroll down for next 6</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1270,9 +1303,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                   <p>No payment records found for year {selectedYear}</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div 
+                  className="overflow-x-auto max-h-[360px] overflow-y-auto"
+                  onScroll={txPagination.onScroll}
+                >
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider sticky top-0 bg-card z-10">
                       <tr>
                         <th className="py-2.5 px-3">Month</th>
                         <th className="py-2.5 px-3">Amount</th>
@@ -1282,7 +1318,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/50">
-                      {myTransactions.slice(0, 6).map((t, i) => {
+                      {displayedTransactions.map((t, i) => {
                         const amt = Number(t.amount) || 0;
                         const status = t.status || 'completed';
                         const type = (t.type || 'Salary').toUpperCase();
@@ -1309,6 +1345,15 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       })}
                     </tbody>
                   </table>
+                  {txPagination.hasMore && (
+                    <div 
+                      onClick={txPagination.loadMore}
+                      className="py-2 px-3 text-center border-t border-border bg-secondary/30 text-[10px] text-muted-foreground flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/50 transition-colors"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      <span>Showing {displayedTransactions.length} of {txPagination.totalCount} payments — Scroll down for next 6</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

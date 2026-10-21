@@ -11,10 +11,10 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle, FileText, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
-import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
 import { isTaskExpired } from '@/lib/taskUtils';
 import AttendanceReportDialog from './AttendanceReportDialog';
+import { useScrollPagination } from '../../hooks/useScrollPagination';
 
 export default function AttendanceModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -168,15 +168,13 @@ export default function AttendanceModule({ userProfile }) {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
 
-  // Admin filter & pagination state
+  // Admin filter state
   const [searchQuery, setSearchQuery] = useState('');
   const [filterDept, setFilterDept] = useState('all');
   const [filterEmployee, setFilterEmployee] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
   const [showHistory, setShowHistory] = useState(false);
   const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
-  const pageSize = 10;
 
   const greeting = useMemo(() => {
     const h = currentTime.getHours();
@@ -681,13 +679,14 @@ export default function AttendanceModule({ userProfile }) {
     return list;
   }, [showHistory, dailyRoster, attendanceData, filterStatus, filterDept, filterEmployee, searchQuery, getUserDetails, isLateStatus, isAbsentStatus, getAttendanceStatus, toIdText, normalizeAttendanceDate]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredAttendance.length / pageSize));
-  const paginatedData = filteredAttendance.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
-  // Reset page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory]);
+  // Scroll-down pagination: 6 per page, loading next 6 on scroll down
+  const {
+    displayedItems: paginatedData,
+    hasMore: hasMoreData,
+    handleScroll: handleTableScroll,
+    totalCount: totalDataCount,
+    loadMore: loadMoreData,
+  } = useScrollPagination(filteredAttendance, 6, [filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory]);
 
   // Export CSV handler
   const handleExport = useCallback(() => {
@@ -1403,8 +1402,11 @@ export default function AttendanceModule({ userProfile }) {
 
       {/* Table */}
       <Card>
-        {/* Mobile cards */}
-        <div className="space-y-3 p-4 md:hidden">
+        {/* Mobile cards with 6 per page lazy scroll */}
+        <div 
+          className="space-y-3 p-4 md:hidden max-h-[520px] overflow-y-auto"
+          onScroll={handleTableScroll}
+        >
           {paginatedData.map((record) => {
             const status = record.status;
             return (
@@ -1458,6 +1460,11 @@ export default function AttendanceModule({ userProfile }) {
               </Card>
             );
           })}
+          {hasMoreData && (
+            <div className="py-2.5 text-center text-xs text-muted-foreground animate-pulse border-t border-border/50">
+              Showing {paginatedData.length} of {totalDataCount} — scroll down for next 6
+            </div>
+          )}
           {paginatedData.length === 0 && (
             <p className="text-center py-6 text-sm text-muted-foreground">
               No attendance records found.
@@ -1465,10 +1472,13 @@ export default function AttendanceModule({ userProfile }) {
           )}
         </div>
 
-        {/* Desktop table */}
-        <div className="hidden md:block">
+        {/* Desktop table with 6 per page lazy scroll */}
+        <div 
+          className="hidden md:block max-h-[520px] overflow-y-auto"
+          onScroll={handleTableScroll}
+        >
           <Table>
-            <TableHeader className="bg-muted/50">
+            <TableHeader className="bg-muted/90 sticky top-0 z-10 backdrop-blur-sm shadow-xs">
               <TableRow>
                 {showHistory && <TableHead>Date</TableHead>}
                 <TableHead>Employee ID</TableHead>
@@ -1555,59 +1565,28 @@ export default function AttendanceModule({ userProfile }) {
               )}
             </TableBody>
           </Table>
-
-          {/* Pagination */}
-          <div className="p-4 border-t flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing {filteredAttendance.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredAttendance.length)} of {filteredAttendance.length} entries
-              </p>
-              <div className="flex gap-2 items-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </Button>
-                  <span className="text-sm font-medium px-2">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-              </div>
-          </div>
+          {hasMoreData && (
+            <div className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse">
+              Showing {paginatedData.length} of {totalDataCount} — scroll down for next 6
+            </div>
+          )}
         </div>
 
-        {/* Mobile pagination */}
-        <div className="p-4 border-t flex items-center justify-between md:hidden">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {currentPage} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        {/* Summary Footer */}
+        <div className="p-3.5 border-t flex items-center justify-between text-xs text-muted-foreground">
+          <p>
+            Showing {paginatedData.length} of {totalDataCount} entries (6 per batch)
+          </p>
+          {hasMoreData && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadMoreData}
+              className="h-7 text-xs font-medium text-primary hover:text-primary hover:bg-primary/10"
+            >
+              Load next 6
+            </Button>
+          )}
         </div>
       </Card>
 
