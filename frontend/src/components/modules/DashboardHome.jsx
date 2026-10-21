@@ -3,12 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
-  useGetAllUsers, useGetUserAttendance, useGetUserLeaveRequests, 
-  useGetUserPayments, useGetAllAttendance, useGetAllTasks, useGetAllLeaveRequests 
+  useGetAllUsers, 
+  useGetUserAttendance, 
+  useGetUserLeaveRequests, 
+  useGetUserPayments, 
+  useGetAllAttendance, 
+  useGetAllTasks, 
+  useGetAllLeaveRequests,
+  useGetRecentTransactions,
+  useGetCompanyInfo
 } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { 
-  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar
+  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar,
+  Clock, DollarSign, CreditCard, TrendingUp, AlertCircle, Sparkles, FileText, CheckCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -16,17 +24,21 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip 
 } from 'recharts';
 
-export default function DashboardHome({ userProfile, onNavigate }) {
+export default function DashboardHome({ userProfile, onNavigate, selectedYear = new Date().getFullYear(), setSelectedYear }) {
   const { identity } = useCustomAuth();
   const queryClient = useQueryClient();
   const currentUserId = userProfile?.userId || userProfile?.id || userProfile?.StaffId || identity?.getPrincipal() || null;
+  const currentYear = new Date().getFullYear();
+  const isCurrentYear = selectedYear === currentYear;
+
   const { data: users = [] } = useGetAllUsers();
   const { data: attendance = [] } = useGetUserAttendance(currentUserId);
   const { data: userLeaves = [] } = useGetUserLeaveRequests(currentUserId);
   const { data: allLeaves = [] } = useGetAllLeaveRequests();
-  const { data: payments = [] } = useGetUserPayments(currentUserId);
   const { data: allAttendance = [] } = useGetAllAttendance();
   const { data: allTasks = [] } = useGetAllTasks();
+  const { data: companyInfo } = useGetCompanyInfo();
+  const { data: transactionsData } = useGetRecentTransactions({ year: selectedYear, limit: 100 });
 
   // Dynamically sync and refetch attendance immediately on check-in or socket update
   useEffect(() => {
@@ -46,7 +58,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     };
   }, [queryClient]);
 
-  const [trendRange, setTrendRange] = useState('week');
+  const [trendRange, setTrendRange] = useState('year');
   const [empSearch, setEmpSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -89,23 +101,40 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return String(val);
   }, []);
 
-  // Filter employees excluding the owner
+  // Helper to extract joining/creation year
+  const getEmployeeYear = useCallback((emp) => {
+    if (!emp) return currentYear;
+    if (emp.joiningDate) {
+      const d = new Date(emp.joiningDate);
+      if (!isNaN(d.getTime())) return d.getFullYear();
+    }
+    if (emp.createdAt) {
+      const d = new Date(emp.createdAt);
+      if (!isNaN(d.getTime())) return d.getFullYear();
+    }
+    return currentYear;
+  }, [currentYear]);
+
+  // Active employees in company excluding the owner
   const activeCompanyEmployees = useMemo(() => {
     return users.filter(u => !isOwnerRole(u.role));
   }, [users, isOwnerRole]);
 
-  // Real employee count strictly without the owner
-  const totalEmployeesCount = activeCompanyEmployees.length;
+  // Filtered employees who joined on or before selectedYear
+  const employeesInYear = useMemo(() => {
+    return activeCompanyEmployees.filter(u => getEmployeeYear(u) <= selectedYear);
+  }, [activeCompanyEmployees, selectedYear, getEmployeeYear]);
 
-  const employeeIdSet = useMemo(() => {
-    return new Set(
-      activeCompanyEmployees.map(u => toIdText(u.userId || u.id))
-    );
-  }, [activeCompanyEmployees, toIdText]);
+  // New joiners in selectedYear
+  const newJoinersInYear = useMemo(() => {
+    return activeCompanyEmployees.filter(u => getEmployeeYear(u) === selectedYear);
+  }, [activeCompanyEmployees, selectedYear, getEmployeeYear]);
+
+  const totalEmployeesCount = employeesInYear.length;
 
   const departmentsList = useMemo(() => {
-    return Array.from(new Set(activeCompanyEmployees.map(u => u.department).filter(Boolean)));
-  }, [activeCompanyEmployees]);
+    return Array.from(new Set(employeesInYear.map(u => u.department).filter(Boolean)));
+  }, [employeesInYear]);
   const totalDepartments = departmentsList.length;
 
   const myIds = useMemo(() => {
@@ -155,7 +184,6 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return aIds.some(id => uIds.includes(id));
   }, [toIdText]);
 
-  // Safely extract string status even if Candid variant object like { present: null } or { late: null }
   const getAttendanceStatus = useCallback((status) => {
     if (!status) return 'present';
     if (typeof status === 'string') return status.toLowerCase().trim();
@@ -181,7 +209,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return s === 'absent';
   }, [getAttendanceStatus]);
 
-  // Robust date extractor from string, ISO, number or Motoko BigInt nanoseconds
+  // Robust date extractor YYYY-MM-DD
   const normalizeAttendanceDate = useCallback((a) => {
     const raw = a?.date || a?.checkIn || a?.createdAt;
     if (!raw) return '';
@@ -204,7 +232,6 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return '';
   }, []);
 
-  // Time formatter helper
   const formatTime = useCallback((timeVal) => {
     if (!timeVal) return '';
     try {
@@ -227,7 +254,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     }
   }, []);
 
-  // Merged real-time attendance deduplicated by ID or user-date
+  // Merged real-time attendance deduplicated
   const combinedAttendance = useMemo(() => {
     const map = new Map();
     (allAttendance || []).forEach(a => {
@@ -245,7 +272,16 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return Array.from(map.values());
   }, [allAttendance, attendance, toIdText, normalizeAttendanceDate]);
 
-  // Real Today's Attendance Stats
+  // Attendance records strictly in selectedYear
+  const yearAttendance = useMemo(() => {
+    const prefix = `${selectedYear}-`;
+    return combinedAttendance.filter(a => {
+      const d = normalizeAttendanceDate(a);
+      return d && d.startsWith(prefix);
+    });
+  }, [combinedAttendance, selectedYear, normalizeAttendanceDate]);
+
+  // Today's Attendance Stats
   const todayDate = new Date().toISOString().split('T')[0];
   const todayAttendance = useMemo(() => {
     return combinedAttendance.filter(a => normalizeAttendanceDate(a) === todayDate);
@@ -253,9 +289,9 @@ export default function DashboardHome({ userProfile, onNavigate }) {
 
   const activeUsersToday = useMemo(() => {
     const presentRecords = todayAttendance.filter(a => isPresentStatus(a.status) || isLateStatus(a.status));
-    if (activeCompanyEmployees.length === 0) return presentRecords.length;
-    return activeCompanyEmployees.filter(u => presentRecords.some(a => matchesEmployee(a, u))).length;
-  }, [todayAttendance, activeCompanyEmployees, matchesEmployee, isPresentStatus, isLateStatus]);
+    if (employeesInYear.length === 0) return presentRecords.length;
+    return employeesInYear.filter(u => presentRecords.some(a => matchesEmployee(a, u))).length;
+  }, [todayAttendance, employeesInYear, matchesEmployee, isPresentStatus, isLateStatus]);
 
   // Today's check-in status and record for user dashboard
   const userTodayRecord = useMemo(() => {
@@ -270,16 +306,13 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return 'Present';
   }, [userTodayRecord, isPresentStatus, isLateStatus, isAbsentStatus]);
 
-  // Dynamic Attendance Breakdown (Present, Absent, Late, Rate) for Week, Month, Year
+  // Attendance breakdown for selectedYear
   const rateBreakdown = useMemo(() => {
     const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
-    const currentDate = now.getDate();
-
     let targetDates = [];
-    if (trendRange === 'week') {
-      const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
+
+    if (trendRange === 'week' && isCurrentYear) {
+      const dayOfWeek = (now.getDay() + 6) % 7;
       const monday = new Date(now);
       monday.setDate(now.getDate() - dayOfWeek);
       monday.setHours(0, 0, 0, 0);
@@ -287,39 +320,44 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       for (let i = 0; i <= dayOfWeek; i++) {
         const d = new Date(monday);
         d.setDate(monday.getDate() + i);
-        if (d.getDay() !== 0) { // Exclude Sunday
-          targetDates.push(d.toISOString().split('T')[0]);
-        }
-      }
-    } else if (trendRange === 'month') {
-      for (let day = 1; day <= currentDate; day++) {
-        const d = new Date(currentYear, currentMonth, day);
         if (d.getDay() !== 0) {
           targetDates.push(d.toISOString().split('T')[0]);
         }
       }
-    } else { // year
-      const cur = new Date(currentYear, 0, 1);
-      const endDay = new Date(now);
-      endDay.setHours(0, 0, 0, 0);
-      while (cur <= endDay) {
-        if (cur.getDay() !== 0) {
-          targetDates.push(cur.toISOString().split('T')[0]);
+    } else if (trendRange === 'month' && isCurrentYear) {
+      const currentMonth = now.getMonth();
+      const currentDate = now.getDate();
+      for (let day = 1; day <= currentDate; day++) {
+        const d = new Date(selectedYear, currentMonth, day);
+        if (d.getDay() !== 0) {
+          targetDates.push(d.toISOString().split('T')[0]);
         }
-        cur.setDate(cur.getDate() + 1);
+      }
+    } else {
+      // Annual calculation for selectedYear
+      const cur = new Date(selectedYear, 0, 1);
+      const endDay = isCurrentYear ? new Date(now) : new Date(selectedYear, 11, 31);
+      endDay.setHours(0, 0, 0, 0);
+
+      if (cur <= endDay) {
+        while (cur <= endDay) {
+          if (cur.getDay() !== 0) {
+            targetDates.push(cur.toISOString().split('T')[0]);
+          }
+          cur.setDate(cur.getDate() + 1);
+        }
       }
     }
 
     const targetDatesSet = new Set(targetDates);
-    const sourceAttendance = combinedAttendance;
+    const sourceAttendance = yearAttendance;
 
     if (isCompanyLogin) {
-      // Company view: all non-owner employees
       const relevantRecords = sourceAttendance.filter(a => {
         const dIso = normalizeAttendanceDate(a);
-        if (!targetDatesSet.has(dIso)) return false;
-        if (activeCompanyEmployees.length === 0) return true;
-        return activeCompanyEmployees.some(u => matchesEmployee(a, u));
+        if (targetDates.length > 0 && !targetDatesSet.has(dIso)) return false;
+        if (employeesInYear.length === 0) return true;
+        return employeesInYear.some(u => matchesEmployee(a, u));
       });
 
       const present = relevantRecords.filter(r => isPresentStatus(r.status)).length;
@@ -327,71 +365,70 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       const attended = present + late;
       const explicitAbsent = relevantRecords.filter(r => isAbsentStatus(r.status)).length;
       
-      const totalExpected = (totalEmployeesCount || 1) * targetDates.length;
+      const totalExpected = Math.max(1, (totalEmployeesCount || 1) * (targetDates.length || 1));
       const absent = explicitAbsent > 0 ? explicitAbsent : Math.max(0, totalExpected - attended);
       const totalBasis = Math.max(attended + absent, totalExpected);
       const rate = totalBasis > 0 ? Math.min(100, Math.round((attended / totalBasis) * 100)) : 0;
 
-      return { present, absent, late, rate };
+      return { present, absent, late, rate, totalExpected };
     } else {
-      // User view: only this employee
       const myRecords = sourceAttendance.filter(a => isMyAttendance(a));
-
-      const recordsInRange = myRecords.filter(a => {
-        const dIso = normalizeAttendanceDate(a);
-        return targetDatesSet.has(dIso);
-      });
+      const recordsInRange = targetDates.length > 0
+        ? myRecords.filter(a => targetDatesSet.has(normalizeAttendanceDate(a)))
+        : myRecords;
 
       const present = recordsInRange.filter(r => isPresentStatus(r.status)).length;
       const late = recordsInRange.filter(r => isLateStatus(r.status)).length;
       const attended = present + late;
       const explicitAbsent = recordsInRange.filter(r => isAbsentStatus(r.status)).length;
-      const absent = explicitAbsent > 0 ? explicitAbsent : Math.max(0, targetDates.length - attended);
-      const totalBasis = Math.max(attended + absent, targetDates.length);
+      const expectedDays = targetDates.length || 1;
+      const absent = explicitAbsent > 0 ? explicitAbsent : Math.max(0, expectedDays - attended);
+      const totalBasis = Math.max(attended + absent, expectedDays);
       const rate = totalBasis > 0 ? Math.min(100, Math.round((attended / totalBasis) * 100)) : 0;
 
-      return { present, absent, late, rate };
+      return { present, absent, late, rate, totalExpected: expectedDays };
     }
   }, [
-    trendRange, isCompanyLogin, combinedAttendance, 
-    activeCompanyEmployees, totalEmployeesCount, matchesEmployee, 
-    isMyAttendance, isPresentStatus, isLateStatus, isAbsentStatus, normalizeAttendanceDate
+    trendRange, selectedYear, isCurrentYear, isCompanyLogin, yearAttendance,
+    employeesInYear, totalEmployeesCount, matchesEmployee, isMyAttendance,
+    isPresentStatus, isLateStatus, isAbsentStatus, normalizeAttendanceDate
   ]);
 
-  // Real Attendance Trend computed from actual records
+  // Real Attendance Trend computed for selectedYear (12 Months / Month / Week)
   const trendData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const now = new Date();
-    const dayOfWeek = (now.getDay() + 6) % 7; // Mon=0 ... Sun=6
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - dayOfWeek);
-    startOfWeek.setHours(0, 0, 0, 0);
 
     const sourceRecords = isCompanyLogin
-      ? combinedAttendance.filter(a => {
-          if (activeCompanyEmployees.length === 0) return true;
-          return activeCompanyEmployees.some(u => matchesEmployee(a, u));
+      ? yearAttendance.filter(a => {
+          if (employeesInYear.length === 0) return true;
+          return employeesInYear.some(u => matchesEmployee(a, u));
         })
-      : combinedAttendance.filter(a => isMyAttendance(a));
+      : yearAttendance.filter(a => isMyAttendance(a));
 
     const divisor = isCompanyLogin ? (totalEmployeesCount || 1) : 1;
 
-    // 1. Week trend (Mon-Sun of current week)
-    const weekList = days.map((name, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      const dIso = d.toISOString().split('T')[0];
+    // 1. Full 12-Month Trend for selectedYear
+    const yearList = months.map((name, mIdx) => {
+      const monthPrefix = `${selectedYear}-${String(mIdx + 1).padStart(2, '0')}`;
+      const recordsInMonth = sourceRecords.filter(a => {
+        const dIso = normalizeAttendanceDate(a);
+        return dIso && dIso.startsWith(monthPrefix);
+      });
 
-      const recordsOnDay = sourceRecords.filter(a => normalizeAttendanceDate(a) === dIso);
-      const attendedCount = recordsOnDay.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
-      const rate = Math.min(100, Math.round((attendedCount / divisor) * 100));
-      return { name, rate, date: dIso, present: attendedCount };
+      const uniqueDates = new Set(recordsInMonth.map(a => normalizeAttendanceDate(a)));
+      const workingDays = uniqueDates.size || 0;
+      const totalPossible = Math.max(1, workingDays * divisor);
+
+      const attended = recordsInMonth.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
+      const rate = workingDays > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
+      return { name, rate, attended, month: monthPrefix };
     });
 
-    // 2. Month trend (Weeks 1 to 4 of current month)
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+    // 2. Month Trend (Weeks 1 to 4 of current or last month in selectedYear)
+    const targetMonthIdx = isCurrentYear ? now.getMonth() : 11;
+    const lastDayOfMonth = new Date(selectedYear, targetMonthIdx + 1, 0).getDate();
     const monthWeeks = [
       { name: 'Week 1', start: 1, end: 7 },
       { name: 'Week 2', start: 8, end: 14 },
@@ -404,39 +441,31 @@ export default function DashboardHome({ userProfile, onNavigate }) {
         const dIso = normalizeAttendanceDate(a);
         if (!dIso) return false;
         const d = new Date(dIso);
-        return d.getFullYear() === year && d.getMonth() === month && d.getDate() >= w.start && d.getDate() <= w.end;
+        return d.getFullYear() === selectedYear && d.getMonth() === targetMonthIdx && d.getDate() >= w.start && d.getDate() <= w.end;
       });
 
       const dateSet = new Set(recordsInWeek.map(a => normalizeAttendanceDate(a)));
-      const totalPossible = (dateSet.size || 1) * divisor;
-
+      const totalPossible = Math.max(1, (dateSet.size || 1) * divisor);
       const attended = recordsInWeek.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
-      const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
+      const rate = dateSet.size > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
       return { name: w.name, rate };
     });
 
-    // 3. Year trend (Q1, Q2, Q3, Q4)
-    const quarters = [
-      { name: 'Q1', months: [0, 1, 2] },
-      { name: 'Q2', months: [3, 4, 5] },
-      { name: 'Q3', months: [6, 7, 8] },
-      { name: 'Q4', months: [9, 10, 11] },
-    ];
+    // 3. Week Trend (Mon-Sun)
+    const dayOfWeek = (now.getDay() + 6) % 7;
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - dayOfWeek);
+    startOfWeek.setHours(0, 0, 0, 0);
 
-    const yearList = quarters.map(q => {
-      const recordsInQuarter = sourceRecords.filter(a => {
-        const dIso = normalizeAttendanceDate(a);
-        if (!dIso) return false;
-        const d = new Date(dIso);
-        return d.getFullYear() === year && q.months.includes(d.getMonth());
-      });
+    const weekList = days.map((name, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const dIso = d.toISOString().split('T')[0];
 
-      const dateSet = new Set(recordsInQuarter.map(a => normalizeAttendanceDate(a)));
-      const totalPossible = (dateSet.size || 1) * divisor;
-
-      const attended = recordsInQuarter.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
-      const rate = totalPossible > 0 ? Math.min(100, Math.round((attended / totalPossible) * 100)) : 0;
-      return { name: q.name, rate };
+      const recordsOnDay = sourceRecords.filter(a => normalizeAttendanceDate(a) === dIso);
+      const attendedCount = recordsOnDay.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
+      const rate = Math.min(100, Math.round((attendedCount / divisor) * 100));
+      return { name, rate, date: dIso, present: attendedCount };
     });
 
     return {
@@ -445,21 +474,15 @@ export default function DashboardHome({ userProfile, onNavigate }) {
       year: yearList,
     };
   }, [
-    combinedAttendance, isCompanyLogin, totalEmployeesCount, 
-    activeCompanyEmployees, matchesEmployee, isMyAttendance, isPresentStatus, isLateStatus, normalizeAttendanceDate
+    yearAttendance, selectedYear, isCurrentYear, isCompanyLogin, totalEmployeesCount,
+    employeesInYear, matchesEmployee, isMyAttendance, isPresentStatus, isLateStatus, normalizeAttendanceDate
   ]);
 
-  // Today's attendance resolver for individual employees
-  const getEmployeeTodayAttendance = useCallback((emp) => {
-    if (!emp) return null;
-    return todayAttendance.find(a => matchesEmployee(a, emp));
-  }, [todayAttendance, matchesEmployee]);
+  const currentTrendData = trendData[trendRange] || trendData.year;
 
-  const currentTrendData = trendData[trendRange] || trendData.week;
-
-  // Filtered employees for table (strictly without owner)
+  // Filtered employees for table (strictly in selectedYear)
   const displayedEmployees = useMemo(() => {
-    let list = activeCompanyEmployees;
+    let list = employeesInYear;
     if (empSearch.trim()) {
       const q = empSearch.toLowerCase();
       list = list.filter(u => {
@@ -475,11 +498,20 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     if (statusFilter !== 'all') {
       list = list.filter(u => (statusFilter === 'active' ? !u.isSuspended : u.isSuspended));
     }
-    return list.slice(0, 5);
-  }, [activeCompanyEmployees, empSearch, deptFilter, statusFilter]);
+    return list.slice(0, 10);
+  }, [employeesInYear, empSearch, deptFilter, statusFilter]);
+
+  // Employee-specific annual attendance rate for employee table
+  const getEmployeeAnnualAttendance = useCallback((emp) => {
+    if (!emp) return { rate: 0, presentDays: 0 };
+    const empRecords = yearAttendance.filter(a => matchesEmployee(a, emp));
+    const attended = empRecords.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
+    const rate = rateBreakdown.totalExpected > 0 ? Math.min(100, Math.round((attended / rateBreakdown.totalExpected) * 100)) : 0;
+    return { rate, presentDays: attended };
+  }, [yearAttendance, matchesEmployee, isPresentStatus, isLateStatus, rateBreakdown.totalExpected]);
 
   const formatLeaveRange = (start, end) => {
-    if (!start) return 'Upcoming';
+    if (!start) return 'Leave';
     try {
       const sd = new Date(start);
       if (isNaN(sd.getTime())) return start;
@@ -505,30 +537,40 @@ export default function DashboardHome({ userProfile, onNavigate }) {
     return String(type);
   };
 
-  // Real Upcoming Leaves:
-  // - Company view: shows any employee who applied for leave with their actual name
-  // - User view: shows only the leaves the logged-in user applied for
-  const upcomingLeavesList = useMemo(() => {
+  // Leaves filtered by selectedYear
+  const leavesInYear = useMemo(() => {
     const rawLeaves = isCompanyLogin ? allLeaves : userLeaves;
     if (!Array.isArray(rawLeaves) || rawLeaves.length === 0) return [];
 
+    const yrPrefix = String(selectedYear);
+    return rawLeaves.filter(l => {
+      const s = String(l.startDate || '');
+      const e = String(l.endDate || '');
+      const c = String(l.createdAt || '');
+      return s.startsWith(yrPrefix) || e.startsWith(yrPrefix) || c.startsWith(yrPrefix);
+    });
+  }, [isCompanyLogin, allLeaves, userLeaves, selectedYear]);
+
+  const upcomingLeavesList = useMemo(() => {
     const todayAtMidnight = new Date();
     todayAtMidnight.setHours(0, 0, 0, 0);
 
-    const filtered = rawLeaves.filter(l => {
+    const filtered = leavesInYear.filter(l => {
       const status = typeof l.status === 'string' ? l.status.toLowerCase() : Object.keys(l.status || {})[0]?.toLowerCase();
       if (status === 'rejected') return false;
-
-      if (!l.endDate && !l.startDate) return true;
-      const d = new Date(l.endDate || l.startDate);
-      if (isNaN(d.getTime())) return true;
-      return d >= todayAtMidnight;
+      if (isCurrentYear) {
+        if (!l.endDate && !l.startDate) return true;
+        const d = new Date(l.endDate || l.startDate);
+        if (isNaN(d.getTime())) return true;
+        return d >= todayAtMidnight;
+      }
+      return true;
     });
 
     const sorted = [...filtered].sort((a, b) => {
       const da = new Date(a.startDate || 0).getTime();
       const db = new Date(b.startDate || 0).getTime();
-      return da - db;
+      return isCurrentYear ? da - db : db - da;
     });
 
     return sorted.slice(0, 5).map(l => {
@@ -553,214 +595,342 @@ export default function DashboardHome({ userProfile, onNavigate }) {
         avatar: avatar,
       };
     });
-  }, [isCompanyLogin, allLeaves, userLeaves, users, userProfile, toIdText]);
+  }, [leavesInYear, isCurrentYear, isCompanyLogin, users, userProfile, toIdText]);
+
+  // Payment transactions strictly in selectedYear
+  const myTransactions = useMemo(() => {
+    const list = transactionsData?.transactions || (Array.isArray(transactionsData) ? transactionsData : []);
+    const yrPrefix = `${selectedYear}-`;
+    const yrStr = String(selectedYear);
+    return list.filter(t => {
+      if (t.month && String(t.month).startsWith(yrPrefix)) return true;
+      if (t.paidAt && String(t.paidAt).startsWith(yrStr)) return true;
+      if (t.createdAt && String(t.createdAt).startsWith(yrStr)) return true;
+      return false;
+    });
+  }, [transactionsData, selectedYear]);
+
+  const totalPaidInYear = useMemo(() => {
+    const completed = myTransactions.filter(t => t.status === 'completed' || !t.status);
+    return completed.reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+  }, [myTransactions]);
+
+  const approvedLeavesCount = useMemo(() => {
+    return leavesInYear.filter(l => {
+      const st = typeof l.status === 'string' ? l.status.toLowerCase() : Object.keys(l.status || {})[0]?.toLowerCase();
+      return st === 'approved';
+    }).length;
+  }, [leavesInYear]);
 
   return (
     <div className="space-y-6 pb-12">
-      {/* 1. Welcome Greeting Banner (Matching Reference Image) */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-          Welcome back, {userProfile?.name ? userProfile.name.split(' ')[0] : 'Vishwa'}!
-        </h1>
-        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-          Here's your team overview for today.
-        </p>
+      {/* 1. Welcome Greeting Banner with Year Context */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card border border-border p-5 sm:p-6 rounded-2xl shadow-xs">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+            Welcome back, {userProfile?.name ? userProfile.name.split(' ')[0] : 'Vishwa'}!
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+            {isCompanyLogin
+              ? `Company operations and workforce analytics for year ${selectedYear}.`
+              : `Your personal attendance, leave, and payroll records for year ${selectedYear}.`}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+            <Calendar className="w-3.5 h-3.5" />
+            Year: {selectedYear}
+          </span>
+          {isCurrentYear && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* 2. Top 4 Stats Cards Grid (Matching Reference Image) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
-        {/* Total Employees */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Total Employees</p>
-              <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{totalEmployeesCount}</h3>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                  <ArrowUpRight className="w-3 h-3" /> +12%
-                </span>
-                <span className="text-[11px] text-muted-foreground">from last month</span>
+      {/* 2. Top Stats Cards Grid */}
+      {isCompanyLogin ? (
+        /* Company Dashboard Top Cards */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {/* Total Employees in Year */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Total Employees ({selectedYear})</p>
+                <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{totalEmployeesCount}</h3>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <ArrowUpRight className="w-3 h-3" /> +{newJoinersInYear.length} joined
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">in {selectedYear}</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+                <Users className="w-5 h-5 text-primary" />
               </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
-              <Users className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Departments */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">Departments</p>
-              <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{totalDepartments}</h3>
-              <div className="mt-3 flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                  <CheckCircle2 className="w-3 h-3" /> 1 new
-                </span>
-                <span className="text-[11px] text-muted-foreground">added recently</span>
+          {/* Active Departments in Year */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Departments ({selectedYear})</p>
+                <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{totalDepartments}</h3>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <CheckCircle2 className="w-3 h-3" /> Active
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">in {selectedYear}</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+                <Building2 className="w-5 h-5 text-primary" />
               </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
-              <Building2 className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-        </Card>
+          </Card>
 
-        {/* Active Staff Today / User Check-in Status */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-muted-foreground">
-                {isCompanyLogin ? 'Active Staff Today' : "Today's Status"}
+          {/* Today's Status / Year Attendance */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {isCurrentYear ? "Today's Attendance" : `Annual Attendance (${selectedYear})`}
+                </p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <h3 className="text-2xl font-bold tracking-tight text-foreground">
+                    {isCurrentYear ? `${activeUsersToday} / ${totalEmployeesCount || 1}` : `${rateBreakdown.rate}%`}
+                  </h3>
+                </div>
+                <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    <strong className="text-foreground font-semibold">{rateBreakdown.rate}%</strong> {trendRange} average
+                  </span>
+                  {isCurrentYear && (
+                    <span className="text-[11px] text-muted-foreground">
+                      ({activeUsersToday} present today)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground shrink-0 ml-2">
+                <UserCheck className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+          </Card>
+
+          {/* Attendance Rate Donut Card */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Attendance Rate ({selectedYear})
               </p>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground">
-                  {isCompanyLogin ? `${activeUsersToday} / ${totalEmployeesCount || 1}` : userTodayStatus}
+              <div className="flex items-center gap-0.5 bg-secondary/80 p-0.5 rounded-lg border border-border text-[10px] font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setTrendRange('week')}
+                  className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'week' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+                >
+                  Week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrendRange('month')}
+                  className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'month' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+                >
+                  Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrendRange('year')}
+                  className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'year' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
+                >
+                  Year
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mt-1">
+              <div className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center shrink-0">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="text-secondary stroke-current"
+                    strokeWidth="3.5"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className="text-primary stroke-current transition-all duration-700"
+                    strokeDasharray={`${rateBreakdown.rate}, 100`}
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    fill="none"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-lg sm:text-xl font-bold tracking-tight text-foreground">{rateBreakdown.rate}%</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5 text-xs flex-1 min-w-0">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                    <span className="w-2 h-2 rounded-full bg-primary shrink-0" /> Present
+                  </span>
+                  <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.present}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> Absent
+                  </span>
+                  <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.absent}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" /> Late
+                  </span>
+                  <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.late}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        /* Employee/User Dashboard Top Cards */
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+          {/* Card 1: My Annual Attendance Percentage */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Attendance Rate ({selectedYear})</p>
+                <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{rateBreakdown.rate}%</h3>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <UserCheck className="w-3 h-3" /> {rateBreakdown.present + rateBreakdown.late} days
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">attended in {selectedYear}</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+                <UserCheck className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+          </Card>
+
+          {/* Card 2: Attendance Summary (Present / Late / Absent) */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Attendance Summary ({selectedYear})</p>
+              <div className="grid grid-cols-3 gap-2 mt-3 text-center">
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2">
+                  <p className="text-[10px] text-muted-foreground font-semibold">Present</p>
+                  <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{rateBreakdown.present}</p>
+                </div>
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-2">
+                  <p className="text-[10px] text-muted-foreground font-semibold">Late</p>
+                  <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{rateBreakdown.late}</p>
+                </div>
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-2">
+                  <p className="text-[10px] text-muted-foreground font-semibold">Absent</p>
+                  <p className="text-lg font-bold text-rose-600 dark:text-rose-400">{rateBreakdown.absent}</p>
+                </div>
+              </div>
+            </div>
+            {isCurrentYear && (
+              <div className="mt-3 pt-2 border-t border-border flex items-center justify-between text-xs">
+                <span className="text-muted-foreground text-[11px]">Today:</span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-bold border",
+                  userTodayStatus === 'Present' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" :
+                  userTodayStatus === 'Late' ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" :
+                  "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                )}>
+                  {userTodayStatus}
+                </span>
+              </div>
+            )}
+          </Card>
+
+          {/* Card 3: Leave Summary in Year */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Leaves ({selectedYear})</p>
+                <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">{leavesInYear.length}</h3>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                    {approvedLeavesCount} Approved
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">applications</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+                <Calendar className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+          </Card>
+
+          {/* Card 4: Total Earnings / Payroll in Year */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Earnings Paid ({selectedYear})</p>
+                <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground mt-2">
+                  ₹{totalPaidInYear.toLocaleString('en-IN')}
                 </h3>
-                {!isCompanyLogin && userTodayRecord && (
-                  <span className={cn(
-                    "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
-                    userTodayStatus === 'Present'
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                      : (userTodayStatus === 'Late'
-                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20")
-                  )}>
-                    {userTodayRecord.checkIn ? `In: ${formatTime(userTodayRecord.checkIn)}` : 'Checked In'}
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    {myTransactions.length} payments
                   </span>
-                )}
-                {!isCompanyLogin && userTodayStatus === 'Not Checked In' && (
-                  <button
-                    type="button"
-                    onClick={() => onNavigate('attendance')}
-                    className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    Check In Now →
-                  </button>
-                )}
+                  <span className="text-[11px] text-muted-foreground">in {selectedYear}</span>
+                </div>
               </div>
-              <div className="mt-3 flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  <strong className="text-foreground font-semibold">{rateBreakdown.rate}%</strong> {isCompanyLogin ? `${trendRange} team rate` : `${trendRange} rate`}
-                </span>
-                {isCompanyLogin && (
-                  <span className="text-[11px] text-muted-foreground">
-                    ({activeUsersToday} present)
-                  </span>
-                )}
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
+                <DollarSign className="w-5 h-5 text-primary" />
               </div>
             </div>
-            <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground shrink-0 ml-2">
-              <UserCheck className="w-5 h-5 text-primary" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
+      )}
 
-        {/* Attendance Rate (Circular Donut with Week, Month, Year breakdown) */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              {isCompanyLogin ? 'Attendance Rate' : 'My Attendance'}
-            </p>
-            <div className="flex items-center gap-0.5 bg-secondary/80 p-0.5 rounded-lg border border-border text-[10px] font-semibold">
-              <button
-                type="button"
-                onClick={() => setTrendRange('week')}
-                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'week' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendRange('month')}
-                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'month' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
-              >
-                Month
-              </button>
-              <button
-                type="button"
-                onClick={() => setTrendRange('year')}
-                className={cn("px-1.5 py-0.5 rounded transition-all", trendRange === 'year' ? "bg-card text-foreground shadow-2xs font-bold" : "text-muted-foreground hover:text-foreground")}
-              >
-                Year
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 mt-1">
-            <div className="relative w-20 h-20 sm:w-22 sm:h-22 flex items-center justify-center shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-secondary stroke-current"
-                  strokeWidth="3.5"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-                <path
-                  className="text-primary stroke-current transition-all duration-700"
-                  strokeDasharray={`${rateBreakdown.rate}, 100`}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  fill="none"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-lg sm:text-xl font-bold tracking-tight text-foreground">{rateBreakdown.rate}%</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1.5 text-xs flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
-                  <span className="w-2 h-2 rounded-full bg-primary shrink-0" /> Present
-                </span>
-                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.present}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" /> Absent
-                </span>
-                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.absent}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-muted-foreground text-[11px] truncate">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" /> Late
-                </span>
-                <span className="font-semibold text-foreground text-[11px] ml-1">{rateBreakdown.late}</span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* 3. Middle Row: Attendance Trend */}
+      {/* 3. Middle Row: Attendance Trend Chart for selectedYear */}
       <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-foreground">Attendance Trend</h3>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div>
+            <h3 className="text-base font-bold text-foreground">
+              {isCompanyLogin ? `Team Attendance Trend (${selectedYear})` : `My Attendance Trend (${selectedYear})`}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {trendRange === 'year' 
+                ? `Monthly attendance distribution for ${selectedYear}` 
+                : (trendRange === 'month' ? `Weekly breakdown for ${selectedYear}` : `Day-by-day analysis`)}
+            </p>
+          </div>
           <div className="flex items-center gap-1 bg-secondary/80 p-0.5 rounded-lg border border-border text-[10px] font-semibold">
             <button
               onClick={() => setTrendRange('week')}
-              className={cn("px-2 py-0.5 rounded-md transition-all", trendRange === 'week' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground")}
+              className={cn("px-2.5 py-1 rounded-md transition-all", trendRange === 'week' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground")}
             >
               Week
             </button>
             <button
               onClick={() => setTrendRange('month')}
-              className={cn("px-2 py-0.5 rounded-md transition-all", trendRange === 'month' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground")}
+              className={cn("px-2.5 py-1 rounded-md transition-all", trendRange === 'month' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground")}
             >
               Month
             </button>
             <button
               onClick={() => setTrendRange('year')}
-              className={cn("px-2 py-0.5 rounded-md transition-all", trendRange === 'year' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground")}
+              className={cn("px-2.5 py-1 rounded-md transition-all", trendRange === 'year' ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground")}
             >
-              Year
+              Year ({selectedYear})
             </button>
           </div>
         </div>
-        <div className="h-48 w-full">
+        <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={currentTrendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
               <defs>
@@ -770,7 +940,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                 </linearGradient>
               </defs>
               <XAxis dataKey="name" stroke="#64748B" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#64748B" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+              <YAxis stroke="#64748B" fontSize={10} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
               <Tooltip 
                 contentStyle={{ 
                   backgroundColor: 'var(--card)', 
@@ -778,7 +948,8 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                   borderRadius: '0.75rem', 
                   fontSize: '11px',
                   color: 'var(--foreground)'
-                }} 
+                }}
+                formatter={(val) => [`${val}%`, 'Attendance Rate']}
               />
               <Area type="monotone" dataKey="rate" stroke="#0D9488" strokeWidth={2.5} fillOpacity={1} fill="url(#emeraldGradient)" />
             </AreaChart>
@@ -786,47 +957,49 @@ export default function DashboardHome({ userProfile, onNavigate }) {
         </div>
       </Card>
 
-      {/* 4. Bottom Row: Employees Table (col-span-2) + Upcoming Leaves (col-span-1) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Employees Table (col-span-2) */}
-        <Card className="lg:col-span-2 border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
-          <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-base font-bold text-foreground">Employees</h3>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={empSearch}
-                  onChange={(e) => setEmpSearch(e.target.value)}
-                  className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
-                />
+      {/* 4. Bottom Row: Company View (Employees Table + Leaves) OR Employee View (Leaves + Payroll) */}
+      {isCompanyLogin ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Employees Table (col-span-2) */}
+          <Card className="lg:col-span-2 border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Employees ({selectedYear})</h3>
+                <p className="text-xs text-muted-foreground">{totalEmployeesCount} members active in {selectedYear}</p>
               </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={empSearch}
+                    onChange={(e) => setEmpSearch(e.target.value)}
+                    className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
+                  />
+                </div>
 
-              <select
-                value={deptFilter}
-                onChange={(e) => setDeptFilter(e.target.value)}
-                className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="all">All Departments</option>
-                {departmentsList.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
+                <select
+                  value={deptFilter}
+                  onChange={(e) => setDeptFilter(e.target.value)}
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Departments</option>
+                  {departmentsList.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-              </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="pending">Pending</option>
+                </select>
 
-              {/* + Add Employee only shown for company/owner dashboard, removed for user dashboard */}
-              {isCompanyLogin && (
                 <Button
                   onClick={() => onNavigate('users')}
                   size="sm"
@@ -834,163 +1007,314 @@ export default function DashboardHome({ userProfile, onNavigate }) {
                 >
                   + Add Employee
                 </Button>
-              )}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-3 px-5">Name</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Today's Attendance</th>
-                  <th className="py-3 px-4">Joining Date</th>
-                  <th className="py-3 px-4 text-right"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/50">
-                {displayedEmployees.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
-                      No employees found
-                    </td>
-                  </tr>
-                ) : (
-                  displayedEmployees.map((emp, idx) => {
-                    const name = emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
-                    const avatar = emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
-                    const dept = emp.department || 'Engineering';
-                    const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
-                    const isActive = !emp.isSuspended;
-                    const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '12 Jan 2024';
-
-                    const todayRec = getEmployeeTodayAttendance(emp);
-                    const isPresent = todayRec && isPresentStatus(todayRec.status);
-                    const isLate = todayRec && isLateStatus(todayRec.status);
-                    const inTimeStr = todayRec ? formatTime(todayRec.checkIn || todayRec.createdAt) : '';
-
-                    return (
-                      <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
-                        <td className="py-3 px-5 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                            <img src={avatar} alt="" className="w-full h-full object-cover" />
-                          </div>
-                          <span className="font-semibold text-foreground text-xs">{name}</span>
-                        </td>
-                        <td className="py-3 px-4 text-foreground/90">{dept}</td>
-                        <td className="py-3 px-4 text-muted-foreground">{role}</td>
-                        <td className="py-3 px-4">
-                          <span className={cn(
-                            "px-2.5 py-0.5 rounded-full text-[10px] font-semibold border",
-                            isActive
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          )}>
-                            {isActive ? 'Active' : 'Pending'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          {isPresent ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                              Present {inTimeStr ? `(${inTimeStr})` : ''}
-                            </span>
-                          ) : isLate ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                              Late {inTimeStr ? `(${inTimeStr})` : ''}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-                              Absent
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
-                        <td className="py-3 px-4 text-right">
-                          <button 
-                            onClick={() => onNavigate('users')}
-                            className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-
-        {/* Upcoming Leaves (col-span-1) */}
-        <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-foreground">Upcoming Leaves</h3>
-              <button
-                onClick={() => onNavigate('calendar')}
-                className="text-xs font-semibold text-primary hover:underline"
-              >
-                View all
-              </button>
-            </div>
-
-            {upcomingLeavesList.length === 0 ? (
-              <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
-                <Calendar className="w-8 h-8 text-muted-foreground/30 mb-2" />
-                <p>{isCompanyLogin ? "No upcoming employee leaves" : "You have no upcoming leaves"}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3 text-xs h-7 rounded-lg"
-                  onClick={() => onNavigate('calendar')}
-                >
-                  {isCompanyLogin ? "View Leave Calendar" : "Apply for Leave"}
-                </Button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {upcomingLeavesList.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                        <img 
-                          src={item.avatar} 
-                          alt="" 
-                          className="w-full h-full object-cover" 
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-foreground truncate leading-tight">{item.name}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[11px] text-muted-foreground truncate">{item.type}</span>
-                          <span className={cn(
-                            "text-[9px] px-1.5 py-0.2 rounded-full font-medium border capitalize",
-                            item.status === 'approved'
-                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                          )}>
-                            {item.status}
-                          </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3 px-5">Name</th>
+                    <th className="py-3 px-4">Department</th>
+                    <th className="py-3 px-4">Role</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4">{isCurrentYear ? "Today's Status" : `Attendance (${selectedYear})`}</th>
+                    <th className="py-3 px-4">Joining Date</th>
+                    <th className="py-3 px-4 text-right"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {displayedEmployees.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
+                        No employees found for year {selectedYear}
+                      </td>
+                    </tr>
+                  ) : (
+                    displayedEmployees.map((emp, idx) => {
+                      const name = emp.name || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || 'Employee';
+                      const avatar = emp.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`;
+                      const dept = emp.department || 'General';
+                      const role = emp.designation || (typeof emp.role === 'string' ? emp.role : Object.keys(emp.role || {})[0]) || 'Staff';
+                      const isActive = !emp.isSuspended;
+                      const joinDate = emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A';
+
+                      const todayRec = todayAttendance.find(a => matchesEmployee(a, emp));
+                      const isPresent = todayRec && isPresentStatus(todayRec.status);
+                      const isLate = todayRec && isLateStatus(todayRec.status);
+                      const inTimeStr = todayRec ? formatTime(todayRec.checkIn || todayRec.createdAt) : '';
+
+                      const annualStats = getEmployeeAnnualAttendance(emp);
+
+                      return (
+                        <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
+                          <td className="py-3 px-5 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
+                              <img src={avatar} alt="" className="w-full h-full object-cover" />
+                            </div>
+                            <span className="font-semibold text-foreground text-xs">{name}</span>
+                          </td>
+                          <td className="py-3 px-4 text-foreground/90">{dept}</td>
+                          <td className="py-3 px-4 text-muted-foreground">{role}</td>
+                          <td className="py-3 px-4">
+                            <span className={cn(
+                              "px-2.5 py-0.5 rounded-full text-[10px] font-semibold border",
+                              isActive
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                            )}>
+                              {isActive ? 'Active' : 'Pending'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            {isCurrentYear ? (
+                              isPresent ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                  Present {inTimeStr ? `(${inTimeStr})` : ''}
+                                </span>
+                              ) : isLate ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                  Late {inTimeStr ? `(${inTimeStr})` : ''}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                                  Absent
+                                </span>
+                              )
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">
+                                {annualStats.presentDays} days ({annualStats.rate}%)
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-muted-foreground text-[11px]">{joinDate}</td>
+                          <td className="py-3 px-4 text-right">
+                            <button 
+                              onClick={() => onNavigate('users')}
+                              className="p-1 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground"
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {/* Upcoming Leaves (col-span-1) */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-base font-bold text-foreground">
+                  {isCurrentYear ? "Upcoming Leaves" : `Leaves in ${selectedYear}`}
+                </h3>
+                <button
+                  onClick={() => onNavigate('calendar')}
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  View all
+                </button>
+              </div>
+
+              {upcomingLeavesList.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                  <Calendar className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                  <p>No leaves recorded for year {selectedYear}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 text-xs h-7 rounded-lg"
+                    onClick={() => onNavigate('calendar')}
+                  >
+                    View Leave Calendar
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingLeavesList.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
+                          <img 
+                            src={item.avatar} 
+                            alt="" 
+                            className="w-full h-full object-cover" 
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground truncate leading-tight">{item.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[11px] text-muted-foreground truncate">{item.type}</span>
+                            <span className={cn(
+                              "text-[9px] px-1.5 py-0.2 rounded-full font-medium border capitalize",
+                              item.status === 'approved'
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                                : (item.status === 'rejected'
+                                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
+                                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20")
+                            )}>
+                              {item.status}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <span className="text-[11px] font-medium text-muted-foreground shrink-0 bg-secondary/60 px-2 py-0.5 rounded-md">
+                        {item.range}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-medium text-muted-foreground shrink-0 bg-secondary/60 px-2 py-0.5 rounded-md">
-                      {item.range}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      ) : (
+        /* Employee Dashboard Bottom Sections: Leaves Records + Payroll & Payments History */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Leave Records for Employee */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-5 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-foreground">My Leaves ({selectedYear})</h3>
+                <p className="text-xs text-muted-foreground">{leavesInYear.length} total applications in {selectedYear}</p>
               </div>
-            )}
-          </div>
-        </Card>
-      </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNavigate('calendar')}
+                className="text-xs h-8 rounded-xl gap-1.5 font-semibold"
+              >
+                <Calendar className="w-3.5 h-3.5 text-primary" />
+                Apply Leave
+              </Button>
+            </div>
+
+            <div className="p-5">
+              {leavesInYear.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                  <Calendar className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                  <p>You have no leave records in {selectedYear}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="py-2.5 px-3">Type</th>
+                        <th className="py-2.5 px-3">Dates</th>
+                        <th className="py-2.5 px-3">Days</th>
+                        <th className="py-2.5 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {leavesInYear.slice(0, 6).map((l, i) => {
+                        const type = formatLeaveType(l.leaveType || l.type);
+                        const status = typeof l.status === 'string' ? l.status : Object.keys(l.status || {})[0] || 'pending';
+                        const range = formatLeaveRange(l.startDate, l.endDate);
+                        const days = l.days || l.totalDays || 1;
+
+                        return (
+                          <tr key={l._id || l.id || i} className="hover:bg-secondary/30 transition-colors">
+                            <td className="py-2.5 px-3 font-semibold text-foreground">{type}</td>
+                            <td className="py-2.5 px-3 text-muted-foreground">{range}</td>
+                            <td className="py-2.5 px-3 text-foreground">{days} {days === 1 ? 'day' : 'days'}</td>
+                            <td className="py-2.5 px-3">
+                              <span className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize",
+                                status === 'approved' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" :
+                                status === 'rejected' ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" :
+                                "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              )}>
+                                {status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Payroll & Payment History for Employee */}
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
+            <div className="p-5 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-foreground">Payment History ({selectedYear})</h3>
+                <p className="text-xs text-muted-foreground">Salary and bonus records for {selectedYear}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onNavigate('payments')}
+                className="text-xs h-8 rounded-xl gap-1.5 font-semibold"
+              >
+                <DollarSign className="w-3.5 h-3.5 text-primary" />
+                View All Payments
+              </Button>
+            </div>
+
+            <div className="p-5">
+              {myTransactions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center">
+                  <CreditCard className="w-8 h-8 text-muted-foreground/30 mb-2" />
+                  <p>No payment records found for year {selectedYear}</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-secondary/40 border-b border-border text-muted-foreground font-semibold uppercase text-[10px] tracking-wider">
+                      <tr>
+                        <th className="py-2.5 px-3">Month</th>
+                        <th className="py-2.5 px-3">Amount</th>
+                        <th className="py-2.5 px-3">Type</th>
+                        <th className="py-2.5 px-3">Ref ID</th>
+                        <th className="py-2.5 px-3">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {myTransactions.slice(0, 6).map((t, i) => {
+                        const amt = Number(t.amount) || 0;
+                        const status = t.status || 'completed';
+                        const type = (t.type || 'Salary').toUpperCase();
+
+                        return (
+                          <tr key={t.id || t._id || i} className="hover:bg-secondary/30 transition-colors">
+                            <td className="py-2.5 px-3 font-semibold text-foreground">{t.month}</td>
+                            <td className="py-2.5 px-3 font-bold text-emerald-600 dark:text-emerald-400">
+                              ₹{amt.toLocaleString('en-IN')}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-secondary border border-border">
+                                {type}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">{t.referenceId || 'N/A'}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 capitalize">
+                                {status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

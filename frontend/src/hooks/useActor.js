@@ -509,7 +509,7 @@ export const createHttpActor = (identity) => {
       return await handleResponse(res);
     } catch (e) {
       const msg = String(e?.message || '').toLowerCase();
-      if (msg.includes('maintenance') || msg.includes('failed to fetch')) {
+      if (msg.includes('maintenance')) {
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
       }
       if (msg.includes('abort') || msg.includes('err_aborted') || msg.includes('failed to fetch')) {

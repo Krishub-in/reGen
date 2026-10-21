@@ -5,10 +5,10 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 import './index.css';
 
-// Intercept global unhandled network rejections when port is down
+// Intercept global unhandled network rejections when maintenance is reported
 window.addEventListener('unhandledrejection', (event) => {
     const msg = String(event?.reason?.message || event?.reason || '').toLowerCase();
-    if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('maintenance') || msg.includes('connection refused')) {
+    if (msg.includes('server under maintenance') || msg.includes('maintenance')) {
         window.dispatchEvent(new CustomEvent('server-maintenance'));
     }
 });

@@ -916,8 +916,8 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`\n[PORT CONFLICT] Port ${PORT} is already in use by another running backend process.`);
-    console.error(`Terminating conflicting process on port ${PORT}...\n`);
+    console.error(`\n[PORT CONFLICT] Port ${PORT} is already in use by another running process.`);
+    console.error(`Please terminate the conflicting process or choose a different port.\n`);
   } else {
     console.error('Server startup error:', err);
   }

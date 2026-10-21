@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useCustomAuth } from '../hooks/useCustomAuth';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,8 @@ import {
   useGetUserNotifications, 
   useMarkNotificationRead, 
   useMarkAllNotificationsRead, 
-  useUpdateNotificationAction 
+  useUpdateNotificationAction,
+  useGetCompanyInfo
 } from '../hooks/useQueries';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -74,6 +75,56 @@ export default function Dashboard({ userProfile }) {
   const [showNotif, setShowNotif] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const notifDropdownRef = useRef(null);
+
+  const currentYear = new Date().getFullYear();
+  const { data: companyInfo } = useGetCompanyInfo();
+
+  const isCompanyLogin = Boolean(
+    userProfile?.role === 'owner' ||
+    userProfile?.role === 'admin' ||
+    userProfile?.role === 'param' ||
+    userProfile?.role?.owner ||
+    userProfile?.role?.admin ||
+    userProfile?.role?.param
+  );
+
+  const availableYears = useMemo(() => {
+    let startYear = currentYear;
+    if (isCompanyLogin) {
+      const estYear = companyInfo?.establishmentYear ||
+        (companyInfo?.establishmentDate ? new Date(companyInfo.establishmentDate).getFullYear() : null) ||
+        (companyInfo?.createdAt ? new Date(companyInfo.createdAt).getFullYear() : null);
+      startYear = estYear && !isNaN(estYear) ? Math.min(Number(estYear), currentYear) : 2025;
+    } else {
+      const joinYear = (userProfile?.joiningDate ? new Date(userProfile.joiningDate).getFullYear() : null) ||
+        (userProfile?.createdAt ? new Date(userProfile.createdAt).getFullYear() : null);
+      startYear = joinYear && !isNaN(joinYear) ? Math.min(Number(joinYear), currentYear) : currentYear;
+    }
+
+    const years = [];
+    for (let y = startYear; y <= currentYear; y++) {
+      years.push(y);
+    }
+    return years.length > 0 ? years : [currentYear];
+  }, [isCompanyLogin, companyInfo, userProfile, currentYear]);
+
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('regen_selected_year') : null;
+    const parsed = saved ? parseInt(saved, 10) : currentYear;
+    return !isNaN(parsed) ? parsed : currentYear;
+  });
+
+  useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[availableYears.length - 1]);
+    }
+  }, [availableYears, selectedYear]);
+
+  useEffect(() => {
+    if (selectedYear) {
+      localStorage.setItem('regen_selected_year', String(selectedYear));
+    }
+  }, [selectedYear]);
 
   const myUserId = userProfile?.userId ? (userProfile.userId.toText ? userProfile.userId.toText() : String(userProfile.userId)) : (userProfile?.id ? (userProfile.id.toText ? userProfile.id.toText() : String(userProfile.id)) : '');
   const { data: myNotifications = [] } = useGetUserNotifications(myUserId);
@@ -347,7 +398,7 @@ export default function Dashboard({ userProfile }) {
   const renderModule = () => {
     switch (activeModule) {
       case 'home':
-        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} selectedYear={selectedYear} setSelectedYear={setSelectedYear} />;
       case 'users':
         return <UsersModule userProfile={userProfile} />;
       case 'attendance':
@@ -370,7 +421,7 @@ export default function Dashboard({ userProfile }) {
       case 'notifications':
         return <NotificationsModule userProfile={userProfile} onNavigate={setActiveModule} />;
       default:
-        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} />;
+        return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} selectedYear={selectedYear} setSelectedYear={setSelectedYear} />;
     }
   };
 
@@ -427,7 +478,7 @@ export default function Dashboard({ userProfile }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar Header (Matching Reference Image) */}
+        {/* Topbar Header */}
         <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-4">
           {/* Mobile hamburger + brand */}
           <div className="flex items-center gap-3 md:hidden">
@@ -438,26 +489,32 @@ export default function Dashboard({ userProfile }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
+            <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveModule('home')}>
               <span className="text-lg font-semibold tracking-normal text-foreground">ReGen</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>
 
-          {/* Search Box (Matching Reference Image) */}
-          <div className="hidden sm:flex items-center flex-1 max-w-md">
-            <div className="relative w-full">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search employees, departments..."
-                className="w-full h-10 pl-10 pr-4 rounded-xl bg-background border border-border text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary transition-all"
-              />
-            </div>
-          </div>
-
-          {/* Right Action Icons: Notification, Theme Switcher, Profile Badge */}
+          {/* Right Action Icons: Year Selector, Notification, Theme Switcher, Profile Badge */}
           <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+            {/* Year Selector Dropdown near Notification Bell */}
+            <div className="flex items-center gap-1.5 bg-secondary/80 hover:bg-secondary border border-border px-2.5 sm:px-3 py-1.5 rounded-xl transition-all shadow-2xs">
+              <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">Year:</span>
+              <select
+                id="dashboard-year-selector"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1"
+                aria-label="Select Year"
+              >
+                {availableYears.map((yr) => (
+                  <option key={yr} value={yr} className="bg-card text-foreground font-semibold">
+                    {yr}
+                  </option>
+                ))}
+              </select>
+            </div>
             {/* Notification Bell */}
             <div className="relative">
               <button

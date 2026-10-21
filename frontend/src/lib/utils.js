@@ -28,12 +28,6 @@ export function authFetch(url, options = {}) {
         return res;
       })
       .catch((err) => {
-        const msg = String(err?.message || '').toLowerCase();
-        if (msg.includes('failed to fetch') || msg.includes('networkerror') || msg.includes('connection refused')) {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('server-maintenance'));
-          }
-        }
         throw err;
       });
 }

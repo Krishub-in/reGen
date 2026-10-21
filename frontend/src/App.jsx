@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCustomAuth } from './hooks/useCustomAuth';
 import { useGetCallerUserProfile } from './hooks/useQueries';
 import { useSocket } from './hooks/useSocket';
@@ -10,9 +11,12 @@ import Dashboard from './pages/Dashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 
 export default function App() {
+  const queryClient = useQueryClient();
   const { identity, isLoggingIn: isInitializing, logout } = useCustomAuth();
   const { data: userProfile, isLoading: profileLoading, isFetched, error: profileError } = useGetCallerUserProfile();
   const [isMaintenance, setIsMaintenance] = useState(false);
+  const isMaintenanceRef = useRef(false);
+  isMaintenanceRef.current = isMaintenance;
 
   // Real-time data sync via WebSocket (connects when auth_token exists)
   useSocket();
@@ -21,14 +25,16 @@ export default function App() {
     let active = true;
 
     const onMaintenanceEvent = () => {
-      if (active) setIsMaintenance(true);
+      if (active) {
+        setIsMaintenance(true);
+      }
     };
     window.addEventListener('server-maintenance', onMaintenanceEvent);
 
     const checkMaintenance = async () => {
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
         const resp = await fetch('/api/system/maintenance', {
           cache: 'no-store',
           signal: controller.signal
@@ -36,22 +42,33 @@ export default function App() {
         clearTimeout(timeoutId);
 
         if (!resp.ok) {
-          // If port/server stops, proxy or server returns non-2xx (500, 502, 503, 504, etc.)
-          if (active && resp.status === 503) setIsMaintenance(true);
+          if (active && resp.status === 503) {
+            setIsMaintenance(true);
+          }
           return;
         }
+
         const data = await resp.json().catch(() => ({}));
         if (data && data.maintenance === true) {
-          if (active) setIsMaintenance(true);
+          if (active) {
+            setIsMaintenance(true);
+          }
         } else {
-          if (active) setIsMaintenance(false);
+          if (active) {
+            setIsMaintenance(prev => {
+              if (prev) {
+                // Service restored! Automatically re-validate and fetch profile/app state
+                queryClient.invalidateQueries();
+              }
+              return false;
+            });
+          }
         }
       } catch (e) {
-        if (e?.name === 'AbortError') return; // Do not trigger maintenance mode on momentary timeout
-        // Port stopped, network down, or connection refused
-        if (active) setIsMaintenance(true);
+        // Do not falsely trigger maintenance on momentary client-side fetch timeouts
       }
     };
+
     checkMaintenance();
     const interval = setInterval(checkMaintenance, 1500);
     return () => {
@@ -59,10 +76,43 @@ export default function App() {
       window.removeEventListener('server-maintenance', onMaintenanceEvent);
       clearInterval(interval);
     };
-  }, []);
+  }, [queryClient]);
 
+  const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('auth_token') : false;
+  const isAuthenticated = !!identity && hasToken;
+  const resetToken = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('resetToken') : null;
 
-  const isSuperAdminPath = window.location.pathname.startsWith('/superadmin');
+  useEffect(() => {
+    if (resetToken && isAuthenticated) {
+      logout();
+    }
+  }, [resetToken, isAuthenticated, logout]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    // CRITICAL: Never log out during maintenance mode or when server/port is temporarily down
+    if (isMaintenance) return;
+
+    if (profileError) {
+      const msg = String(profileError?.message || '').toLowerCase();
+      // Only logout on authentic 401 Unauthorized or invalid session, NEVER on maintenance / 503 / connection errors
+      if (msg.includes('invalid session') || msg.includes('unauthorized') || profileError?.status === 401) {
+        logout();
+      }
+      return;
+    }
+
+    if (isFetched && !profileLoading && !userProfile && !profileError) {
+      const timer = setTimeout(() => {
+        if (!isMaintenanceRef.current && !userProfile) {
+          logout();
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isAuthenticated, isMaintenance, profileError, isFetched, profileLoading, userProfile, logout]);
+
+  const isSuperAdminPath = typeof window !== 'undefined' ? window.location.pathname.startsWith('/superadmin') : false;
 
   if (isSuperAdminPath) {
     return (
@@ -73,23 +123,6 @@ export default function App() {
   if (isMaintenance) {
     return <MaintenancePage />;
   }
-
-  const hasToken = typeof window !== 'undefined' ? !!localStorage.getItem('auth_token') : false;
-  const isAuthenticated = !!identity && hasToken;
-  const resetToken = new URLSearchParams(window.location.search).get('resetToken');
-
-  useEffect(() => {
-    if (resetToken && isAuthenticated) {
-      logout();
-    }
-  }, [resetToken]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (profileError || (isFetched && !profileLoading && !userProfile)) {
-      logout();
-    }
-  }, [isAuthenticated, profileError, isFetched, profileLoading, userProfile, logout]);
 
   // Show loading state while initializing
   if (isInitializing) {
@@ -157,54 +190,18 @@ export default function App() {
     );
   }
 
-  // Authenticated but profile failed (e.g. port down or maintenance)
+  // Authenticated: show loading while restoring session and fetching profile
   if (isAuthenticated) {
     return (
-      <div
-        id="server-maintenance-screen"
-        style={{
-          minHeight: '100vh',
-          width: '100vw',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          zIndex: 99999,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: '#111111',
-          color: '#ffffff',
-          textAlign: 'center',
-          padding: '2rem',
-          boxSizing: 'border-box',
-          fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
-        }}
-      >
-        <h1
-          style={{
-            color: '#ffffff',
-            fontSize: '2.5rem',
-            fontWeight: '800',
-            letterSpacing: '-0.025em',
-            margin: '0 0 1rem 0'
-          }}
-        >
-          Server Under Maintenance
-        </h1>
-        <p
-          style={{
-            color: '#ffffff',
-            fontSize: '1.125rem',
-            maxWidth: '520px',
-            lineHeight: 1.6,
-            margin: 0,
-            opacity: 0.9
-          }}
-        >
-          Our services are currently undergoing maintenance. Please check back shortly.
-        </p>
-      </div>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <div className="flex h-screen items-center justify-center bg-background">
+          <div className="text-center">
+            <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+            <p className="text-muted-foreground">Connecting to services...</p>
+          </div>
+        </div>
+        <Toaster />
+      </ThemeProvider>
     );
   }
 

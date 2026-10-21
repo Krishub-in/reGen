@@ -28,7 +28,8 @@ function checkTcpPort(port, host = '127.0.0.1', timeout = 500) {
  */
 export async function isPort3004Reachable(force = false) {
   const now = Date.now();
-  if (!force && _port3004Status.lastCheck > 0 && (now - _port3004Status.lastCheck < 1500)) {
+  const cacheTtl = _port3004Status.reachable ? 1500 : 500;
+  if (!force && _port3004Status.lastCheck > 0 && (now - _port3004Status.lastCheck < cacheTtl)) {
     return _port3004Status.reachable;
   }
 
@@ -45,25 +46,19 @@ export async function isPort3004Reachable(force = false) {
   }
 
   // Rapid TCP check on target port (IPv4 and IPv6)
-  let reachable = await checkTcpPort(targetPort, targetHost, 500);
+  let reachable = await checkTcpPort(targetPort, targetHost, 400);
   if (!reachable && (targetHost === '127.0.0.1' || targetHost === 'localhost')) {
-    reachable = await checkTcpPort(targetPort, '::1', 500);
+    reachable = await checkTcpPort(targetPort, '::1', 400);
   }
 
-  // If failed on IPv4, test localhost or fetch
+  // If failed on IPv4/IPv6 TCP, test HTTP probe
   if (!reachable) {
     const primary = process.env.AUTH_SERV_URL || `http://${targetHost}:${targetPort}`;
     try {
-      await fetch(primary, { signal: AbortSignal.timeout(600) });
+      await fetch(primary, { signal: AbortSignal.timeout(500) });
       reachable = true;
     } catch {
-      try {
-        const fallback = primary.replace('localhost', '127.0.0.1');
-        await fetch(fallback, { signal: AbortSignal.timeout(600) });
-        reachable = true;
-      } catch {
-        reachable = false;
-      }
+      reachable = false;
     }
   }
 

@@ -16,7 +16,14 @@ export function useGetCallerUserProfile() {
       return actor.getCallerUserProfile();
     },
     enabled: !!actor && !actorFetching && !!token,
-    retry: false,
+    retry: (failureCount, error) => {
+      const msg = String(error?.message || '').toLowerCase();
+      if (msg.includes('invalid session') || msg.includes('unauthorized') || error?.status === 401) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+    retryDelay: 1200,
   });
 
   return {
@@ -1090,12 +1097,13 @@ export function useProcessPayment() {
 export function useGetRecentTransactions(filters = {}) {
   const params = new URLSearchParams();
   if (filters.month) params.set('month', filters.month);
+  if (filters.year) params.set('year', filters.year);
   if (filters.search) params.set('search', filters.search);
   if (filters.page) params.set('page', filters.page);
   if (filters.limit) params.set('limit', filters.limit);
 
   return useQuery({
-    queryKey: ['payroll', 'transactions', filters.month, filters.search, filters.page, filters.limit],
+    queryKey: ['payroll', 'transactions', filters.month, filters.year, filters.search, filters.page, filters.limit],
     queryFn: async () => {
       const res = await authFetch(`/api/payroll/transactions?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch recent transactions');

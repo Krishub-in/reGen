@@ -997,15 +997,36 @@ export const getRecentTransactions = async (req, res) => {
     const companyId = requireCompanyId(req, res);
     if (!companyId) return;
 
+    const filter = { companyId };
+
     if (!isCompanyAdmin(req.user)) {
-      return res.status(403).json({ message: 'Access denied' });
+      const u = await User.findOne({
+        $or: [
+          { userId: req.user.userId },
+          ...(req.user.StaffId ? [{ StaffId: req.user.StaffId }] : []),
+          ...(mongoose.isValidObjectId(req.user.userId) ? [{ _id: req.user.userId }] : []),
+          ...(mongoose.isValidObjectId(req.user.id) ? [{ _id: req.user.id }] : [])
+        ],
+        companyId
+      }).lean();
+
+      const possibleIds = new Set([req.user.userId]);
+      if (req.user.StaffId) possibleIds.add(req.user.StaffId);
+      if (req.user.id) possibleIds.add(String(req.user.id));
+      if (u) {
+        if (u.userId) possibleIds.add(u.userId);
+        if (u.StaffId) possibleIds.add(u.StaffId);
+        if (u._id) possibleIds.add(String(u._id));
+      }
+      filter.userId = { $in: Array.from(possibleIds) };
     }
 
-    const { month, search, page = 1, limit = 20 } = req.query;
-    const filter = { companyId };
+    const { month, year, search, page = 1, limit = 20 } = req.query;
 
     if (month && month !== 'all') {
       filter.month = month;
+    } else if (year && year !== 'all') {
+      filter.month = new RegExp(`^${year}-`);
     }
 
     const skip = (Math.max(1, Number(page)) - 1) * Number(limit);
