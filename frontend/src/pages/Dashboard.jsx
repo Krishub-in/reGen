@@ -8,19 +8,6 @@ import {
   Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck
 } from 'lucide-react';
 import DashboardHome from '../components/modules/DashboardHome';
-
-// Lazy-loaded modules for optimized bundle splitting & faster page loads
-const UsersModule = lazy(() => import('../components/modules/UsersModule'));
-const AttendanceModule = lazy(() => import('../components/modules/AttendanceModule'));
-const SchedulesModule = lazy(() => import('../components/modules/SchedulesModule'));
-const MessengerModule = lazy(() => import('../components/modules/MessengerModule'));
-const ScrumModule = lazy(() => import('../components/modules/ScrumModule'));
-const CalendarModule = lazy(() => import('../components/modules/CalendarModule'));
-const PaymentsModule = lazy(() => import('../components/modules/PaymentsModule'));
-const CompanyModule = lazy(() => import('../components/modules/CompanyModule'));
-const StaffProfileModule = lazy(() => import('../components/modules/StaffProfileModule'));
-const NotificationsModule = lazy(() => import('../components/modules/NotificationsModule'));
-const CallManager = lazy(() => import('../components/CallManager'));
 import { useIsMobile } from '../hooks/use-mobile';
 import { cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import {
@@ -42,6 +29,19 @@ import {
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
+
+// Lazy-loaded modules for optimized bundle splitting & faster page loads
+const UsersModule = lazy(() => import('../components/modules/UsersModule'));
+const AttendanceModule = lazy(() => import('../components/modules/AttendanceModule'));
+const SchedulesModule = lazy(() => import('../components/modules/SchedulesModule'));
+const MessengerModule = lazy(() => import('../components/modules/MessengerModule'));
+const ScrumModule = lazy(() => import('../components/modules/ScrumModule'));
+const CalendarModule = lazy(() => import('../components/modules/CalendarModule'));
+const PaymentsModule = lazy(() => import('../components/modules/PaymentsModule'));
+const CompanyModule = lazy(() => import('../components/modules/CompanyModule'));
+const StaffProfileModule = lazy(() => import('../components/modules/StaffProfileModule'));
+const NotificationsModule = lazy(() => import('../components/modules/NotificationsModule'));
+const CallManager = lazy(() => import('../components/CallManager'));
 
 const getInitialModule = () => {
   if (typeof window === 'undefined') return 'home';

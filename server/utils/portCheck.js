@@ -1,34 +1,40 @@
 import net from 'net';
 
-let _port3004Status = { reachable: false, lastCheck: 0 };
+let _port3004Status = { reachable: true, lastCheck: 0, failCount: 0 };
 
-function checkTcpPort(port, host = '127.0.0.1', timeout = 500) {
+function checkTcpPort(port, host = '127.0.0.1', timeout = 1200) {
   return new Promise((resolve) => {
     const socket = new net.Socket();
+    let settled = false;
+
+    const finish = (result) => {
+      if (!settled) {
+        settled = true;
+        socket.destroy();
+        resolve(result);
+      }
+    };
+
     socket.setTimeout(timeout);
-    socket.once('connect', () => {
-      socket.destroy();
-      resolve(true);
-    });
-    socket.once('timeout', () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.once('error', () => {
-      socket.destroy();
-      resolve(false);
-    });
-    socket.connect(port, host);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+
+    try {
+      socket.connect(port, host);
+    } catch {
+      finish(false);
+    }
   });
 }
 
 /**
  * Checks whether port 3004 (or AUTH_PORT / AUTH_SERV_URL) is reachable.
- * Uses rapid TCP probe with cached value to prevent overhead.
+ * Uses concurrent dual-stack TCP probes + HTTP probe with debounced failure smoothing.
  */
 export async function isPort3004Reachable(force = false) {
   const now = Date.now();
-  const cacheTtl = _port3004Status.reachable ? 1500 : 500;
+  const cacheTtl = _port3004Status.reachable ? 2500 : 800;
   if (!force && _port3004Status.lastCheck > 0 && (now - _port3004Status.lastCheck < cacheTtl)) {
     return _port3004Status.reachable;
   }
@@ -45,23 +51,52 @@ export async function isPort3004Reachable(force = false) {
     } catch {}
   }
 
-  // Rapid TCP check on target port (IPv4 and IPv6)
-  let reachable = await checkTcpPort(targetPort, targetHost, 400);
-  if (!reachable && (targetHost === '127.0.0.1' || targetHost === 'localhost')) {
-    reachable = await checkTcpPort(targetPort, '::1', 400);
+  // Concurrent TCP checks across 127.0.0.1, ::1, and localhost
+  const probeHosts = (targetHost === '127.0.0.1' || targetHost === 'localhost')
+    ? ['127.0.0.1', '::1', 'localhost']
+    : [targetHost];
+
+  let reachable = false;
+  try {
+    const results = await Promise.all(probeHosts.map(h => checkTcpPort(targetPort, h, 1200)));
+    reachable = results.some(Boolean);
+  } catch {
+    reachable = false;
   }
 
-  // If failed on IPv4/IPv6 TCP, test HTTP probe
+  // If TCP check didn't connect, test HTTP probe (any response means port is alive)
   if (!reachable) {
-    const primary = process.env.AUTH_SERV_URL || `http://${targetHost}:${targetPort}`;
-    try {
-      await fetch(primary, { signal: AbortSignal.timeout(500) });
-      reachable = true;
-    } catch {
-      reachable = false;
+    for (const h of probeHosts) {
+      try {
+        const url = `http://${h.includes(':') ? `[${h}]` : h}:${targetPort}`;
+        await fetch(url, { signal: AbortSignal.timeout(1000) });
+        reachable = true;
+        break;
+      } catch (err) {
+        // If server responded with ANY HTTP status code, fetch resolves or throws only on network down
+        if (err && err.name !== 'TypeError' && err.name !== 'TimeoutError') {
+          reachable = true;
+          break;
+        }
+      }
     }
   }
 
-  _port3004Status = { reachable, lastCheck: Date.now() };
-  return reachable;
+  if (reachable) {
+    _port3004Status = { reachable: true, lastCheck: now, failCount: 0 };
+    return true;
+  }
+
+  // Debounced failure smoothing: require 2 consecutive failed probes before flagging unreachable
+  const nextFails = (_port3004Status.failCount || 0) + 1;
+  const isReallyDown = nextFails >= 2;
+
+  _port3004Status = {
+    reachable: !isReallyDown,
+    lastCheck: now,
+    failCount: nextFails
+  };
+
+  return _port3004Status.reachable;
 }
+

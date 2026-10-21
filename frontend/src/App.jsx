@@ -37,9 +37,18 @@ export default function App() {
   useEffect(() => {
     let active = true;
 
-    const onMaintenanceEvent = () => {
-      if (active) {
-        setIsMaintenance(true);
+    const onMaintenanceEvent = async () => {
+      if (!active) return;
+      try {
+        const resp = await fetch('/api/system/maintenance', { cache: 'no-store' });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.status === 503 || data?.maintenance === true) {
+          if (active) setIsMaintenance(true);
+        } else {
+          if (active) setIsMaintenance(false);
+        }
+      } catch {
+        if (active) setIsMaintenance(true);
       }
     };
     window.addEventListener('server-maintenance', onMaintenanceEvent);
