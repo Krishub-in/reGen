@@ -29,11 +29,11 @@ function CardHeader({ className, ...props }) {
 }
 
 function CardTitle({ className, ...props }) {
-    return <div data-slot="card-title" className={cn('leading-none font-medium tracking-normal', className)} {...props} />;
+    return <div data-slot="card-title" className={cn('text-[18px] leading-snug font-semibold tracking-normal', className)} {...props} />;
 }
 
 function CardDescription({ className, ...props }) {
-    return <div data-slot="card-description" className={cn('text-muted-foreground text-xs sm:text-sm', className)} {...props} />;
+    return <div data-slot="card-description" className={cn('text-sm text-muted-foreground leading-normal', className)} {...props} />;
 }
 
 function CardAction({ className, ...props }) {

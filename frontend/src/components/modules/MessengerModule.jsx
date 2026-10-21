@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Principal } from '@dfinity/principal';
-import { Send, Paperclip, X, Pencil, Trash2, Search, ChevronUp, ChevronDown, Check, Users, Lock, Video, Mic, Square, AlertCircle, RotateCw, Volume2 } from 'lucide-react';
+import { Send, Paperclip, X, Pencil, Trash2, Search, ChevronUp, ChevronDown, Check, Users, Lock, Video, Mic, Square, AlertCircle, RotateCw, Volume2, MessageSquare } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import PrivateChatModule from './PrivateChatModule';
@@ -628,9 +628,22 @@ export default function MessengerModule({ userProfile }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-light tracking-normal leading-snug text-foreground">Messenger</h2>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+      {/* 1. Page Header with Mode Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
+              Messenger
+            </h1>
+            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5 font-normal">
+              Real-time private and team communication, voice notes, and collaboration.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 self-start sm:self-auto">
           <Button
             variant={chatMode === 'private' ? 'default' : 'ghost'}
             size="sm"

@@ -25,7 +25,8 @@ import {
   ChevronRight, 
   Layers, 
   CalendarCheck,
-  Check
+  Check,
+  ClipboardList
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { safeRandomUUID, hasUserRole } from '@/lib/utils';
@@ -658,14 +659,19 @@ export default function SchedulesModule({ userProfile }) {
   return (
     <div className="space-y-6">
       {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-light tracking-normal leading-snug text-[#172B3A] dark:text-[#E8F0F4]">
-            Schedules & Tasks
-          </h2>
-          <p className="text-sm md:text-base text-[#64748B] dark:text-[#A6B5C0] mt-0.5">
-            Plan your work, track progress, and stay on schedule.
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
+            <ClipboardList className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
+              Schedules & Tasks
+            </h1>
+            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5 font-normal">
+              Plan your work, track progress, and stay on schedule.
+            </p>
+          </div>
         </div>
         {canManage && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

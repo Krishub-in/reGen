@@ -1,7 +1,7 @@
 {
-  "name": "reGen",
-  "short_name": "reGen",
-  "description": "reGen - HR Management System",
+  "name": "ReGen",
+  "short_name": "ReGen",
+  "description": "ReGen - HR Management System",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

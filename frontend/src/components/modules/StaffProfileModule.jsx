@@ -10,9 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { 
   Camera, Upload, ShieldCheck, Lock, User, Briefcase, Calendar, 
-  Phone, MapPin, Building, Key, CheckCircle2, AlertTriangle, Shield
+  Phone, MapPin, Building, Key, CheckCircle2, AlertTriangle, Shield, Settings
 } from 'lucide-react';
 import { authFetch, cn, hasUserRole } from '@/lib/utils';
+import PageHeader from '../PageHeader';
 
 export default function StaffProfileModule({ userProfile }) {
   const normalizeDateForInput = (value) => {
@@ -188,14 +189,11 @@ export default function StaffProfileModule({ userProfile }) {
   return (
     <div className="space-y-6 w-full pb-10">
       {/* 1. Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-light tracking-normal text-foreground leading-snug">Settings</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-normal">
-            Manage your personal profile, workplace information, and account security.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Settings}
+        title="Settings"
+        subtitle="Manage your personal profile, workplace information, and account security."
+      />
 
       {/* Action Required Banner for First Login / Default Password */}
       {needsPasswordChange && (

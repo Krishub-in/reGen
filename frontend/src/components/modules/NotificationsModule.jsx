@@ -13,6 +13,7 @@ import {
   useDeleteNotification 
 } from '../../hooks/useQueries';
 import { cn } from '../../lib/utils';
+import PageHeader from '../PageHeader';
 
 export default function NotificationsModule({ userProfile, onNavigate }) {
   const myUserId = userProfile?.userId ? (userProfile.userId.toText ? userProfile.userId.toText() : String(userProfile.userId)) : (userProfile?.id ? (userProfile.id.toText ? userProfile.id.toText() : String(userProfile.id)) : '');
@@ -193,52 +194,45 @@ export default function NotificationsModule({ userProfile, onNavigate }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 p-4 sm:p-6">
-      {/* Top Header Card */}
+      {/* Page Header */}
+      <PageHeader
+        icon={Bell}
+        title={
+          <span className="flex items-center gap-2">
+            <span>Notifications</span>
+            {unreadCount > 0 ? (
+              <Badge variant="default" className="text-xs bg-[#15966A] text-white">
+                {unreadCount} unread
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs text-muted-foreground font-normal">
+                All caught up
+              </Badge>
+            )}
+          </span>
+        }
+        subtitle="View and manage all your notifications, calls, alerts and updates."
+        actions={
+          unreadCount > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => markAllRead.mutate(myUserId)}
+              disabled={markAllRead.isPending}
+              className="flex items-center gap-1.5 text-xs font-medium"
+            >
+              <CheckCheck className="h-4 w-4 text-[#15966A]" />
+              <span>Mark all read</span>
+            </Button>
+          )
+        }
+      />
+
+      {/* Filter and Content Card */}
       <Card className="border shadow-xs">
         <CardHeader className="pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-11 w-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                <Bell className="h-6 w-6" />
-              </div>
-              <div>
-                <CardTitle className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-                  <span>Notifications</span>
-                  {unreadCount > 0 ? (
-                    <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
-                      {unreadCount} unread
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs text-muted-foreground font-normal">
-                      All caught up
-                    </Badge>
-                  )}
-                </CardTitle>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                  View and manage all your notifications, calls, alerts and updates
-                </p>
-              </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex items-center gap-2">
-              {unreadCount > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => markAllRead.mutate(myUserId)}
-                  disabled={markAllRead.isPending}
-                  className="flex items-center gap-1.5 text-xs font-medium"
-                >
-                  <CheckCheck className="h-4 w-4 text-primary" />
-                  <span>Mark all read</span>
-                </Button>
-              )}
-            </div>
-          </div>
-
           {/* Filter Tabs */}
-          <div className="flex items-center gap-1.5 pt-4 border-t mt-4">
+          <div className="flex items-center gap-1.5">
             <Button
               variant={filter === 'all' ? 'default' : 'ghost'}
               size="sm"
