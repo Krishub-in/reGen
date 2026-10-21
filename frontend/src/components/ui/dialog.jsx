@@ -41,7 +41,15 @@ function DialogContent({
     showCloseButton = true,
     ...props
 }) {
-    const hasCustomMaxWidth = className && (className.includes('max-w-') || className.includes('w-'));
+    const hasCustomMaxWidth = className && (/\b(sm:)?max-w-/.test(className) || /\b(sm:)?w-/.test(className));
+
+    // If caller provided a max-w class like max-w-md, ensure a corresponding sm:max-w is also added
+    // so media queries don't break specificity on desktop
+    let responsiveMaxWidth = '';
+    const match = className && className.match(/\bmax-w-([a-z0-9\[\]\-]+)\b/);
+    if (match && !/\bsm:max-w-/.test(className)) {
+        responsiveMaxWidth = `sm:max-w-${match[1]}`;
+    }
 
     return (
         <DialogPortal data-slot="dialog-portal">
@@ -49,8 +57,9 @@ function DialogContent({
             <DialogPrimitive.Content
                 data-slot="dialog-content"
                 className={cn(
-                    'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-1.5rem)] sm:max-w-[calc(100%-2rem)] max-h-[92svh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border p-4 sm:p-6 shadow-2xl duration-200',
+                    'bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[92svh] overflow-y-auto translate-x-[-50%] translate-y-[-50%] gap-4 rounded-xl border p-4 sm:p-6 shadow-2xl duration-200',
                     !hasCustomMaxWidth && 'sm:max-w-lg',
+                    responsiveMaxWidth,
                     className
                 )}
                 {...props}

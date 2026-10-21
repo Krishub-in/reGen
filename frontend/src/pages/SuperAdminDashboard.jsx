@@ -1666,7 +1666,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* Credentials Result Dialog */}
       <Dialog open={credDialogOpen} onOpenChange={setCredDialogOpen}>
-        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+        <DialogContent className="max-w-md sm:max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
           <div className="p-6 sm:p-8">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
@@ -1718,7 +1718,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* OTP Verification Dialog for Block/Unblock */}
       <Dialog open={otpDialogOpen} onOpenChange={(open) => { setOtpDialogOpen(open); if (!open) { setOtpTarget(null); setOtpCode(''); } }}>
-        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+        <DialogContent className="max-w-md sm:max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
           <div className="p-6 sm:p-8">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
@@ -1763,7 +1763,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* Delete Company OTP Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={(open) => { setDeleteDialogOpen(open); if (!open) { setDeleteTarget(null); setDeleteOtpCode(''); setDeleteResult(null); } }}>
-        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+        <DialogContent className="max-w-md sm:max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
           <div className="p-6 sm:p-8">
             {!deleteResult ? (
               <>
@@ -1935,7 +1935,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
       {/* Backup Action OTP Dialog (Download / Restore / Delete) */}
       <Dialog open={backupActionDialogOpen} onOpenChange={(open) => { setBackupActionDialogOpen(open); if (!open) { setBackupActionTarget(null); setBackupActionOtp(''); setBackupActionType(null); } }}>
-        <DialogContent className="max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
+        <DialogContent className="max-w-md sm:max-w-md border border-border/80 bg-card text-foreground p-0 rounded-2xl shadow-2xl">
           <div className="p-6 sm:p-8">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold text-center mb-1 tracking-tight">
