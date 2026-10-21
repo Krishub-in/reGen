@@ -228,18 +228,34 @@ export const updatePayrollSettings = async (req, res) => {
 export const getPayrollSummary = async (req, res) => {
   try {
     const companyId = requireCompanyId(req, res, true);
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const month = (req.query.month || currentMonthStr).trim();
+
     if (!companyId) {
-      return res.status(200).json({ summary: [], totalGross: 0, totalNet: 0, count: 0, page: 1, totalPages: 1 });
+      return res.status(200).json({
+        month,
+        summary: {
+          totalEmployees: 0,
+          totalAmountSent: 0,
+          totalAmountToPay: 0,
+          totalBaseSalary: 0,
+          totalDeductions: 0,
+          totalOvertimeAdditions: 0,
+          totalBonuses: 0,
+          totalManualDeductions: 0,
+          totalNetPayable: 0,
+          pendingFinalizationCount: 0,
+          pendingPaymentCount: 0,
+          paymentsCompletedCount: 0,
+        },
+        items: [],
+      });
     }
 
     if (!isCompanyAdmin(req.user)) {
       return res.status(403).json({ message: 'Access denied' });
     }
-
-    // Default to current month if not provided: 'YYYY-MM'
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const month = (req.query.month || currentMonthStr).trim();
 
     // Query parameters for filter/search
     const search = String(req.query.search || '').trim().toLowerCase();

@@ -210,16 +210,24 @@ export default function PaymentsModule({ userProfile }) {
     }
   }, [selectedMonth]);
 
-  const summary = summaryData?.summary || {
+  const defaultSummary = {
     totalEmployees: 0,
+    totalAmountSent: 0,
+    totalAmountToPay: 0,
     totalBaseSalary: 0,
     totalDeductions: 0,
     totalOvertimeAdditions: 0,
+    totalBonuses: 0,
+    totalManualDeductions: 0,
     totalNetPayable: 0,
     pendingFinalizationCount: 0,
     pendingPaymentCount: 0,
     paymentsCompletedCount: 0,
   };
+
+  const summary = (summaryData?.summary && typeof summaryData.summary === 'object' && !Array.isArray(summaryData.summary))
+    ? { ...defaultSummary, ...summaryData.summary }
+    : defaultSummary;
 
   const payrollItems = summaryData?.items || [];
 
@@ -499,7 +507,7 @@ export default function PaymentsModule({ userProfile }) {
                     </span>
                     <div className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground mt-1 flex items-baseline gap-1">
                       <span className="text-teal-600 dark:text-teal-400">₹</span>
-                      <span>{(myPayroll.totalAmount !== undefined ? myPayroll.totalAmount : myPayroll.netPayable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span>{((myPayroll.totalAmount !== undefined ? myPayroll.totalAmount : myPayroll.netPayable) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className={myPayroll.isPaid ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' : 'bg-amber-500/15 text-amber-600 border-amber-500/30'}>
@@ -532,15 +540,15 @@ export default function PaymentsModule({ userProfile }) {
                   </div>
                   <div>
                     <span className="text-[11px] text-muted-foreground uppercase font-medium">Overtime Add</span>
-                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">+₹{myPayroll.hourlyOvertimeAddition.toLocaleString()}</p>
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">+₹{(myPayroll.hourlyOvertimeAddition || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <span className="text-[11px] text-muted-foreground uppercase font-medium">Shortfall Deduct</span>
-                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-0.5">-₹{myPayroll.hourlyShortfallDeduction.toLocaleString()}</p>
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-0.5">-₹{(myPayroll.hourlyShortfallDeduction || 0).toLocaleString()}</p>
                   </div>
                   <div>
                     <span className="text-[11px] text-muted-foreground uppercase font-medium">Leave & Other Deduct</span>
-                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-0.5">-₹{(myPayroll.approvedLeaveDeduction + myPayroll.unapprovedLeaveDeduction + (myPayroll.manualDeduction || 0)).toLocaleString()}</p>
+                    <p className="text-sm font-semibold text-red-600 dark:text-red-400 mt-0.5">-₹{(((myPayroll.approvedLeaveDeduction || 0) + (myPayroll.unapprovedLeaveDeduction || 0) + (myPayroll.manualDeduction || 0))).toLocaleString()}</p>
                   </div>
                 </div>
               </Card>
@@ -772,7 +780,7 @@ export default function PaymentsModule({ userProfile }) {
             </div>
           </div>
           <div className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400 mt-2">
-            +₹{summary.totalOvertimeAdditions.toLocaleString()}
+            +₹{(summary.totalOvertimeAdditions || 0).toLocaleString()}
           </div>
           <p className="text-[11px] text-muted-foreground mt-0.5">Total additions</p>
         </Card>
@@ -1252,22 +1260,22 @@ export default function PaymentsModule({ userProfile }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-muted/30 rounded-2xl border border-border">
                 <div>
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">Base Salary</span>
-                  <div className="text-base font-bold text-foreground mt-0.5">₹{previewData.baseSalary.toLocaleString()}</div>
-                  <span className="text-[10px] text-muted-foreground">{previewData.scheduledWorkingDays} scheduled days</span>
+                  <div className="text-base font-bold text-foreground mt-0.5">₹{(previewData?.baseSalary || 0).toLocaleString()}</div>
+                  <span className="text-[10px] text-muted-foreground">{previewData?.scheduledWorkingDays || 0} scheduled days</span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">Hourly Deduction Rate</span>
-                  <div className="text-base font-bold text-red-500 mt-0.5">₹{previewData.hourlyDeductionRate}/hr</div>
-                  <span className="text-[10px] text-muted-foreground">Divisor: {previewData.payrollDivisor}h</span>
+                  <div className="text-base font-bold text-red-500 mt-0.5">₹{previewData?.hourlyDeductionRate || 0}/hr</div>
+                  <span className="text-[10px] text-muted-foreground">Divisor: {previewData?.payrollDivisor || 0}h</span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">Hourly Overtime Rate</span>
-                  <div className="text-base font-bold text-emerald-500 mt-0.5">₹{previewData.hourlyOvertimeRate}/hr</div>
+                  <div className="text-base font-bold text-emerald-500 mt-0.5">₹{previewData?.hourlyOvertimeRate || 0}/hr</div>
                   <span className="text-[10px] text-muted-foreground">OT rate basis</span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-bold text-muted-foreground">Daily Salary Basis</span>
-                  <div className="text-base font-bold text-foreground mt-0.5">₹{previewData.dailySalaryBasis}/day</div>
+                  <div className="text-base font-bold text-foreground mt-0.5">₹{previewData?.dailySalaryBasis || 0}/day</div>
                   <span className="text-[10px] text-muted-foreground">Leave deduction basis</span>
                 </div>
               </div>
@@ -1279,41 +1287,41 @@ export default function PaymentsModule({ userProfile }) {
                 </span>
                 <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
                   <span className="text-muted-foreground">Base Monthly Salary:</span>
-                  <span className="font-semibold">₹{previewData.baseSalary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-semibold">₹{(previewData?.baseSalary || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
                   <span className="text-emerald-600 dark:text-emerald-400">
-                    + Overtime Additions ({previewData.overtimeHours} hrs @ ₹{previewData.hourlyOvertimeRate}/hr):
+                    + Overtime Additions ({previewData?.overtimeHours || 0} hrs @ ₹{previewData?.hourlyOvertimeRate || 0}/hr):
                   </span>
                   <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                    +₹{previewData.hourlyOvertimeAddition.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    +₹{(previewData?.hourlyOvertimeAddition || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
                   <span className="text-red-500">
-                    − Hourly Shortfall Deductions ({previewData.shortfallHours} hrs @ ₹{previewData.hourlyDeductionRate}/hr):
+                    − Hourly Shortfall Deductions ({previewData?.shortfallHours || 0} hrs @ ₹{previewData?.hourlyDeductionRate || 0}/hr):
                   </span>
                   <span className="font-semibold text-red-500">
-                    −₹{previewData.hourlyShortfallDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    −₹{(previewData?.hourlyShortfallDeduction || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
                   <span className="text-red-500">
-                    − Approved Leave Deductions ({previewData.approvedLeaveDays} days):
+                    − Approved Leave Deductions ({previewData?.approvedLeaveDays || 0} days):
                   </span>
                   <span className="font-semibold text-red-500">
-                    −₹{previewData.approvedLeaveDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    −₹{(previewData?.approvedLeaveDeduction || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
                   <span className="text-red-500">
-                    − Unapproved Absence Deductions ({previewData.unapprovedLeaveDays} days):
+                    − Unapproved Absence Deductions ({previewData?.unapprovedLeaveDays || 0} days):
                   </span>
                   <span className="font-semibold text-red-500">
-                    −₹{previewData.unapprovedLeaveDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    −₹{(previewData?.unapprovedLeaveDeduction || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                {(previewData.bonus > 0 || previewData.manualDeduction > 0) && (
+                {(previewData?.bonus > 0 || previewData?.manualDeduction > 0) && (
                   <>
                     {previewData.bonus > 0 && (
                       <div className="flex justify-between items-center text-sm py-1 border-b border-border/40">
@@ -1321,7 +1329,7 @@ export default function PaymentsModule({ userProfile }) {
                           + Added Bonus Reward:
                         </span>
                         <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                          +₹{previewData.bonus.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          +₹{(previewData.bonus || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     )}
@@ -1331,7 +1339,7 @@ export default function PaymentsModule({ userProfile }) {
                           − Other / Manual Deductions:
                         </span>
                         <span className="font-semibold text-red-500">
-                          −₹{previewData.manualDeduction.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          −₹{(previewData.manualDeduction || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                     )}
@@ -1340,12 +1348,12 @@ export default function PaymentsModule({ userProfile }) {
                 <div className="flex justify-between items-center text-base pt-2 font-bold text-foreground">
                   <span>Total Amount:</span>
                   <span className="text-lg text-teal-600 dark:text-teal-400">
-                    ₹{(previewData.totalAmount !== undefined ? previewData.totalAmount : previewData.netPayable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    ₹{((previewData?.totalAmount !== undefined ? previewData.totalAmount : previewData?.netPayable) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                {previewData.excessDeduction > 0 && (
+                {previewData?.excessDeduction > 0 && (
                   <p className="text-xs text-amber-500 font-medium pt-1">
-                    Notice: Deductions exceeded earnings by ₹{previewData.excessDeduction.toLocaleString()}. Net payout clamped to ₹0.00.
+                    Notice: Deductions exceeded earnings by ₹{(previewData.excessDeduction || 0).toLocaleString()}. Net payout clamped to ₹0.00.
                   </p>
                 )}
               </div>
