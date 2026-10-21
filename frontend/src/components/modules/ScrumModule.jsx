@@ -744,7 +744,7 @@ export default function ScrumModule({ userProfile }) {
                     type="button" 
                     variant="outline" 
                     onClick={resetScrumForm} 
-                    className="h-10 px-4 rounded-xl border-[#DFE8EC] dark:border-[#2A3D48] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] text-xs sm:text-sm font-medium"
+                    className="h-10 px-4 rounded-xl border-[#DFE8EC] dark:border-[#2A3D48] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] text-xs sm:text-sm font-medium w-full sm:w-auto"
                   >
                     Cancel Edit
                   </Button>

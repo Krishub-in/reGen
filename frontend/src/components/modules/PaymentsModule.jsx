@@ -679,13 +679,13 @@ export default function PaymentsModule({ userProfile }) {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full md:w-auto">
           {/* Month Navigation */}
-          <div className="flex items-center gap-1.5 bg-card border border-border px-2.5 py-1 rounded-2xl shadow-xs">
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 bg-card border border-border px-2.5 py-1 rounded-2xl shadow-xs w-full sm:w-auto">
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={handlePrevMonth}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="font-semibold text-xs sm:text-sm px-2 min-w-[130px] text-center text-foreground">
+            <span className="font-semibold text-xs sm:text-sm px-2 min-w-[120px] sm:min-w-[130px] text-center text-foreground flex-1 sm:flex-none">
               {formattedMonthLabel}
             </span>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={handleNextMonth}>
@@ -696,14 +696,14 @@ export default function PaymentsModule({ userProfile }) {
           {/* Company Payment Report & Send */}
           <Button
             onClick={() => setIsReportDialogOpen(true)}
-            className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold h-9 shadow-sm gap-1.5"
+            className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold h-9 shadow-sm gap-1.5 w-full sm:w-auto justify-center"
           >
             <FileText className="h-3.5 w-3.5" />
             Payment Report & Send
           </Button>
 
           {/* Export Report */}
-          <Button onClick={handleExportCSV} variant="outline" className="rounded-xl text-xs font-semibold h-9 border-border">
+          <Button onClick={handleExportCSV} variant="outline" className="rounded-xl text-xs font-semibold h-9 border-border w-full sm:w-auto justify-center">
             <Download className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
             Export CSV
           </Button>
@@ -712,7 +712,7 @@ export default function PaymentsModule({ userProfile }) {
           <Button
             onClick={() => setIsSettingsOpen(true)}
             variant="outline"
-            className="rounded-xl text-xs font-semibold h-9 border-border hover:border-teal-500/50"
+            className="rounded-xl text-xs font-semibold h-9 border-border hover:border-teal-500/50 w-full sm:w-auto justify-center"
           >
             <Settings className="mr-1.5 h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
             Payroll Rules
@@ -817,12 +817,12 @@ export default function PaymentsModule({ userProfile }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
           {/* Add Bonus Button */}
           <Button
             onClick={() => setIsBonusModalOpen(true)}
             size="sm"
-            className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5 h-9 px-3.5 cursor-pointer"
+            className="rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs gap-1.5 h-9 px-3.5 cursor-pointer justify-center"
             title="Add bonus to employee"
           >
             <Gift className="h-4 w-4" />
@@ -834,7 +834,7 @@ export default function PaymentsModule({ userProfile }) {
             onClick={() => setIsDeductionModalOpen(true)}
             size="sm"
             variant="outline"
-            className="rounded-xl text-xs font-semibold border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 shadow-xs gap-1.5 h-9 px-3.5 cursor-pointer"
+            className="rounded-xl text-xs font-semibold border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 hover:border-red-500/50 shadow-xs gap-1.5 h-9 px-3.5 cursor-pointer justify-center"
             title="Add deduction to employee"
           >
             <MinusCircle className="h-4 w-4" />
@@ -846,18 +846,18 @@ export default function PaymentsModule({ userProfile }) {
       {/* Tabs and Filters */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <TabsList className="bg-muted/60 p-1 rounded-2xl h-10">
-            <TabsTrigger value="all" className="rounded-xl text-xs font-semibold">
+          <TabsList className="bg-muted/60 p-1 rounded-2xl h-auto min-h-10 flex flex-wrap gap-1 w-full sm:w-auto">
+            <TabsTrigger value="all" className="rounded-xl text-xs font-semibold flex-1 sm:flex-none">
               All Payments ({payrollItems.length})
             </TabsTrigger>
-            <TabsTrigger value="pending" className="rounded-xl text-xs font-semibold">
-              Pending Payments ({summary.pendingFinalizationCount + summary.pendingPaymentCount})
+            <TabsTrigger value="pending" className="rounded-xl text-xs font-semibold flex-1 sm:flex-none">
+              Pending ({summary.pendingFinalizationCount + summary.pendingPaymentCount})
             </TabsTrigger>
-            <TabsTrigger value="processed" className="rounded-xl text-xs font-semibold">
+            <TabsTrigger value="processed" className="rounded-xl text-xs font-semibold flex-1 sm:flex-none">
               Processed ({summary.paymentsCompletedCount})
             </TabsTrigger>
-            <TabsTrigger value="transactions" className="rounded-xl text-xs font-semibold">
-              Recent Transactions
+            <TabsTrigger value="transactions" className="rounded-xl text-xs font-semibold flex-1 sm:flex-none">
+              Transactions
             </TabsTrigger>
           </TabsList>
 
@@ -1016,7 +1016,7 @@ export default function PaymentsModule({ userProfile }) {
           </DialogHeader>
 
           <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Standard Check-In Time</Label>
                 <Input
@@ -1042,7 +1042,7 @@ export default function PaymentsModule({ userProfile }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Working Hours / Day</Label>
                 <Input
@@ -1083,7 +1083,7 @@ export default function PaymentsModule({ userProfile }) {
                 Hourly Deduction & Overtime Rates (% of Monthly Base Salary)
               </span>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold flex items-center justify-between">
                     <span>Hourly Deduction %</span>
@@ -1127,7 +1127,7 @@ export default function PaymentsModule({ userProfile }) {
                 Leave Penalty Rates (% of Configured Daily Salary Basis)
               </span>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold flex items-center justify-between">
                     <span>Approved Leave %</span>
@@ -1414,17 +1414,17 @@ export default function PaymentsModule({ userProfile }) {
                 </div>
               </div>
 
-              <DialogFooter className="pt-3 border-t flex flex-row justify-between items-center gap-2">
-                <Button variant="outline" onClick={() => setSelectedPreviewUser(null)}>
+              <DialogFooter className="pt-3 border-t flex flex-col-reverse sm:flex-row sm:justify-between items-stretch sm:items-center gap-2">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => setSelectedPreviewUser(null)}>
                   Close
                 </Button>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {!previewData.isFinalized && (
                     <Button
                       onClick={() => handleFinalizePayroll(previewData.userId)}
                       disabled={finalizeMutation.isPending}
-                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold"
+                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-semibold w-full sm:w-auto justify-center"
                     >
                       <ShieldCheck className="mr-1.5 h-4 w-4" />
                       {finalizeMutation.isPending ? 'Finalizing...' : 'Finalize Payroll Snapshot'}

@@ -307,11 +307,11 @@ export default function CompanyModule({ userProfile }) {
       />
 
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-secondary/60 p-1 rounded-2xl border border-border h-12">
-          <TabsTrigger value="dashboard" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Dashboard</TabsTrigger>
-          <TabsTrigger value="profile" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Profile</TabsTrigger>
-          <TabsTrigger value="terms" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Terms & Conditions</TabsTrigger>
-          <TabsTrigger value="policies" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm">Policies</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-secondary/60 p-1 rounded-2xl border border-border h-auto min-h-12 gap-1">
+          <TabsTrigger value="dashboard" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Dashboard</TabsTrigger>
+          <TabsTrigger value="profile" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Profile</TabsTrigger>
+          <TabsTrigger value="terms" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Terms & Conditions</TabsTrigger>
+          <TabsTrigger value="policies" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Policies</TabsTrigger>
         </TabsList>
         
         <TabsContent value="dashboard" className="space-y-6 mt-4">
@@ -415,18 +415,18 @@ export default function CompanyModule({ userProfile }) {
           )}
 
           <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
-            <CardHeader className="border-b border-border bg-card px-6 py-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-bold flex items-center gap-2.5 text-foreground">
+            <CardHeader className="border-b border-border bg-card px-4 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <CardTitle className="text-base sm:text-lg font-bold flex items-center gap-2.5 text-foreground">
                 <ShieldCheck className="w-5 h-5 text-primary" />
                 Core Business Profile
               </CardTitle>
               {(isAdmin || isOwner) && currentCompany && (
-                <Button onClick={handleSubmit} disabled={updateCompany.isPending} size="sm" className="bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl shadow-xs px-4 h-9 transition-all">
+                <Button onClick={handleSubmit} disabled={updateCompany.isPending} size="sm" className="bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl shadow-xs px-4 h-9 transition-all w-full sm:w-auto">
                   {updateCompany.isPending ? 'Saving...' : 'Update Company'}
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
                 <div className="space-y-1.5">
                     <Label htmlFor="name" className="text-xs font-semibold text-foreground">Company Name</Label>
                     <Input

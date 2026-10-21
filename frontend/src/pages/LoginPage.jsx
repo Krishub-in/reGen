@@ -155,12 +155,12 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
       </div>
 
       {/* Right Login Pane */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 relative bg-[#03141a]">
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-10 min-h-screen py-8 sm:py-10 relative bg-[#03141a]">
         {/* Ambient Teal Glow */}
         <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
 
         {/* Floating Login Card */}
-        <div className="w-full max-w-md bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-3xl p-8 sm:p-10 relative z-10 transition-all">
+        <div className="w-full max-w-md bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 relative z-10 transition-all">
           {/* Header */}
           <div className="flex flex-col items-center text-center">
             {/* Centered ReGen Emblem */}
@@ -236,24 +236,7 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
                 </Button>
               </form>
 
-              <Button 
-                variant="outline" 
-                className="w-full h-10 rounded-xl bg-[#0c242b] hover:bg-[#112d35] border-[#1c3e46] text-[#D1E3DC] text-xs font-medium transition-all"
-                onClick={() => setMode('reset')}
-              >
-                Reset Password
-              </Button>
-
-              <div className="pt-3 text-center">
-                <a 
-                  href="/superadmin" 
-                  className="inline-flex items-center gap-1.5 text-xs text-[#E5A83B] hover:text-[#F3B84C] font-semibold transition-colors"
-                >
-                  <span>👑</span> Super Admin Portal →
-                </a>
-              </div>
-
-              <div className="pt-2 text-center text-[11px] text-[#6b8c85]">
+              <div className="pt-4 text-center text-[11px] text-[#6b8c85]">
                 Made with <span className="text-red-500">❤️</span> by Krishub
               </div>
             </div>

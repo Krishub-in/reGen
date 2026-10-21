@@ -818,7 +818,7 @@ export default function PrivateChatModule({ userProfile }) {
   const initials = (peer?.name || peer?.username || '?').slice(0, 2).toUpperCase();
 
   return (
-    <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100vh-11rem)] min-h-[580px] flex flex-row w-full">
+    <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100svh-9.5rem)] sm:h-[calc(100vh-11rem)] min-h-[460px] sm:min-h-[580px] max-h-[calc(100dvh-5rem)] flex flex-row w-full">
       {/* Left Column: Conversations & People Search */}
       <div className={cn(
         "w-full md:w-80 lg:w-96 border-r border-border flex flex-col bg-card shrink-0",

@@ -930,7 +930,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
             </button>
           </div>
         </div>
-        <div className="h-56 w-full">
+        <div className="h-48 sm:h-56 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={currentTrendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
               <defs>
@@ -967,22 +967,22 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                 <h3 className="text-base font-bold text-foreground">Employees ({selectedYear})</h3>
                 <p className="text-xs text-muted-foreground">{totalEmployeesCount} members active in {selectedYear}</p>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative">
+              <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                <div className="relative flex-1 min-w-[110px] sm:flex-none sm:w-36">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     type="text"
                     placeholder="Search..."
                     value={empSearch}
                     onChange={(e) => setEmpSearch(e.target.value)}
-                    className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-28 sm:w-36"
+                    className="h-8 pl-8 pr-3 text-xs rounded-xl bg-background border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary w-full"
                   />
                 </div>
 
                 <select
                   value={deptFilter}
                   onChange={(e) => setDeptFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 min-w-[120px] sm:flex-none"
                 >
                   <option value="all">All Departments</option>
                   {departmentsList.map(d => (
@@ -993,7 +993,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="h-8 px-2.5 text-xs rounded-xl bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary flex-1 min-w-[100px] sm:flex-none"
                 >
                   <option value="all">All Status</option>
                   <option value="active">Active</option>
@@ -1003,7 +1003,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                 <Button
                   onClick={() => onNavigate('users')}
                   size="sm"
-                  className="h-8 bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl text-xs px-3 shadow-xs"
+                  className="h-8 bg-primary hover:bg-[#0F766E] text-white font-semibold rounded-xl text-xs px-3 shadow-xs w-full sm:w-auto"
                 >
                   + Add Employee
                 </Button>
