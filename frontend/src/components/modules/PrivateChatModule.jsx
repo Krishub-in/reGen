@@ -32,6 +32,7 @@ import {
 import { stopMediaStream, parseMediaError } from '../../lib/mediaUtils';
 import EmojiPicker from '../EmojiPicker';
 import VoiceConfirmDialog from '../VoiceConfirmDialog';
+import VideoRecordDialog from '../VideoRecordDialog';
 
 const EMPTY_ARRAY = [];
 
@@ -47,6 +48,7 @@ export default function PrivateChatModule({ userProfile }) {
   const editDM = useEditDirectMessage();
 
   const [activeConvoId, setActiveConvoId] = useState(null);
+  const [isVideoRecordOpen, setIsVideoRecordOpen] = useState(false);
   const [content, setContent] = useState('');
   const [files, setFiles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -329,6 +331,34 @@ export default function PrivateChatModule({ userProfile }) {
     } finally {
       if (recordedVoiceModal.audioUrl) URL.revokeObjectURL(recordedVoiceModal.audioUrl);
       setRecordedVoiceModal(null);
+    }
+  };
+
+  const handleSendRecordedVideo = async ({ videoBlob, base64Data, duration, caption }) => {
+    if (!base64Data || !activeConvoId) return;
+    try {
+      await sendDM.mutateAsync({
+        conversationId: activeConvoId,
+        message: {
+          senderName: userProfile?.name || userProfile?.username || 'Me',
+          content: caption ? caption.trim() : '🎥 Video message',
+          isVideo: true,
+          attachments: [
+            {
+              name: `video-${Date.now()}.webm`,
+              type: 'video/webm',
+              size: videoBlob?.size,
+              data: base64Data,
+              path: base64Data,
+            },
+          ],
+        },
+      });
+      refetchMessages();
+      toast.success('Video message sent');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send video message');
     }
   };
 
@@ -677,18 +707,31 @@ export default function PrivateChatModule({ userProfile }) {
     return /\.(png|jpe?g|gif|webp|svg)$/i.test(src) || (typeof att === 'object' && /\.(png|jpe?g|gif|webp|svg)$/i.test(att.name || ''));
   };
 
-  const isAudioAtt = (att) => {
+  const isVideoAtt = (att) => {
     if (!att) return false;
-    const type = typeof att === 'object' ? (att.type || '') : '';
-    const name = typeof att === 'object' ? (att.name || att.path || '') : att;
+    const type = typeof att === 'object' ? (att.type || att.mimetype || '') : '';
+    const name = typeof att === 'object' ? (att.name || '') : String(att);
+    const path = typeof att === 'object' ? (att.path || '') : '';
     const src = getAttachmentSrc(att);
-    return (
-      type.startsWith('audio') ||
-      /\.(webm|wav|mp3|ogg|m4a|aac)$/i.test(name) ||
-      /\.(webm|wav|mp3|ogg|m4a|aac)$/i.test(src) ||
-      src.startsWith('data:audio') ||
-      name.includes('voice-')
-    );
+    if (type.startsWith('video')) return true;
+    if (src.startsWith('data:video')) return true;
+    if (name.includes('video') || path.includes('video')) return true;
+    if (/\.(mp4|mov|mkv)$/i.test(name) || /\.(mp4|mov|mkv)$/i.test(src) || /\.(mp4|mov|mkv)$/i.test(path)) return true;
+    if (/\.webm$/i.test(name) && !name.includes('voice') && !path.includes('voice')) return true;
+    if (/\.webm$/i.test(path) && !path.includes('voice') && !name.includes('voice')) return true;
+    return false;
+  };
+
+  const isAudioAtt = (att) => {
+    if (!att || isVideoAtt(att)) return false;
+    const type = typeof att === 'object' ? (att.type || att.mimetype || '') : '';
+    const name = typeof att === 'object' ? (att.name || '') : String(att);
+    const path = typeof att === 'object' ? (att.path || '') : '';
+    const src = getAttachmentSrc(att);
+    if (type.startsWith('audio')) return true;
+    if (src.startsWith('data:audio')) return true;
+    if (name.includes('voice') || path.includes('voice')) return true;
+    return /\.(wav|mp3|ogg|m4a|aac)$/i.test(name) || /\.(wav|mp3|ogg|m4a|aac)$/i.test(src) || /\.(wav|mp3|ogg|m4a|aac)$/i.test(path);
   };
 
   // Group messages by date
@@ -1191,15 +1234,20 @@ export default function PrivateChatModule({ userProfile }) {
                       {Array.isArray(msg.attachments) && msg.attachments.length > 0 && (
                         <div className="mt-2 space-y-1.5">
                           {msg.attachments.map((att, idx) => {
-                            const publicPath = toPublicPath(att.path);
-                            const isAudio = att.mimetype?.startsWith('audio/') || /\.(webm|ogg|mp3|wav|m4a)$/i.test(att.name || '');
+                            const publicPath = toPublicPath(att.path) || getAttachmentSrc(att);
+                            const isAudio = isAudioAtt(att);
+                            const isVideo = isVideoAtt(att);
                             return (
                               <div key={idx} className={cn(
                                 "rounded-xl border p-2 text-xs flex flex-col gap-1.5",
                                 own ? "bg-white/10 border-white/20 text-white" : "bg-muted/40 border-border text-foreground"
                               )}>
                                 {isImageAtt(att) ? (
-                                  <img src={publicPath} alt={att.name} className="max-h-36 rounded-lg object-contain mb-1" />
+                                  <img src={publicPath} alt={att.name} className="max-h-48 rounded-lg object-contain mb-1" />
+                                ) : isVideo ? (
+                                  <div className="w-full">
+                                    <video controls playsInline className="w-full max-h-64 rounded-xl object-contain bg-black/80 border border-black/20" src={publicPath} />
+                                  </div>
                                 ) : isAudio ? (
                                   <div className="w-full">
                                     <audio controls className="w-full h-8" src={publicPath} />
@@ -1212,9 +1260,10 @@ export default function PrivateChatModule({ userProfile }) {
                                     </a>
                                   </div>
                                 )}
-                                {(isAudio || isImageAtt(att)) && (
-                                  <a href={publicPath} download={att.name} className="underline truncate text-[11px] hover:opacity-80">
-                                    {att.name}
+                                {(isAudio || isVideo || isImageAtt(att)) && (
+                                  <a href={publicPath} download={att.name} className="underline truncate text-[11px] hover:opacity-80 flex items-center gap-1 opacity-90">
+                                    <Paperclip className="h-3 w-3 shrink-0" />
+                                    <span>{att.name}</span>
                                   </a>
                                 )}
                               </div>
@@ -1352,6 +1401,17 @@ export default function PrivateChatModule({ userProfile }) {
                     >
                       <Mic className="h-4 w-4" />
                     </Button>
+                    {/* Video Recording button */}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsVideoRecordOpen(true)}
+                      title="Record Video Message"
+                      className="h-10 w-10 rounded-xl shrink-0 hover:text-teal-600 dark:hover:text-teal-400 text-muted-foreground cursor-pointer"
+                    >
+                      <Video className="h-4 w-4" />
+                    </Button>
                     <Button
                       type="submit"
                       size="icon"
@@ -1460,6 +1520,15 @@ export default function PrivateChatModule({ userProfile }) {
         onSendText={handleConfirmSendText}
         onEditText={handleConfirmEditText}
         onCancel={handleCancelVoiceModal}
+        isPending={sendDM.isPending}
+      />
+
+      {/* Video Recording Dialog */}
+      <VideoRecordDialog
+        isOpen={isVideoRecordOpen}
+        onClose={() => setIsVideoRecordOpen(false)}
+        onSendVideo={handleSendRecordedVideo}
+        title="Record Video Message"
         isPending={sendDM.isPending}
       />
     </Card>

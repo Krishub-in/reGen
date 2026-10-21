@@ -8,7 +8,19 @@ const notificationSchema = new mongoose.Schema({
   message: { type: String, required: true },
   type: {
     type: String,
-    enum: ['text_message', 'voice_message', 'voice_call', 'video_call', 'team_meeting', 'general'],
+    enum: [
+      'text_message',
+      'voice_message',
+      'voice_call',
+      'video_call',
+      'team_meeting',
+      'general',
+      'payment',
+      'payroll',
+      'bonus',
+      'deduction',
+      'attendance'
+    ],
     default: 'general'
   },
   senderId: { type: String },

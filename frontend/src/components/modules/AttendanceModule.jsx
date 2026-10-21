@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGetAllAttendance, useGetUserAttendance, useRecordAttendance, useUpdateAttendance, useGetAllUsers, useGetAllLeaveRequests, useGetUserLeaveRequests, useApplyLeave, useUpdateLeaveRequest, useGetAllTasks } from '../../hooks/useQueries';
+import { useGetAllAttendance, useGetUserAttendance, useRecordAttendance, useUpdateAttendance, useGetAllUsers, useGetAllLeaveRequests, useGetUserLeaveRequests, useApplyLeave, useUpdateLeaveRequest, useGetAllTasks, useGetPayrollSettings, useUpdatePayrollSettings } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle } from 'lucide-react';
+import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle, FileText, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
 import { isTaskExpired } from '@/lib/taskUtils';
+import AttendanceReportDialog from './AttendanceReportDialog';
 
 export default function AttendanceModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -82,8 +83,26 @@ export default function AttendanceModule({ userProfile }) {
     };
   });
 
+  const { data: dbPayrollSettings } = useGetPayrollSettings();
+  const updatePayrollSettingsMutation = useUpdatePayrollSettings();
+
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [scheduleForm, setScheduleForm] = useState(workSchedule);
+
+  // Sync with DB payroll settings if available
+  useEffect(() => {
+    if (dbPayrollSettings) {
+      const merged = {
+        checkInTime: dbPayrollSettings.checkInTime || '09:30',
+        checkOutTime: dbPayrollSettings.checkOutTime || '18:30',
+        daysPerWeek: String(dbPayrollSettings.workingDaysPerWeek || 5),
+        workingHours: String(dbPayrollSettings.workingHoursPerDay || 8),
+        graceMinutes: String(dbPayrollSettings.graceMinutes || 0),
+      };
+      setWorkSchedule(merged);
+      setScheduleForm(merged);
+    }
+  }, [dbPayrollSettings]);
 
   // Sync schedule if updated elsewhere
   useEffect(() => {
@@ -104,7 +123,7 @@ export default function AttendanceModule({ userProfile }) {
     return () => window.removeEventListener('company_work_schedule_updated', handleScheduleUpdate);
   }, [getCompanyScheduleKey, DEFAULT_SCHEDULE]);
 
-  const handleSaveSchedule = (e) => {
+  const handleSaveSchedule = async (e) => {
     e?.preventDefault?.();
     try {
       const key = getCompanyScheduleKey();
@@ -112,10 +131,20 @@ export default function AttendanceModule({ userProfile }) {
       localStorage.setItem('company_work_schedule', JSON.stringify(scheduleForm));
       setWorkSchedule(scheduleForm);
       window.dispatchEvent(new Event('company_work_schedule_updated'));
+
+      // Also persist to company MongoDB settings
+      await updatePayrollSettingsMutation.mutateAsync({
+        checkInTime: scheduleForm.checkInTime,
+        checkOutTime: scheduleForm.checkOutTime,
+        workingDaysPerWeek: Number(scheduleForm.daysPerWeek),
+        workingHoursPerDay: Number(scheduleForm.workingHours),
+        graceMinutes: Number(scheduleForm.graceMinutes || 0),
+      });
+
       setIsScheduleModalOpen(false);
-      toast.success('Work schedule updated successfully!');
+      toast.success('Work schedule & payroll timings updated successfully!');
     } catch (err) {
-      toast.error('Failed to save schedule');
+      toast.error(err.message || 'Failed to save schedule');
     }
   };
 
@@ -146,6 +175,7 @@ export default function AttendanceModule({ userProfile }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [showHistory, setShowHistory] = useState(false);
+  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
   const pageSize = 10;
 
   const greeting = useMemo(() => {
@@ -842,7 +872,16 @@ export default function AttendanceModule({ userProfile }) {
               Logged in as <span className="font-semibold text-foreground">{userProfile?.name || userProfile?.username || (userProfile?.id?.toText ? userProfile.id.toText() : String(userProfile?.id || ''))}</span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReportDialogOpen(true)}
+              className="gap-1.5 text-xs h-8 border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Attendance Report
+            </Button>
             <span className={cn(
               "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
               isCheckedIn && !isCheckedOut
@@ -1165,6 +1204,13 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </CardContent>
         </Card>
+
+        <AttendanceReportDialog
+          open={isReportDialogOpen}
+          onOpenChange={setIsReportDialogOpen}
+          companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
+          userProfile={userProfile}
+        />
       </div>
     );
   }
@@ -1200,141 +1246,6 @@ export default function AttendanceModule({ userProfile }) {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
-
-            {/* Schedule Work Modal Button */}
-            <Dialog open={isScheduleModalOpen} onOpenChange={(open) => {
-              setIsScheduleModalOpen(open);
-              if (open) setScheduleForm(workSchedule);
-            }}>
-              <DialogTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="flex items-center gap-2 border-primary/40 hover:border-primary hover:bg-primary/5 text-foreground font-semibold shadow-xs"
-                >
-                  <CalendarClock className="h-4 w-4 text-primary" />
-                  <span>Schedule Work</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[480px]">
-                <DialogHeader>
-                  <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-primary" />
-                    Company Work Schedule
-                  </DialogTitle>
-                  <DialogDescription>
-                    Configure shift timings, daily working hours, and weekly office days. Employees clocking in past the check-in time will automatically be marked as <strong>Late</strong>.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <form onSubmit={handleSaveSchedule} className="space-y-4 py-2">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-foreground">
-                        Check-in Time <span className="text-destructive">*</span>
-                      </label>
-                      <Input
-                        type="time"
-                        required
-                        value={scheduleForm.checkInTime}
-                        onChange={(e) => setScheduleForm(prev => ({ ...prev, checkInTime: e.target.value }))}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Late after this time</p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-foreground">
-                        Check-out Time <span className="text-destructive">*</span>
-                      </label>
-                      <Input
-                        type="time"
-                        required
-                        value={scheduleForm.checkOutTime}
-                        onChange={(e) => setScheduleForm(prev => ({ ...prev, checkOutTime: e.target.value }))}
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Standard shift end</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-foreground">
-                        Office Days / Week
-                      </label>
-                      <Select 
-                        value={String(scheduleForm.daysPerWeek)} 
-                        onValueChange={(val) => setScheduleForm(prev => ({ ...prev, daysPerWeek: val }))}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select days" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="4">4 Days (Mon - Thu)</SelectItem>
-                          <SelectItem value="5">5 Days (Mon - Fri)</SelectItem>
-                          <SelectItem value="6">6 Days (Mon - Sat)</SelectItem>
-                          <SelectItem value="7">7 Days (Full Week)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-[11px] text-muted-foreground">Working days per week</p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-foreground">
-                        Working Hours / Day
-                      </label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="24"
-                        step="0.5"
-                        required
-                        value={scheduleForm.workingHours}
-                        onChange={(e) => setScheduleForm(prev => ({ ...prev, workingHours: e.target.value }))}
-                        placeholder="8"
-                        className="font-mono text-sm"
-                      />
-                      <p className="text-[11px] text-muted-foreground">Standard daily hours</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-foreground flex items-center justify-between">
-                      <span>Grace Buffer (Minutes)</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">Optional</span>
-                    </label>
-                    <Input
-                      type="number"
-                      min="0"
-                      max="60"
-                      value={scheduleForm.graceMinutes || '0'}
-                      onChange={(e) => setScheduleForm(prev => ({ ...prev, graceMinutes: e.target.value }))}
-                      placeholder="0"
-                      className="font-mono text-sm"
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Extra buffer minutes before marking as Late (e.g. 5)
-                    </p>
-                  </div>
-
-                  <DialogFooter className="pt-2">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setIsScheduleModalOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white"
-                    >
-                      Save Work Schedule
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
         </div>
       </div>
 
@@ -1467,14 +1378,21 @@ export default function AttendanceModule({ userProfile }) {
           </div>
         </div>
 
-        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-          <Button className="bg-[#0D9488] hover:bg-[#0F766E] text-white w-full md:w-auto shadow-sm" onClick={handleExport}>
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
+          <Button
+            className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto shadow-sm gap-1.5"
+            onClick={() => setIsReportDialogOpen(true)}
+          >
+            <FileText className="h-4 w-4" />
+            Attendance Report & Send
+          </Button>
+          <Button variant="outline" className="w-full sm:w-auto shadow-2xs" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
-            Export Report
+            Export CSV
           </Button>
           <Button
             variant={showHistory ? "default" : "outline"}
-            className="w-full md:w-auto"
+            className="w-full sm:w-auto"
             onClick={() => setShowHistory(prev => !prev)}
           >
             <History className="mr-2 h-4 w-4" />
@@ -1692,6 +1610,13 @@ export default function AttendanceModule({ userProfile }) {
           </Button>
         </div>
       </Card>
+
+      <AttendanceReportDialog
+        open={isReportDialogOpen}
+        onOpenChange={setIsReportDialogOpen}
+        companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
+        userProfile={userProfile}
+      />
     </div>
   );
 }

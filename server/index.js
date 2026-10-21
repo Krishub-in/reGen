@@ -25,6 +25,7 @@ import dmRoutes from './routes/dm.js';
 import meetingNoteRoutes from './routes/meetingNotes.js';
 import scrumRoutes from './routes/scrum.js';
 import holidayRoutes from './routes/holidays.js';
+import payrollRoutes from './routes/payroll.js';
 import { runBirthdayReminderJob } from './controllers/notificationController.js';
 import SystemSetting from './models/SystemSetting.js';
 import { maintenanceCheck } from './middleware/maintenanceCheck.js';
@@ -87,8 +88,8 @@ app.use(cors({
   },
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Setup uploads directory
 const uploadsDir = path.resolve(__dirname, '..', 'uploads');
@@ -710,6 +711,7 @@ app.use('/api/dm', dmRoutes);
 app.use('/api/meeting-notes', meetingNoteRoutes);
 app.use('/api/scrum', scrumRoutes);
 app.use('/api/holidays', holidayRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // === SuperAdmin Deploy Endpoints ===
 const execAsync = promisify(exec);

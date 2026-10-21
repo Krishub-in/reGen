@@ -170,6 +170,20 @@ export default function NotificationsModule({ userProfile, onNavigate }) {
         </div>
       );
     }
+    if (type.includes('pay') || type.includes('salary') || title.includes('payment') || title.includes('salary') || type.includes('bonus') || title.includes('bonus')) {
+      return (
+        <div className="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 flex items-center justify-center shrink-0">
+          <DollarSign className="h-5 w-5" />
+        </div>
+      );
+    }
+    if (type.includes('deduction') || title.includes('deduction')) {
+      return (
+        <div className="h-10 w-10 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center shrink-0">
+          <DollarSign className="h-5 w-5" />
+        </div>
+      );
+    }
     return (
       <div className="h-10 w-10 rounded-full bg-muted text-muted-foreground flex items-center justify-center shrink-0">
         <Bell className="h-5 w-5" />

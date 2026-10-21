@@ -28,6 +28,7 @@ const EVENT_TO_QUERY_KEYS = {
   'notification:read':   [['notifications']],
   'notification:read_all': [['notifications']],
   'meeting:started':     [['notifications']],
+  'payroll:change':      [['payroll'], ['payrolls'], ['payroll-preview'], ['payroll-report'], ['notifications']],
 };
 
 let globalSocket = null;

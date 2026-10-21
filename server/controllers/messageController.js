@@ -14,10 +14,15 @@ const ensureAssetsDir = async () => {
 };
 
 const parseDataUri = (value) => {
-  if (!value) return null;
-  const match = String(value).match(/^data:([^;]+);base64,(.+)$/);
+  if (!value || typeof value !== 'string') return null;
+  const marker = ';base64,';
+  const markerIdx = value.indexOf(marker);
+  if (markerIdx === -1) return null;
+  const prefix = value.slice(0, markerIdx);
+  const data = value.slice(markerIdx + marker.length);
+  const match = prefix.match(/^data:([^;]+)/);
   if (!match) return null;
-  return { mime: match[1], data: match[2] };
+  return { mime: match[1], data };
 };
 
 const extFromMime = (mime) => {
@@ -29,6 +34,12 @@ const extFromMime = (mime) => {
   if (m === 'image/svg+xml') return 'svg';
   if (m === 'application/pdf') return 'pdf';
   if (m === 'text/plain') return 'txt';
+  if (m.includes('webm')) return 'webm';
+  if (m.includes('mp4')) return 'mp4';
+  if (m.includes('ogg')) return 'ogg';
+  if (m.includes('wav')) return 'wav';
+  if (m.includes('mp3') || m.includes('mpeg')) return 'mp3';
+  if (m.includes('quicktime') || m.includes('mov')) return 'mov';
   return 'bin';
 };
 
@@ -45,7 +56,10 @@ const saveAttachmentDataUri = async (dataUri, name, seed, index) => {
   const base = sanitizeFileBase(name);
   const extFromName = path.extname(base);
   const ext = extFromName || `.${extFromMime(parsed.mime)}`;
-  const filename = `msg-${sanitizeFileBase(seed || 'message')}-${Date.now()}-${index}${ext}`;
+  const isVideo = parsed.mime.startsWith('video') || base.includes('video') || (ext === '.mp4' || ext === '.mov');
+  const isVoice = parsed.mime.startsWith('audio') || base.includes('voice');
+  const prefix = isVideo ? 'msg-video' : (isVoice ? 'msg-voice' : `msg-${sanitizeFileBase(seed || 'message')}`);
+  const filename = `${prefix}-${Date.now()}-${index}${ext}`;
   const filePath = path.join(assetsDir, filename);
   await fs.promises.writeFile(filePath, Buffer.from(parsed.data, 'base64'));
   return `/assets/${filename}`;
@@ -71,7 +85,7 @@ const normalizeAttachment = async (att, seed, index) => {
   } else if (typeof att.url === 'string') {
     finalPath = att.url;
   }
-  
+
   if (finalPath) {
     // Make sure we store forward-slash based paths for frontend compatibility
     finalPath = finalPath.replace(/\\/g, '/');
@@ -79,10 +93,14 @@ const normalizeAttachment = async (att, seed, index) => {
     const idx = finalPath.lastIndexOf(marker);
     if (idx >= 0) finalPath = `/assets/${finalPath.slice(idx + marker.length)}`;
 
+    const isVideo = (att.type && att.type.startsWith('video')) || finalPath.includes('video') || (att.name && att.name.includes('video')) || /\.(mp4|mov|mkv)$/i.test(finalPath);
+    const isVoice = (att.type && att.type.startsWith('audio')) || finalPath.includes('voice') || (att.name && att.name.includes('voice'));
+    const detectedType = att.type || (isVideo ? 'video/webm' : (isVoice ? 'audio/webm' : (finalPath.endsWith('.webm') ? 'video/webm' : (finalPath.endsWith('.wav') ? 'audio/wav' : (finalPath.endsWith('.mp3') ? 'audio/mp3' : undefined)))));
+
     return {
       path: finalPath,
       name: att.name || finalPath.split('/').pop(),
-      type: att.type,
+      type: detectedType,
       size: att.size
     };
   }

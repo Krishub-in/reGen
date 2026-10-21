@@ -126,10 +126,54 @@ export default function Dashboard({ userProfile }) {
   }, [userProfile?.mustChangePassword]);
 
   useEffect(() => {
+    const handleNewNotif = (e) => {
+      const n = e.detail;
+      if (!n) return;
+      if (n.type === 'payment' || (n.title && n.title.toLowerCase().includes('payment'))) {
+        toast.success(n.title || 'Payment Received', {
+          description: n.message,
+          duration: 6000,
+          action: {
+            label: 'View Payments',
+            onClick: () => setActiveModule('payments'),
+          },
+        });
+      } else if (n.type === 'bonus' || (n.title && n.title.toLowerCase().includes('bonus'))) {
+        toast.success(n.title || 'Bonus Added', {
+          description: n.message,
+          duration: 6000,
+          action: {
+            label: 'View',
+            onClick: () => setActiveModule('payments'),
+          },
+        });
+      } else if (n.type === 'deduction' || (n.title && n.title.toLowerCase().includes('deduction'))) {
+        toast.info(n.title || 'Salary Deduction', {
+          description: n.message,
+          duration: 6000,
+          action: {
+            label: 'View',
+            onClick: () => setActiveModule('payments'),
+          },
+        });
+      } else {
+        toast.info(n.title || 'Notification', {
+          description: n.message,
+        });
+      }
+    };
+
+    window.addEventListener('app-notification-new', handleNewNotif);
+    return () => window.removeEventListener('app-notification-new', handleNewNotif);
+  }, []);
+
+  useEffect(() => {
     if (!myNotifications.length) return;
     const unseen = myNotifications.filter((n) => !seenNotifications[n.id] && !n.read);
     if (!unseen.length) return;
-    unseen.forEach((n) => toast(`${n.title}: ${n.message}`));
+    if (unseen.length === 1) {
+      toast(`${unseen[0].title}: ${unseen[0].message}`);
+    }
     setSeenNotifications((prev) => {
       const next = { ...prev };
       unseen.forEach((n) => {
@@ -211,7 +255,7 @@ export default function Dashboard({ userProfile }) {
       setActiveModule('attendance');
     } else if (type.includes('scrum') || title.includes('scrum') || message.includes('scrum')) {
       setActiveModule('scrum');
-    } else if (type.includes('pay') || type.includes('salary') || title.includes('payment') || title.includes('salary')) {
+    } else if (type.includes('pay') || type.includes('salary') || title.includes('payment') || title.includes('salary') || type.includes('bonus') || title.includes('bonus') || type.includes('deduction') || title.includes('deduction')) {
       setActiveModule('payments');
     } else if (type.includes('birthday') || title.includes('birthday') || message.includes('birthday') || type.includes('user')) {
       setActiveModule('users');
@@ -275,7 +319,7 @@ export default function Dashboard({ userProfile }) {
     { id: 'scrum', label: 'Scrum', icon: FileText, show: true },
     { id: 'calendar', label: 'Calendar', icon: Calendar, show: true },
     { id: 'profile', label: 'Settings', icon: Settings, show: true },
-    { id: 'payments', label: 'Payments', icon: DollarSign, show: isAdmin || isOwner },
+    { id: 'payments', label: 'Payments', icon: DollarSign, show: true },
     { id: 'company', label: 'Company', icon: Building2, show: isAdmin || isOwner },
   ];
 
@@ -480,6 +524,14 @@ export default function Dashboard({ userProfile }) {
                             ) : isText ? (
                               <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400 flex items-center justify-center">
                                 <MessageSquare className="h-4 w-4" />
+                              </div>
+                            ) : (n.type === 'payment' || n.type === 'bonus' || (n.title && (n.title.toLowerCase().includes('payment') || n.title.toLowerCase().includes('salary') || n.title.toLowerCase().includes('bonus')))) ? (
+                              <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 flex items-center justify-center">
+                                <DollarSign className="h-4 w-4" />
+                              </div>
+                            ) : (n.type === 'deduction' || (n.title && n.title.toLowerCase().includes('deduction'))) ? (
+                              <div className="h-8 w-8 rounded-full bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center">
+                                <DollarSign className="h-4 w-4" />
                               </div>
                             ) : (
                               <div className="h-8 w-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center">

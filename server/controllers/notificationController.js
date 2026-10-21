@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Notification from '../models/Notification.js';
 import User from '../models/User.js';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
@@ -140,7 +141,32 @@ export const createNotification = async (req, res) => {
 
 export const getUserNotifications = async (req, res) => {
   try {
-    const filter = { userId: req.params.userId };
+    const targetUserId = req.params.userId;
+    const userIds = new Set([targetUserId]);
+    if (req.user?.userId) userIds.add(String(req.user.userId));
+    if (req.user?.id) userIds.add(String(req.user.id));
+    if (req.user?.StaffId) userIds.add(String(req.user.StaffId));
+
+    try {
+      const isOid = mongoose.isValidObjectId(targetUserId);
+      const u = await User.findOne({
+        $or: [
+          { userId: targetUserId },
+          { StaffId: targetUserId },
+          { username: targetUserId },
+          ...(isOid ? [{ _id: targetUserId }] : [])
+        ]
+      }).select('userId StaffId username _id').lean();
+
+      if (u) {
+        if (u.userId) userIds.add(String(u.userId));
+        if (u.StaffId) userIds.add(String(u.StaffId));
+        if (u.username) userIds.add(String(u.username));
+        if (u._id) userIds.add(String(u._id));
+      }
+    } catch (_) {}
+
+    const filter = { userId: { $in: Array.from(userIds) } };
     if (req.companyId) filter.companyId = req.companyId;
     const list = await Notification.find(filter).sort({ createdAt: -1 });
     res.status(200).json(list);
@@ -258,7 +284,30 @@ export const createAndSendNotification = async (payload) => {
 
     const n = new Notification(doc);
     await n.save();
-    emitToUser(doc.userId, 'notification:new', n);
+
+    const userIdsToNotify = new Set([String(doc.userId)]);
+    try {
+      const isOid = mongoose.isValidObjectId(doc.userId);
+      const recipient = await User.findOne({
+        $or: [
+          { userId: doc.userId },
+          { StaffId: doc.userId },
+          { username: doc.userId },
+          ...(isOid ? [{ _id: doc.userId }] : [])
+        ]
+      }).select('userId StaffId username _id').lean();
+      if (recipient) {
+        if (recipient.userId) userIdsToNotify.add(String(recipient.userId));
+        if (recipient.StaffId) userIdsToNotify.add(String(recipient.StaffId));
+        if (recipient.username) userIdsToNotify.add(String(recipient.username));
+        if (recipient._id) userIdsToNotify.add(String(recipient._id));
+      }
+    } catch (_) {}
+
+    userIdsToNotify.forEach(uid => {
+      emitToUser(uid, 'notification:new', n);
+    });
+
     return n;
   } catch (err) {
     console.error('[Notification] Failed to create notification:', err.message);

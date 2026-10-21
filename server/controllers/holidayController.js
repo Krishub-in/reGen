@@ -1,5 +1,6 @@
 import Holiday from '../models/Holiday.js';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
+import { emitToCompany } from '../socket.js';
 
 export const addHoliday = async (req, res) => {
   try {
@@ -7,6 +8,7 @@ export const addHoliday = async (req, res) => {
     body.companyId = await resolveCompanyId(req, body);
     const h = new Holiday(body);
     await h.save();
+    emitToCompany('payroll:change', h.companyId, { action: 'holiday_added', date: h.date });
     res.status(201).json(h);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -20,6 +22,7 @@ export const updateHoliday = async (req, res) => {
     if (req.companyId) filter.companyId = req.companyId;
     const h = await Holiday.findOneAndUpdate(filter, req.body, { new: true });
     if (!h) return res.status(404).json({ message: 'Holiday not found' });
+    emitToCompany('payroll:change', h.companyId, { action: 'holiday_updated', date: h.date });
     res.status(200).json(h);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -33,6 +36,7 @@ export const deleteHoliday = async (req, res) => {
     if (req.companyId) filter.companyId = req.companyId;
     const h = await Holiday.findOneAndDelete(filter);
     if (!h) return res.status(404).json({ message: 'Holiday not found' });
+    emitToCompany('payroll:change', h.companyId, { action: 'holiday_deleted', date: h.date });
     res.status(200).json({ message: 'Holiday deleted' });
   } catch (error) {
     res.status(400).json({ message: error.message });

@@ -14,12 +14,14 @@ import PrivateChatModule from './PrivateChatModule';
 import { getSocket } from '../../hooks/useSocket';
 import EmojiPicker from '../EmojiPicker';
 import VoiceConfirmDialog from '../VoiceConfirmDialog';
+import VideoRecordDialog from '../VideoRecordDialog';
 import { stopMediaStream, parseMediaError } from '../../lib/mediaUtils';
 import { cn } from '../../lib/utils';
 
 
 export default function MessengerModule({ userProfile }) {
   const [chatMode, setChatMode] = useState('private'); // 'team' | 'private'
+  const [isVideoRecordOpen, setIsVideoRecordOpen] = useState(false);
   const { identity } = useCustomAuth();
   const { data: messages = [], isLoading } = useGetAllMessages();
   const sendMessage = useSendMessage();
@@ -248,6 +250,33 @@ export default function MessengerModule({ userProfile }) {
     }
   };
 
+  const handleSendRecordedVideo = async ({ videoBlob, base64Data, duration, caption }) => {
+    if (!base64Data) return;
+    try {
+      const message = {
+        id: `msg-${Date.now()}`,
+        senderId: userProfile?.userId || userProfile?.id,
+        sender: userProfile?.name || userProfile?.username || 'Team Member',
+        content: caption ? caption.trim() : '🎥 Video message',
+        timestamp: BigInt(Date.now() * 1000000),
+        attachments: [
+          {
+            name: `video-${Date.now()}.webm`,
+            type: 'video/webm',
+            size: videoBlob?.size,
+            data: base64Data,
+            path: base64Data,
+          },
+        ],
+      };
+      await sendMessage.mutateAsync(message);
+      toast.success('Video message sent to team');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to send video message');
+    }
+  };
+
   const handleConfirmSendText = async (convertedText) => {
     if (!convertedText || !convertedText.trim()) return;
     try {
@@ -440,6 +469,29 @@ export default function MessengerModule({ userProfile }) {
     if (!att?.path) return false;
     if (att.type?.startsWith('image/')) return true;
     return /\.(png|jpe?g|gif|webp|svg)$/i.test(att.path);
+  };
+  const isVideoAttachment = (att) => {
+    if (!att) return false;
+    const type = typeof att === 'object' ? (att.type || att.mimetype || '') : '';
+    const name = typeof att === 'object' ? (att.name || '') : String(att);
+    const path = typeof att === 'object' ? (att.path || '') : '';
+    if (type.startsWith('video')) return true;
+    if (typeof path === 'string' && path.startsWith('data:video')) return true;
+    if (name.includes('video') || (typeof path === 'string' && path.includes('video'))) return true;
+    if (/\.(mp4|mov|mkv)$/i.test(name) || /\.(mp4|mov|mkv)$/i.test(path)) return true;
+    if (/\.webm$/i.test(name) && !name.includes('voice') && !path.includes('voice')) return true;
+    if (typeof path === 'string' && /\.webm$/i.test(path) && !path.includes('voice') && !name.includes('voice')) return true;
+    return false;
+  };
+  const isAudioAttachment = (att) => {
+    if (!att || isVideoAttachment(att)) return false;
+    const type = typeof att === 'object' ? (att.type || att.mimetype || '') : '';
+    const name = typeof att === 'object' ? (att.name || '') : String(att);
+    const path = typeof att === 'object' ? (att.path || '') : '';
+    if (type.startsWith('audio')) return true;
+    if (typeof path === 'string' && path.startsWith('data:audio')) return true;
+    if (name.includes('voice') || (typeof path === 'string' && path.includes('voice'))) return true;
+    return /\.(wav|mp3|ogg|m4a|aac)$/i.test(name) || (typeof path === 'string' && /\.(wav|mp3|ogg|m4a|aac)$/i.test(path));
   };
   const isAdmin = ['admin', 'owner', 'param'].includes(getRoleName(userProfile.role));
   const isPrivileged = ['owner', 'param'].includes(getRoleName(userProfile.role));
@@ -775,17 +827,33 @@ export default function MessengerModule({ userProfile }) {
                             const sizeText = typeof normalized.size === 'number' ? ` (${Math.round(normalized.size / 1024)} KB)` : '';
                             const publicPath = toPublicPath(normalized.path);
                             return (
-                              <div key={`${message.id}-att-${idx}`} className={`rounded-xl border p-2 text-xs flex items-center gap-2 ${
+                              <div key={`${message.id}-att-${idx}`} className={`rounded-xl border p-2 text-xs flex flex-col gap-1.5 ${
                                 own ? 'bg-white/10 border-white/20 text-white' : 'bg-muted/40 border-border text-foreground'
                               }`}>
                                 {isImageAttachment(normalized) ? (
-                                  <img src={publicPath} alt={normalized.name} className="max-h-36 rounded-lg object-contain mb-1" />
+                                  <img src={publicPath} alt={normalized.name} className="max-h-48 rounded-lg object-contain mb-1" />
+                                ) : isVideoAttachment(normalized) ? (
+                                  <div className="w-full">
+                                    <video controls playsInline className="w-full max-h-64 rounded-xl object-contain bg-black/80 border border-black/20" src={publicPath} />
+                                  </div>
+                                ) : isAudioAttachment(normalized) ? (
+                                  <div className="w-full">
+                                    <audio controls className="w-full h-8" src={publicPath} />
+                                  </div>
                                 ) : (
-                                  <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                  <div className="flex items-center gap-2">
+                                    <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                    <a href={publicPath} download={normalized.name} className="underline truncate flex-1 hover:opacity-80" title={normalized.name}>
+                                      {truncateName(normalized.name)}{sizeText}
+                                    </a>
+                                  </div>
                                 )}
-                                <a href={publicPath} download={normalized.name} className="underline truncate flex-1 hover:opacity-80" title={normalized.name}>
-                                  {truncateName(normalized.name)}{sizeText}
-                                </a>
+                                {(isImageAttachment(normalized) || isVideoAttachment(normalized) || isAudioAttachment(normalized)) && (
+                                  <a href={publicPath} download={normalized.name} className="underline truncate text-[11px] hover:opacity-80 flex items-center gap-1.5 opacity-90" title={normalized.name}>
+                                    <Paperclip className="h-3 w-3 shrink-0" />
+                                    <span>{truncateName(normalized.name)}{sizeText}</span>
+                                  </a>
+                                )}
                               </div>
                             );
                           })}
@@ -896,14 +964,25 @@ export default function MessengerModule({ userProfile }) {
                   size="icon"
                   onClick={startVoiceRecording}
                   title="Record Voice Message (Voice Note)"
-                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-red-500 bg-secondary/50 border border-border transition-colors"
+                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-red-500 bg-secondary/50 border border-border transition-colors cursor-pointer"
                 >
                   <Mic className="h-4 w-4" />
+                </Button>
+                {/* Video recording button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsVideoRecordOpen(true)}
+                  title="Record Video Message"
+                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-teal-600 dark:hover:text-teal-400 bg-secondary/50 border border-border transition-colors cursor-pointer"
+                >
+                  <Video className="h-4 w-4" />
                 </Button>
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-10 w-10 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white shrink-0 shadow-xs"
+                  className="h-10 w-10 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white shrink-0 shadow-xs cursor-pointer"
                   disabled={sendMessage.isPending || (!content.trim() && files.length === 0)}
                 >
                   <Send className="h-4 w-4" />
@@ -996,6 +1075,15 @@ export default function MessengerModule({ userProfile }) {
         onSendText={handleConfirmSendText}
         onEditText={handleConfirmEditText}
         onCancel={handleCancelVoiceModal}
+        isPending={sendMessage.isPending}
+      />
+
+      {/* Video Recording Dialog */}
+      <VideoRecordDialog
+        isOpen={isVideoRecordOpen}
+        onClose={() => setIsVideoRecordOpen(false)}
+        onSendVideo={handleSendRecordedVideo}
+        title="Record Video Message for Team"
         isPending={sendMessage.isPending}
       />
       </>

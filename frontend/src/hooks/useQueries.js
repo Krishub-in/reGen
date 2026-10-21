@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { Principal } from '@dfinity/principal';
+import { authFetch } from '../lib/utils';
 
 // User Profile Queries
 export function useGetCallerUserProfile() {
@@ -975,3 +976,293 @@ export function useIsCallerAdmin() {
     enabled: !!actor && !isFetching,
   });
 }
+
+// ==========================================
+// Dynamic Payroll & Payment Management Queries
+// ==========================================
+
+export function useGetPayrollSettings() {
+  return useQuery({
+    queryKey: ['payroll', 'settings'],
+    queryFn: async () => {
+      const res = await authFetch('/api/payroll/settings');
+      if (!res.ok) throw new Error('Failed to fetch payroll settings');
+      return res.json();
+    },
+  });
+}
+
+export function useUpdatePayrollSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (settings) => {
+      const res = await authFetch('/api/payroll/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update payroll settings');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+    },
+  });
+}
+
+export function useGetPayrollSummary(month, filters = {}) {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.department && filters.department !== 'all') params.set('department', filters.department);
+  if (filters.statusTab && filters.statusTab !== 'all') params.set('statusTab', filters.statusTab);
+
+  return useQuery({
+    queryKey: ['payroll', 'summary', month, filters.search, filters.department, filters.statusTab],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/summary?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch payroll summary');
+      return res.json();
+    },
+    enabled: !!month,
+  });
+}
+
+export function useGetEmployeePayrollPreview(userId, month) {
+  return useQuery({
+    queryKey: ['payroll', 'preview', userId, month],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/preview?userId=${encodeURIComponent(userId)}&month=${encodeURIComponent(month)}`);
+      if (!res.ok) throw new Error('Failed to fetch payroll preview');
+      return res.json();
+    },
+    enabled: !!userId && !!month,
+  });
+}
+
+export function useFinalizePayroll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, month, notes }) => {
+      const res = await authFetch('/api/payroll/finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, month, notes }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to finalize payroll');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+    },
+  });
+}
+
+export function useProcessPayment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (paymentData) => {
+      const res = await authFetch('/api/payroll/pay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to process payment');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useGetRecentTransactions(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.month) params.set('month', filters.month);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.page) params.set('page', filters.page);
+  if (filters.limit) params.set('limit', filters.limit);
+
+  return useQuery({
+    queryKey: ['payroll', 'transactions', filters.month, filters.search, filters.page, filters.limit],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/transactions?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch recent transactions');
+      return res.json();
+    },
+  });
+}
+
+export function useGetEmployeeMyPayroll(month) {
+  return useQuery({
+    queryKey: ['payroll', 'my-records', month],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/my-records?month=${encodeURIComponent(month || '')}`);
+      if (!res.ok) throw new Error('Failed to fetch my payroll');
+      return res.json();
+    },
+  });
+}
+
+export function useAddPayrollAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (adjustmentData) => {
+      const res = await authFetch('/api/payroll/adjustment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adjustmentData),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to add adjustment');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+    },
+  });
+}
+
+export function useGetPayrollAdjustments(month, userId) {
+  const params = new URLSearchParams();
+  if (month) params.set('month', month);
+  if (userId) params.set('userId', userId);
+
+  return useQuery({
+    queryKey: ['payroll', 'adjustments', month, userId],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/adjustments?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch adjustments');
+      return res.json();
+    },
+  });
+}
+
+export function useDeletePayrollAdjustment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (adjustmentId) => {
+      const res = await authFetch(`/api/payroll/adjustment/${adjustmentId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete adjustment');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payroll'] });
+    },
+  });
+}
+
+// ==========================================
+// Attendance Report Queries & Email Dispatch
+// ==========================================
+
+export function useGetAttendanceReport(filters = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (filters.period) params.set('period', filters.period);
+  if (filters.date) params.set('date', filters.date);
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.month) params.set('month', filters.month);
+  if (filters.year) params.set('year', filters.year);
+  if (filters.department && filters.department !== 'all') params.set('department', filters.department);
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+
+  return useQuery({
+    queryKey: ['attendance', 'report', filters],
+    queryFn: async () => {
+      const res = await authFetch(`/api/attendance/report?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch attendance report');
+      }
+      return res.json();
+    },
+    enabled: enabled,
+  });
+}
+
+export function useSendAttendanceReport() {
+  return useMutation({
+    mutationFn: async (payload) => {
+      const res = await authFetch('/api/attendance/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to send attendance report');
+      }
+      return res.json();
+    },
+  });
+}
+
+// ==========================================
+// Payment & Payroll Report Queries & Email Dispatch
+// ==========================================
+
+export function useGetPayrollReport(filters = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (filters.period) params.set('period', filters.period);
+  if (filters.date) params.set('date', filters.date);
+  if (filters.startDate) params.set('startDate', filters.startDate);
+  if (filters.endDate) params.set('endDate', filters.endDate);
+  if (filters.month) params.set('month', filters.month);
+  if (filters.year) params.set('year', filters.year);
+  if (filters.department && filters.department !== 'all') params.set('department', filters.department);
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+
+  return useQuery({
+    queryKey: ['payroll', 'report', filters],
+    queryFn: async () => {
+      const res = await authFetch(`/api/payroll/report?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch payroll report');
+      }
+      return res.json();
+    },
+    enabled: enabled,
+  });
+}
+
+export function useSendPayrollReport() {
+  return useMutation({
+    mutationFn: async (payload) => {
+      const res = await authFetch('/api/payroll/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to send payroll report');
+      }
+      return res.json();
+    },
+  });
+}
+
+
+

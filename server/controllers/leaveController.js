@@ -1,6 +1,7 @@
 import Leave from '../models/Leave.js';
 import mongoose from 'mongoose';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
+import { emitToCompany } from '../socket.js';
 
 export const createLeave = async (req, res) => {
   try {
@@ -11,6 +12,7 @@ export const createLeave = async (req, res) => {
     body.companyId = await resolveCompanyId(req, body);
     const leave = new Leave(body);
     await leave.save();
+    emitToCompany('payroll:change', leave.companyId, { action: 'leave_created', userId: leave.userId });
     res.status(201).json(leave);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -45,6 +47,7 @@ export const updateLeaveStatus = async (req, res) => {
     if (req.companyId) filter.companyId = req.companyId;
     const leave = await Leave.findOneAndUpdate(filter, { status: req.body.status }, { new: true });
     if (!leave) return res.status(404).json({ message: 'Leave not found' });
+    emitToCompany('payroll:change', leave.companyId, { action: 'leave_updated', userId: leave.userId });
     res.status(200).json(leave);
   } catch (error) {
     res.status(400).json({ message: error.message });
