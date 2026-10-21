@@ -20,7 +20,14 @@ import StaffProfileModule from '../components/modules/StaffProfileModule';
 import NotificationsModule from '../components/modules/NotificationsModule';
 import CallManager from '../components/CallManager';
 import { useIsMobile } from '../hooks/use-mobile';
-import { cn, hasUserRole } from '@/lib/utils';
+import { cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { ModeToggle } from '@/components/mode-toggle';
 import { 
@@ -258,7 +265,21 @@ export default function Dashboard({ userProfile }) {
   const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
+  const userRoleKey = getUserRoleKey(userProfile);
+  const displayRole = (() => {
+    if (userRoleKey === 'owner') return 'Owner';
+    if (userRoleKey === 'admin') return 'Company Admin';
+    if (userRoleKey === 'param') return 'Super Admin';
+    if (userProfile?.designation) return userProfile.designation;
+    if (userRoleKey === 'intern') return 'Intern';
+    if (userRoleKey === 'freelancer') return 'Freelancer';
+    return 'Staff';
+  })();
+
   const handleLogout = async () => {
+    if (typeof window !== 'undefined' && window.location.search) {
+      window.history.replaceState(null, '', '/');
+    }
     if (typeof window !== 'undefined' && (window.location.pathname === '/settings' || window.location.pathname === '/profile')) {
       window.history.replaceState(null, '', '/');
     }
@@ -316,7 +337,7 @@ export default function Dashboard({ userProfile }) {
         {/* Brand Logo */}
         <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
           <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigateToModule('home')}>
-            <span className="text-xl font-semibold tracking-normal text-foreground">reGen</span>
+            <span className="text-xl font-semibold tracking-normal text-foreground">ReGen</span>
             <span className="w-2 h-2 rounded-full bg-primary" />
           </div>
         </div>
@@ -358,16 +379,6 @@ export default function Dashboard({ userProfile }) {
           </div>
         )}
 
-        {/* Sidebar Logout */}
-        <div className="p-3 border-t border-border">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -384,7 +395,7 @@ export default function Dashboard({ userProfile }) {
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
-              <span className="text-lg font-semibold tracking-normal text-foreground">reGen</span>
+              <span className="text-lg font-semibold tracking-normal text-foreground">ReGen</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>
@@ -599,26 +610,80 @@ export default function Dashboard({ userProfile }) {
             {/* Theme Toggle (Sun/Moon Switcher) */}
             <ModeToggle />
 
-            {/* User Profile Badge (Rightmost Topbar matching Reference Image) */}
-            <div 
-              onClick={() => navigateToModule('profile')}
-              className="hidden sm:flex items-center gap-2.5 pl-2 py-1 pr-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 transition-all cursor-pointer"
-              title="View Account / Settings"
-            >
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 bg-muted">
-                <img 
-                  src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
-                  alt="" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
-                <p className="text-[10px] text-muted-foreground font-medium capitalize">
-                  {isAdmin ? 'Admin' : (isOwner ? 'Owner' : 'Staff')}
-                </p>
-              </div>
-            </div>
+            {/* User Profile Badge & Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button 
+                  type="button"
+                  className="flex items-center gap-2.5 pl-1.5 sm:pl-2 py-1 pr-1.5 sm:pr-2.5 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all cursor-pointer select-none text-left"
+                  title="User Account"
+                  aria-label="User account menu"
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 bg-muted">
+                    <img 
+                      src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
+                      alt="" 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
+                    <p className="text-[10px] text-muted-foreground font-medium capitalize">
+                      {displayRole}
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent 
+                align="end" 
+                sideOffset={8}
+                className="w-60 p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
+              >
+                {/* Profile Header */}
+                <div 
+                  onClick={() => navigateToModule('profile')}
+                  className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/50 cursor-pointer transition-colors group"
+                  title="View Account / Settings"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      navigateToModule('profile');
+                    }
+                  }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden border border-border shrink-0 bg-muted shadow-2xs">
+                    <img 
+                      src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
+                      alt={userProfile?.name || 'User profile'} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-sm font-semibold text-foreground truncate leading-tight group-hover:text-primary transition-colors">
+                      {userProfile?.name || 'User'}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate font-medium mt-0.5">
+                      {displayRole}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Subtle Divider */}
+                <DropdownMenuSeparator className="my-1 bg-border/60" />
+
+                {/* Logout Menu Row */}
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer transition-colors outline-none"
+                >
+                  <LogOut className="w-4 h-4 text-destructive shrink-0" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
@@ -627,7 +692,7 @@ export default function Dashboard({ userProfile }) {
           <SheetContent side="left" className="w-72 bg-card border-r border-border p-0 flex flex-col">
             <SheetHeader className="p-6 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
-                <span className="text-xl font-semibold tracking-normal text-foreground">reGen</span>
+                <span className="text-xl font-semibold tracking-normal text-foreground">ReGen</span>
                 <span className="w-2 h-2 rounded-full bg-primary" />
               </SheetTitle>
             </SheetHeader>
@@ -653,18 +718,6 @@ export default function Dashboard({ userProfile }) {
                   </button>
                 );
               })}
-            </div>
-            <div className="p-4 border-t border-border">
-              <button
-                onClick={async () => {
-                  await handleLogout();
-                  setMobileNavOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Logout</span>
-              </button>
             </div>
           </SheetContent>
         </Sheet>

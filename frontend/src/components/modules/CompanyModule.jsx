@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PageHeader from '../PageHeader';
 
 const DEFAULT_TERMS = `Welcome to ReGen Innovations Inc.
 
@@ -299,17 +300,11 @@ export default function CompanyModule({ userProfile }) {
 
   return (
     <div className="emerald-theme space-y-6 w-full pb-10">
-      <div className="flex items-center gap-3 pb-2 border-b border-border">
-        <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-          <Building className="w-5 h-5" />
-        </div>
-        <div>
-          <h2 className="text-xl font-light tracking-normal leading-snug text-foreground">
-            {isOwner || isAdmin ? 'Company Overview' : 'Company Details'}
-          </h2>
-          <p className="text-xs text-muted-foreground">Manage organizational profile, departmental capacity, terms, and policies</p>
-        </div>
-      </div>
+      <PageHeader
+        icon={Building}
+        title={isOwner || isAdmin ? 'Company Overview' : 'Company Details'}
+        subtitle="Manage organizational profile, departmental capacity, terms, and policies."
+      />
 
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="grid w-full grid-cols-4 bg-secondary/60 p-1 rounded-2xl border border-border h-12">
@@ -438,7 +433,7 @@ export default function CompanyModule({ userProfile }) {
                         id="name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="reGen Innovations Inc."
+                        placeholder="ReGen Innovations Inc."
                         className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />
@@ -569,7 +564,7 @@ export default function CompanyModule({ userProfile }) {
                 <Textarea
                   value={formData.policies}
                   onChange={(e) => setFormData({ ...formData, policies: e.target.value })}
-                  placeholder="Welcome to reGen Innovations Inc. Our Terms and Conditions..."
+                  placeholder="Welcome to ReGen Innovations Inc. Our Terms and Conditions..."
                   className="min-h-[400px] font-light text-sm leading-relaxed rounded-xl border border-border bg-background text-foreground"
                   disabled={!isAdmin && !isOwner}
                 />

@@ -66,10 +66,7 @@ export default function App() {
 
   if (isSuperAdminPath) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="sa_theme">
-        <SuperAdminDashboard />
-        <Toaster />
-      </ThemeProvider>
+      <SuperAdminDashboard />
     );
   }
 
@@ -97,7 +94,7 @@ export default function App() {
   // Show loading state while initializing
   if (isInitializing) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" forcedTheme={!hasToken ? 'dark' : undefined} defaultTheme="system" enableSystem>
         <div className="flex h-screen items-center justify-center bg-background">
           <div className="text-center">
             <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
@@ -111,17 +108,17 @@ export default function App() {
 
   if (resetToken) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" forcedTheme="dark">
         <LoginPage resetToken={resetToken} />
         <Toaster />
       </ThemeProvider>
     );
   }
 
-  // Show login page if not authenticated
+  // Show login page if not authenticated (always in dark theme)
   if (!isAuthenticated) {
     return (
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" forcedTheme="dark">
         <LoginPage />
         <Toaster />
       </ThemeProvider>
@@ -148,10 +145,7 @@ export default function App() {
   if (showDashboard) {
     if (userProfile?.role === 'param' && !window.location.search.includes('view=ems')) {
       return (
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <SuperAdminDashboard />
-          <Toaster />
-        </ThemeProvider>
+        <SuperAdminDashboard />
       );
     }
 
@@ -184,7 +178,7 @@ export default function App() {
           textAlign: 'center',
           padding: '2rem',
           boxSizing: 'border-box',
-          fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+          fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
         }}
       >
         <h1

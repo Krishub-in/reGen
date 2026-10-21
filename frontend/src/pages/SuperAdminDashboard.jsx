@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 import { authFetch, cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area 
 } from 'recharts';
-import { useTheme } from 'next-themes';
+import { useTheme, ThemeProvider } from 'next-themes';
 import { 
   Building2, Users, CreditCard, TrendingUp, Settings, ShieldAlert, LogOut, 
   CheckCircle, XCircle, Search, Filter, ShieldCheck, Activity, Database, Plus,
@@ -69,10 +70,9 @@ export const COMPANY_CATEGORIES = {
   healthcare: 'Healthcare',
 };
 
-export default function SuperAdminDashboard() {
+function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ id: 'Vyshwa', password: 'admin123' });
   const [showSaPassword, setShowSaPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -228,37 +228,98 @@ export default function SuperAdminDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="super-admin-layout min-h-screen flex items-center justify-center bg-background text-foreground px-4 transition-colors duration-300 relative overflow-hidden">
-        {/* Isolated Super Admin theme toggle */}
-        <div className="absolute top-4 right-4 z-20">
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? 'light' : 'dark')}
-            className="h-10 px-3.5 rounded-xl border border-border bg-card hover:bg-muted flex items-center gap-2 text-xs font-semibold text-foreground transition-all shadow-xs"
-            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-          >
-            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-primary" />}
-            <span className="hidden sm:inline">{isDark ? "Dark Mode" : "Light Mode"}</span>
-          </button>
-        </div>
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
-        <Card className="w-full max-w-md border border-border bg-card shadow-2xl rounded-2xl relative z-10 transition-all">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto bg-primary/10 border border-primary/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-4 text-primary shadow-xs">
-              <ShieldCheck className="w-10 h-10" />
+      <div className="dark min-h-screen w-full bg-[#03141a] text-[#E2F1EC] flex overflow-x-hidden font-sans relative">
+        {/* Left Hero Pane (Matching Design 3: Feature Highlight) */}
+        <div 
+          className="hidden lg:flex lg:flex-1 relative p-10 xl:p-14 2xl:p-16 flex-col justify-between"
+          style={{
+            background: "linear-gradient(135deg, rgba(3, 20, 26, 0.90) 0%, rgba(4, 25, 31, 0.72) 50%, rgba(3, 20, 26, 0.94) 100%), url('/login-bg.jpg') center/cover no-repeat"
+          }}
+        >
+          {/* Brand Logo in top-left */}
+          <div className="flex items-center">
+            <img src="/regen-emblem.svg" alt="ReGen" className="w-[135px] xl:w-[145px] h-auto object-contain" />
+          </div>
+
+          {/* Hero Content */}
+          <div className="my-auto max-w-xl xl:max-w-2xl">
+            <h1 className="login-hero-heading text-[38px] lg:text-[54px] xl:text-[58px] font-extrabold tracking-tight text-white leading-[1.10] mb-5">
+              A Better<br />
+              Workplace<br />
+              Starts Here
+            </h1>
+            <p className="login-hero-desc text-[18px] lg:text-[22px] xl:text-[24px] text-[#8EA99D] font-normal leading-[1.5] mb-8 xl:mb-9">
+              Seamless attendance.<br />
+              Stronger teams.<br />
+              Greater productivity.
+            </p>
+
+            {/* Three Feature Highlight Badges */}
+            <div className="space-y-3.5 max-w-md">
+              <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#092226]/65 border border-[#16383b]/70 backdrop-blur-md transition-all hover:border-[#23EDCE]/40 shadow-sm">
+                <div className="w-11 h-11 rounded-xl bg-[#23EDCE]/12 border border-[#23EDCE]/25 flex items-center justify-center shrink-0 text-[#23EDCE]">
+                  <Users className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#E2F1EC] leading-snug">Better Visibility</h3>
+                  <p className="text-xs text-[#8EA99D] mt-0.5">Track your workforce in real time</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#092226]/65 border border-[#16383b]/70 backdrop-blur-md transition-all hover:border-[#23EDCE]/40 shadow-sm">
+                <div className="w-11 h-11 rounded-xl bg-[#23EDCE]/12 border border-[#23EDCE]/25 flex items-center justify-center shrink-0 text-[#23EDCE]">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#E2F1EC] leading-snug">Higher Productivity</h3>
+                  <p className="text-xs text-[#8EA99D] mt-0.5">Streamline daily operations</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 p-3.5 rounded-2xl bg-[#092226]/65 border border-[#16383b]/70 backdrop-blur-md transition-all hover:border-[#23EDCE]/40 shadow-sm">
+                <div className="w-11 h-11 rounded-xl bg-[#23EDCE]/12 border border-[#23EDCE]/25 flex items-center justify-center shrink-0 text-[#23EDCE]">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-[#E2F1EC] leading-snug">Simpler Management</h3>
+                  <p className="text-xs text-[#8EA99D] mt-0.5">Everything in one place</p>
+                </div>
+              </div>
             </div>
-            <CardTitle className="text-2xl font-light tracking-normal text-foreground">Super Admin Access</CardTitle>
-            <p className="text-sm text-muted-foreground">Enter your credentials to manage the platform</p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5">
+          </div>
+
+          <div className="text-xs text-[#50726d]">
+            © {new Date().getFullYear()} ReGen Innovations Inc. Super Admin Control.
+          </div>
+        </div>
+
+        {/* Right Login Pane */}
+        <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 relative bg-[#03141a]">
+          {/* Ambient Teal Glow */}
+          <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
+
+          {/* Floating Login Card */}
+          <div className="w-full max-w-md bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-3xl p-8 sm:p-10 relative z-10 transition-all">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex justify-center mb-4">
+                <img
+                  src="/regen-emblem.svg"
+                  alt="ReGen"
+                  className="h-12 w-auto object-contain"
+                />
+              </div>
+              <h2 className="text-2xl font-bold tracking-tight text-white mb-1.5">Super Admin Access</h2>
+              <p className="text-xs sm:text-sm text-[#8EA99D] mb-6">Enter your credentials to manage the platform</p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1.5 text-left">
-                <label htmlFor="saAdminId" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Admin ID</label>
+                <label htmlFor="saAdminId" className="text-xs font-semibold uppercase tracking-wider text-[#CBD5E1]">Admin ID</label>
                 <Input 
                   id="saAdminId"
                   name="adminId"
                   placeholder="Enter Admin ID" 
-                  className="bg-background border-border text-foreground placeholder:text-muted-foreground h-11 rounded-xl focus-visible:ring-primary"
+                  className="h-11 bg-[#0f272e] border-[#1b3d45] text-white placeholder:text-[#50726d] rounded-xl focus-visible:ring-1 focus-visible:ring-[#10B981] focus-visible:border-[#10B981]"
                   value={loginForm.id}
                   onChange={(e) => setLoginForm({ ...loginForm, id: e.target.value })}
                   autoComplete="username"
@@ -266,14 +327,14 @@ export default function SuperAdminDashboard() {
                 />
               </div>
               <div className="space-y-1.5 text-left">
-                <label htmlFor="saPassword" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Security Password</label>
+                <label htmlFor="saPassword" className="text-xs font-semibold uppercase tracking-wider text-[#CBD5E1]">Security Password</label>
                 <div className="relative">
                   <Input 
                     id="saPassword"
                     name="password"
                     type={showSaPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className="bg-background border-border text-foreground placeholder:text-muted-foreground pr-10 h-11 rounded-xl focus-visible:ring-primary"
+                    className="h-11 pr-10 bg-[#0f272e] border-[#1b3d45] text-white placeholder:text-[#50726d] rounded-xl focus-visible:ring-1 focus-visible:ring-[#10B981] focus-visible:border-[#10B981]"
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
                     autoComplete="current-password"
@@ -283,18 +344,34 @@ export default function SuperAdminDashboard() {
                     type="button"
                     tabIndex={-1}
                     onClick={() => setShowSaPassword(prev => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#688a84] hover:text-[#23EDCE] transition-colors"
                   >
                     {showSaPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
-              <Button type="submit" className="w-full h-11 text-sm font-semibold shadow-md shadow-primary/20 bg-primary hover:bg-emerald-700 text-white rounded-xl transition-all">
+              <Button 
+                type="submit" 
+                className="w-full h-11 text-sm font-semibold rounded-xl bg-[#00A876] hover:bg-[#00B982] active:bg-[#009668] text-white shadow-[0_4px_16px_rgba(0,168,118,0.35)] transition-all flex items-center justify-center gap-2 mt-2"
+              >
                 Authenticate & Connect
               </Button>
             </form>
-          </CardContent>
-        </Card>
+
+            <div className="pt-4 text-center">
+              <a 
+                href="/" 
+                className="inline-flex items-center gap-1.5 text-xs text-[#8EA99D] hover:text-[#23EDCE] font-medium transition-colors"
+              >
+                ← Back to Employee & Company Login
+              </a>
+            </div>
+
+            <div className="pt-3 text-center text-[11px] text-[#6b8c85]">
+              Made with <span className="text-red-500">❤️</span> by Krishub
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -308,7 +385,7 @@ export default function SuperAdminDashboard() {
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="font-bold text-base tracking-tight text-foreground leading-none">reGen Central</h1>
+            <h1 className="font-bold text-base tracking-tight text-foreground leading-none">ReGen Central</h1>
             <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
           </div>
         </div>
@@ -327,12 +404,6 @@ export default function SuperAdminDashboard() {
           </div>
         </nav>
 
-        <div className="p-4 border-t border-border/80">
-          <Button variant="ghost" className="w-full flex justify-start gap-2.5 h-10 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg text-sm font-medium transition-colors" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </Button>
-        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -352,7 +423,7 @@ export default function SuperAdminDashboard() {
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h1 className="font-bold text-base tracking-tight text-foreground leading-none">reGen Central</h1>
+                      <h1 className="font-bold text-base tracking-tight text-foreground leading-none">ReGen Central</h1>
                       <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
                     </div>
                   </div>
@@ -384,24 +455,69 @@ export default function SuperAdminDashboard() {
                       </SheetClose>
                     </div>
                   </nav>
-                  <div className="p-4 border-t border-border">
-                    <SheetClose asChild>
-                      <Button variant="ghost" className="w-full flex justify-start gap-2.5 h-10 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg text-sm font-medium" onClick={() => { localStorage.removeItem('sa_auth_token'); localStorage.removeItem('auth_token'); localStorage.removeItem('active_sa_id'); setIsAuthenticated(false); }}>
-                        <LogOut className="w-4 h-4" />
-                        <span>Sign Out</span>
-                      </Button>
-                    </SheetClose>
-                  </div>
                 </SheetContent>
               </Sheet>
-              <div>
-                <h2 className="text-2xl font-light tracking-normal text-foreground capitalize leading-snug">
-                  {activeTab === 'companies' ? 'Companies' : activeTab === 'calendar' ? 'Calendar' : activeTab}
-                </h2>
-                <p className="text-xs text-muted-foreground/80 mt-0.5 hidden sm:block">
-                  System oversight for reGen Innovations Inc.
-                </p>
-              </div>
+              {(() => {
+                const tabConfig = {
+                  dashboard: {
+                    title: 'Super Admin Dashboard',
+                    subtitle: 'Real-time platform oversight, metrics, and global tenant activity.',
+                    icon: Activity,
+                  },
+                  companies: {
+                    title: 'Company Management',
+                    subtitle: 'Manage registered tenant organizations, subscription plans, and status.',
+                    icon: Building2,
+                  },
+                  users: {
+                    title: 'Global Users Directory',
+                    subtitle: 'Oversee all registered staff, owner accounts, and system access.',
+                    icon: Users,
+                  },
+                  calendar: {
+                    title: 'Master Calendar',
+                    subtitle: 'Organization-wide schedules, events, holidays, and timelines.',
+                    icon: Calendar,
+                  },
+                  payments: {
+                    title: 'Payments & Financials',
+                    subtitle: 'Organization-wide payroll records, financial logs, and billing audits.',
+                    icon: CreditCard,
+                  },
+                  analytics: {
+                    title: 'System Analytics',
+                    subtitle: 'Platform performance metrics, growth rates, and telemetry insights.',
+                    icon: TrendingUp,
+                  },
+                  system: {
+                    title: 'System & Security',
+                    subtitle: 'Core audit logs, security infrastructure, and service health status.',
+                    icon: ShieldCheck,
+                  },
+                  profile: {
+                    title: 'Super Admin Profile',
+                    subtitle: 'Configure root credentials and system administration access.',
+                    icon: UserCog,
+                  },
+                };
+                const config = tabConfig[activeTab] || tabConfig.dashboard;
+                const TabIcon = config.icon;
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-[#15966A]/10 text-[#15966A] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
+                      <TabIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#183B2B] dark:text-[#E8F0F4] leading-snug">
+                        {config.title}
+                      </h1>
+                      <p className="text-xs sm:text-sm text-[#687C70] dark:text-[#A6B5C0] mt-0.5 font-normal hidden sm:block">
+                        {config.subtitle}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2.5">
               <button
@@ -420,13 +536,63 @@ export default function SuperAdminDashboard() {
                 </span>
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">System Live</span>
               </div>
-              <div className="bg-card h-9 w-9 rounded-lg overflow-hidden border border-border/80 flex items-center justify-center shadow-xs">
-                 {profileData.avatar ? (
-                   <img src={profileData.avatar} alt="Super Admin" className="w-full h-full object-cover" />
-                 ) : (
-                   <User className="w-4 h-4 text-muted-foreground" />
-                 )}
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="bg-card h-9 w-9 rounded-lg overflow-hidden border border-border/80 hover:border-border hover:bg-muted/80 flex items-center justify-center shadow-xs cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-colors"
+                    title="Super Admin Account"
+                    aria-label="Super Admin account menu"
+                  >
+                    {profileData.avatar ? (
+                      <img src={profileData.avatar} alt="Super Admin" className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-4 h-4 text-muted-foreground" />
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  sideOffset={8}
+                  className="w-60 p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
+                >
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/50 cursor-default transition-colors">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-border shrink-0 bg-muted shadow-2xs flex items-center justify-center">
+                      {profileData.avatar ? (
+                        <img src={profileData.avatar} alt="Super Admin" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-semibold text-foreground truncate leading-tight">
+                        {profileData.name || profileData.username || 'Super Admin'}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate font-medium mt-0.5">
+                        Super Admin
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Subtle Divider */}
+                  <DropdownMenuSeparator className="my-1 bg-border/60" />
+
+                  {/* Logout Row */}
+                  <DropdownMenuItem
+                    onClick={() => {
+                      localStorage.removeItem('sa_auth_token');
+                      localStorage.removeItem('auth_token');
+                      localStorage.removeItem('active_sa_id');
+                      setIsAuthenticated(false);
+                    }}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive cursor-pointer transition-colors outline-none"
+                  >
+                    <LogOut className="w-4 h-4 text-destructive shrink-0" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
 
@@ -5021,5 +5187,25 @@ function TabProfile({ data, setData }) {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function SuperAdminDashboard() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  return (
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="dark"
+      enableSystem={false}
+      storageKey="sa_theme"
+      forcedTheme={!isAuthenticated ? 'dark' : undefined}
+    >
+      <SuperAdminContent
+        isAuthenticated={isAuthenticated}
+        setIsAuthenticated={setIsAuthenticated}
+      />
+      <Toaster />
+    </ThemeProvider>
   );
 }

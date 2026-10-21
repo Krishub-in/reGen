@@ -14,6 +14,7 @@ import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
 import { isTaskExpired } from '@/lib/taskUtils';
+import PageHeader from '../PageHeader';
 
 export default function AttendanceModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -786,6 +787,7 @@ export default function AttendanceModule({ userProfile }) {
     return (
       <div className="w-full space-y-6 pb-12">
         {/* Header Section */}
+<<<<<<< Updated upstream
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
           <div>
             <h2 className="text-2xl font-light tracking-normal text-foreground leading-snug">{greeting}</h2>
@@ -812,25 +814,63 @@ export default function AttendanceModule({ userProfile }) {
             </span>
           </div>
         </div>
+=======
+        <PageHeader
+          icon={Clock}
+          title={greeting || 'Attendance & Shifts'}
+          subtitle={`Logged in as ${userProfile?.name || userProfile?.username || (userProfile?.id?.toText ? userProfile.id.toText() : String(userProfile?.id || ''))} • Daily punch log & shift status`}
+          actions={(
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
+                isCheckedIn && !isCheckedOut
+                  ? isTodayLate
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30"
+                  : isCheckedOut
+                  ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30"
+                  : "bg-muted text-muted-foreground border border-border"
+              )}>
+                <span className={cn(
+                  "w-2 h-2 rounded-full",
+                  isCheckedIn && !isCheckedOut ? (isTodayLate ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse") : isCheckedOut ? "bg-purple-500" : "bg-muted-foreground"
+                )} />
+                {isCheckedIn && !isCheckedOut ? (isTodayLate ? "Clocked In (Late)" : "Clocked In & Active") : isCheckedOut ? "Shift Completed (Reopens Tomorrow)" : "Not Clocked In"}
+              </span>
+            </div>
+          )}
+        />
+>>>>>>> Stashed changes
 
         {/* Top Metric & Status Cards (Full-Width Responsive 4-Column Grid) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Clock & Date Card */}
-          <Card className="border border-border bg-gradient-to-br from-[#0D9488] to-[#0F766E] text-white rounded-2xl shadow-sm p-5 relative overflow-hidden flex flex-col justify-between">
+          <Card className="attendance-shift-card border border-[#95D5B2] dark:border-[#95D5B2] bg-[#B7E4C7] dark:bg-[#B7E4C7] text-[#183B2B] dark:text-[#183B2B] rounded-2xl shadow-sm p-5 relative overflow-hidden flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-emerald-100 uppercase tracking-wider">{format(currentTime, 'EEEE')}</span>
-              <div className="flex items-center gap-1 text-[11px] text-emerald-100 bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-xs">
-                <MapPin className="h-3 w-3" /> Shift {workSchedule.checkInTime}–{workSchedule.checkOutTime}
+              <span className="text-xs font-semibold text-[#183B2B] dark:text-[#183B2B] uppercase tracking-wider">{format(currentTime, 'EEEE')}</span>
+              <div className="shift-badge flex items-center gap-1.5 text-[11px] font-semibold text-[#183B2B] dark:text-[#183B2B] bg-[#183B2B]/10 dark:bg-[#183B2B]/10 border border-[#183B2B]/15 dark:border-[#183B2B]/15 px-2.5 py-0.5 rounded-full shadow-2xs">
+                <MapPin className="h-3 w-3 text-[#183B2B] dark:text-[#183B2B]" />
+                <span>Shift {workSchedule.checkInTime}–{workSchedule.checkOutTime}</span>
               </div>
             </div>
             <div className="my-3">
+<<<<<<< Updated upstream
               <h1 className="text-3xl sm:text-4xl font-light tracking-normal font-mono">
+=======
+              <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight font-mono text-[#183B2B] dark:text-[#183B2B]">
+>>>>>>> Stashed changes
                 {format(currentTime, 'hh:mm')}
-                <span className="text-base font-normal ml-1 opacity-90">{format(currentTime, 'a')}</span>
+                <span className="text-base font-medium ml-1 text-[#183B2B] dark:text-[#183B2B] opacity-90">{format(currentTime, 'a')}</span>
               </h1>
+<<<<<<< Updated upstream
               <p className="text-xs text-emerald-100 mt-1 font-normal">{format(currentTime, 'MMMM d, yyyy')}</p>
             </div>
             <p className="text-[11px] text-emerald-100/80 font-normal">Realtime synced with office attendance zone</p>
+=======
+              <p className="text-xs text-[#183B2B] dark:text-[#183B2B] font-medium mt-1">{format(currentTime, 'MMMM d, yyyy')}</p>
+            </div>
+            <p className="text-[11px] text-[#183B2B]/85 dark:text-[#183B2B]/85 font-medium">Realtime synced with office attendance zone</p>
+>>>>>>> Stashed changes
           </Card>
 
           {/* Active Shift / Duration Card */}
@@ -1091,6 +1131,7 @@ export default function AttendanceModule({ userProfile }) {
   // --- Render Admin View ---
   return (
     <div className="space-y-6">
+<<<<<<< Updated upstream
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
 <<<<<<< HEAD
         <h2 className="text-xl md:text-2xl font-light tracking-normal leading-tight text-foreground">
@@ -1112,6 +1153,20 @@ export default function AttendanceModule({ userProfile }) {
             <span>{workSchedule.workingHours || 8} hrs/day</span>
             <span>•</span>
             <span>{workSchedule.daysPerWeek || 5} days/wk</span>
+=======
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
+              {showHistory ? 'Attendance History' : 'Daily Attendance Overview'}
+            </h1>
+            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5 font-normal">
+              Office Shift: {workSchedule.checkInTime || '09:30'} – {workSchedule.checkOutTime || '18:30'} • {workSchedule.workingHours || 8} hrs/day • {workSchedule.daysPerWeek || 5} days/wk
+            </p>
+>>>>>>> Stashed changes
           </div>
         </div>
 

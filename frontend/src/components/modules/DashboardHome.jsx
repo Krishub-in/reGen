@@ -7,8 +7,9 @@ import {
   useGetUserPayments, useGetAllAttendance, useGetAllTasks, useGetAllLeaveRequests 
 } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
+import PageHeader from '../PageHeader';
 import { 
-  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar
+  Users, Building2, UserCheck, Search, MoreVertical, CheckCircle2, ArrowUpRight, Calendar, LayoutDashboard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -558,6 +559,7 @@ export default function DashboardHome({ userProfile, onNavigate }) {
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Welcome Greeting Banner (Matching Reference Image) */}
+<<<<<<< Updated upstream
       <div className="select-none">
         <h1 className="text-2xl sm:text-3xl font-light tracking-normal text-foreground leading-snug">
           Welcome back, <span className="font-normal">{userProfile?.name ? userProfile.name.split(' ')[0] : 'Vishwa'}</span>!
@@ -566,6 +568,13 @@ export default function DashboardHome({ userProfile, onNavigate }) {
           Here's your team overview for today.
         </p>
       </div>
+=======
+      <PageHeader
+        icon={LayoutDashboard}
+        title={`Welcome back, ${userProfile?.name ? userProfile.name.split(' ')[0] : 'Vishwa'}!`}
+        subtitle={isCompanyLogin ? "Here's your organization overview and team performance for today." : "Here's your personal overview and workplace activity for today."}
+      />
+>>>>>>> Stashed changes
 
       {/* 2. Top 4 Stats Cards Grid (Matching Reference Image) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">

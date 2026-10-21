@@ -19,6 +19,7 @@ import { Plus, Pencil, Trash2, Download, TrendingUp, Users, DollarSign, Wallet }
 import { toast } from 'sonner';
 import { Principal } from '@dfinity/principal';
 import { hasUserRole } from '@/lib/utils';
+import PageHeader from '../PageHeader';
 
 export default function PaymentsModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -147,24 +148,25 @@ export default function PaymentsModule({ userProfile }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-            <h2 className="text-2xl font-light tracking-normal leading-snug text-foreground">Payments & Payroll</h2>
-            <p className="text-muted-foreground text-sm font-normal">Manage employee salaries, bonuses, and payment records.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={exportToCSV} variant="outline">
-            <Download className="mr-2 h-4 w-4" />
-            Export Report
-          </Button>
-          {isAdmin && (
-             <Button onClick={() => handleOpenDialog()} className="bg-[#0D9488] hover:bg-[#0F766E] text-white shadow-sm font-medium">
+      <PageHeader
+        icon={Wallet}
+        title="Payments & Payroll"
+        subtitle="Manage employee salaries, bonuses, and payment records."
+        actions={
+          <>
+            <Button onClick={exportToCSV} variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Export Report
+            </Button>
+            {isAdmin && (
+              <Button onClick={() => handleOpenDialog()} className="bg-[#15966A] hover:bg-[#0E7F58] text-white shadow-sm font-medium">
                 <Wallet className="mr-2 h-4 w-4" />
                 Run Payroll
               </Button>
-          )}
-        </div>
-      </div>
+            )}
+          </>
+        }
+      />
 
       {/* Trends Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">

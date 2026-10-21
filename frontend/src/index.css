@@ -10,7 +10,7 @@ html {
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
-  font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
   letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -20,56 +20,77 @@ html {
     :root {
         --radius: 0.875rem;
 
-        /* Light Mode: Emerald + Graphite */
-        /* Light Background: #F4F8FA */
-        --background: 0.977 0.005 228.8;
-        /* Light Primary Text: #172B3A */
-        --foreground: 0.280 0.038 242.3;
+        /* Light Mode: Professional Green UI Theme */
+        /* Main page background: #F0F6F0 */
+        --background: 0.967 0.010 145.5;
+        /* Primary headings & text: #183B2B */
+        --foreground: 0.321 0.050 161.8;
         
-        /* Light Card: #FFFFFF */
+        /* Main card surfaces: #FFFFFF */
         --card: 1 0 0;
-        --card-foreground: 0.280 0.038 242.3;
+        --card-foreground: 0.321 0.050 161.8;
         
         --popover: 1 0 0;
-        --popover-foreground: 0.280 0.038 242.3;
+        --popover-foreground: 0.321 0.050 161.8;
         
-        /* Primary Emerald: #0D9488 */
-        --primary: 0.600 0.104 184.7;
+        /* Primary emerald green: #15966A */
+        --primary: 0.598 0.124 163.2;
         --primary-foreground: 1 0 0;
         
-        /* Secondary / Elevated: #F0F4F7 */
-        --secondary: 0.950 0.008 225.0;
-        --secondary-foreground: 0.280 0.038 242.3;
+        /* Subtle green-tinted surfaces: #F5FAF5 */
+        --secondary: 0.980 0.008 145.5;
+        --secondary-foreground: 0.321 0.050 161.8;
         
-        --muted: 0.940 0.008 225.0;
-        /* Light Secondary Text: #64748B */
-        --muted-foreground: 0.554 0.041 257.4;
+        /* Subtle green-tinted surfaces / muted: #F5FAF5 */
+        --muted: 0.980 0.008 145.5;
+        /* Secondary text: #687C70 */
+        --muted-foreground: 0.566 0.030 159.0;
         
-        --accent: 0.950 0.008 225.0;
-        --accent-foreground: 0.600 0.104 184.7;
+        /* Hover backgrounds: #E3F1E5 */
+        --accent: 0.944 0.022 149.7;
+        /* Active navigation text and icons: #087A57 */
+        --accent-foreground: 0.514 0.107 164.5;
         
         --destructive: 0.577 0.245 27.325;
         --destructive-foreground: 1 0 0;
         
-        /* Light Border: #DFE8EC */
-        --border: 0.925 0.011 226.0;
-        --input: 0.925 0.011 226.0;
-        --ring: 0.600 0.104 184.7;
+        /* Card borders and dividers: #D5E5D7 */
+        --border: 0.906 0.025 149.1;
+        --input: 0.906 0.025 149.1;
+        --ring: 0.598 0.124 163.2;
 
-        --chart-1: 0.600 0.104 184.7; /* Emerald */
-        --chart-2: 0.511 0.086 186.4; /* Emerald Hover */
-        --chart-3: 0.55 0.15 120;
-        --chart-4: 0.70 0.20 30;
-        --chart-5: 0.60 0.18 300;
+        --chart-1: 0.598 0.124 163.2; /* #15966A Emerald */
+        --chart-2: 0.514 0.107 164.5; /* #087A57 Forest */
+        --chart-3: 0.700 0.150 145.0;
+        --chart-4: 0.800 0.120 130.0;
+        --chart-5: 0.400 0.080 160.0;
 
-        --sidebar: 1 0 0;
-        --sidebar-foreground: 0.280 0.038 242.3;
-        --sidebar-primary: 0.600 0.104 184.7;
+        /* Sidebar background: #E8F1E8 */
+        --sidebar: 0.949 0.015 145.5;
+        --sidebar-foreground: 0.321 0.050 161.8;
+        --sidebar-primary: 0.598 0.124 163.2;
         --sidebar-primary-foreground: 1 0 0;
-        --sidebar-accent: 0.950 0.008 225.0;
-        --sidebar-accent-foreground: 0.280 0.038 242.3;
-        --sidebar-border: 0.925 0.011 226.0;
-        --sidebar-ring: 0.600 0.104 184.7;
+        /* Active navigation background: #DDF1E2 */
+        --sidebar-accent: 0.939 0.029 153.3;
+        /* Active navigation text and icons: #087A57 */
+        --sidebar-accent-foreground: 0.514 0.107 164.5;
+        /* Card borders and dividers: #D5E5D7 */
+        --sidebar-border: 0.906 0.025 149.1;
+        --sidebar-ring: 0.598 0.124 163.2;
+
+        /* Palette variables for direct CSS consumption */
+        --regen-bg: #F0F6F0;
+        --regen-sidebar: #E8F1E8;
+        --regen-card: #FFFFFF;
+        --regen-surface-subtle: #F5FAF5;
+        --regen-border: #D5E5D7;
+        --regen-primary: #15966A;
+        --regen-nav-active-bg: #DDF1E2;
+        --regen-nav-active-text: #087A57;
+        --regen-heading: #183B2B;
+        --regen-body: #40574A;
+        --regen-secondary: #687C70;
+        --regen-hover: #E3F1E5;
     }
 
     .dark {
@@ -126,21 +147,32 @@ html {
         --sidebar-ring: 0.600 0.104 184.7;
     }
 
-    * {
+    *,
+    ::before,
+    ::after {
         border-color: oklch(var(--border));
+        font-family: inherit;
     }
 
     html,
     body,
-    #root,
-    button,
-    input,
-    optgroup,
-    select,
-    textarea,
-    table,
-    th,
-    td,
+    #root {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    }
+
+    body {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-weight: 400;
+        letter-spacing: normal;
+        background-color: oklch(var(--background));
+        color: oklch(var(--foreground));
+    }
+
+    /* Universal font application across all content, components, and containers */
+    p, span, div, a, li, ul, ol, label, form,
+    section, article, main, aside, header, footer,
+    button, input, optgroup, select, textarea,
+    table, caption, tbody, tfoot, thead, tr, th, td,
     [role="dialog"],
     [data-radix-portal],
     [role="menu"],
@@ -148,62 +180,246 @@ html {
     [role="tooltip"],
     [role="tab"],
     [role="tabpanel"],
+    [data-slot="card"],
+    [data-slot="card-header"],
     [data-slot="card-title"],
     [data-slot="card-description"],
+    [data-slot="card-content"],
+    [data-slot="card-footer"],
     [data-slot="dialog-title"],
-    [data-slot="dialog-description"] {
-        font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    [data-slot="dialog-description"],
+    [data-slot="sheet-title"],
+    [data-slot="sheet-description"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
     }
 
-    body {
-        font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        font-weight: 400;
-        letter-spacing: normal;
-        background-color: oklch(var(--background));
-        color: oklch(var(--foreground));
+    /* ==========================================================================
+       Standardized Global Typography Tokens & Hierarchy (Inter)
+       ========================================================================== */
+
+    /* 1. Main Page Headings: 30px, font-weight 700 */
+    h1:not(.login-hero-heading),
+    .page-title,
+    .page-heading,
+    main > div > div:first-child > h1,
+    main > div > div:first-child > h2,
+    main > div > div:first-child > div > h1,
+    main > div > div:first-child > div > h2,
+    main header h1,
+    main header h2,
+    .super-admin-layout header h1,
+    .super-admin-layout header h2 {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 30px !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+        letter-spacing: -0.02em !important;
     }
 
-    /* Elegant Manrope Typography Hierarchy */
-    h1 {
-        font-family: 'Manrope', sans-serif;
-        font-weight: 300;
-        letter-spacing: -0.01em;
+    /* Login Page Promotional Hero Typography */
+    .login-hero-heading {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 38px !important;
+        font-weight: 800 !important;
+        line-height: 1.12 !important;
+        color: #ffffff !important;
+        letter-spacing: -0.025em !important;
     }
 
-    h2 {
-        font-family: 'Manrope', sans-serif;
-        font-weight: 400;
-        letter-spacing: normal;
+    @media (min-width: 1024px) {
+        .login-hero-heading {
+            font-size: 54px !important;
+            line-height: 1.10 !important;
+        }
     }
 
-    h3 {
-        font-family: 'Manrope', sans-serif;
-        font-weight: 500;
-        letter-spacing: normal;
+    @media (min-width: 1280px) {
+        .login-hero-heading {
+            font-size: 58px !important;
+            line-height: 1.10 !important;
+        }
     }
 
-    h4, h5, h6 {
-        font-family: 'Manrope', sans-serif;
-        font-weight: 500;
+    .login-hero-desc {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 18px !important;
+        font-weight: 400 !important;
+        line-height: 1.5 !important;
+        color: #8EA99D !important;
     }
 
-    p, span, div, li, td, th {
-        letter-spacing: normal;
+    @media (min-width: 1024px) {
+        .login-hero-desc {
+            font-size: 22px !important;
+            line-height: 1.5 !important;
+        }
     }
 
-    input, textarea, select {
-        font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        letter-spacing: normal;
+    @media (min-width: 1280px) {
+        .login-hero-desc {
+            font-size: 24px !important;
+            line-height: 1.5 !important;
+        }
     }
 
-    label, .form-label {
-        font-family: 'Manrope', sans-serif;
-        font-weight: 500;
+    /* 2. Section Headings: 22px, font-weight 600 */
+    h2,
+    .section-title,
+    .section-heading {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 22px !important;
+        font-weight: 600 !important;
+        line-height: 1.3 !important;
+        letter-spacing: -0.01em !important;
     }
 
-    button:not(.font-normal):not(.font-light):not(.font-medium) {
-        font-family: 'Manrope', sans-serif;
+    /* 3. Card Headings: 18px, font-weight 600 */
+    [data-slot="card-title"],
+    .card-title,
+    [data-slot="card"] > div > h3,
+    [data-slot="dialog-title"],
+    [data-slot="sheet-title"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1.35 !important;
+        letter-spacing: normal !important;
+    }
+
+    /* 4. Employee Names and Task Titles: 16px, font-weight 600 */
+    .employee-name,
+    .task-title,
+    [data-task-title],
+    [data-employee-name],
+    [data-slot="task-title"],
+    [data-slot="employee-name"],
+    [data-slot="table-cell"] strong,
+    [data-slot="card"] h3:not([data-slot="card-title"]):not(.stat-value):not(.text-3xl):not(.text-2xl) {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 16px;
         font-weight: 600;
+        line-height: 1.4;
+    }
+
+    /* 5. Body Text and Descriptions: 14px, font-weight 400 */
+    body,
+    p,
+    li,
+    td,
+    [data-slot="table-cell"],
+    [data-slot="card-description"],
+    [data-slot="dialog-description"],
+    [data-slot="sheet-description"],
+    .body-text {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.5;
+        letter-spacing: normal;
+    }
+
+    /* 6. Sidebar Navigation: 14px, font-weight 500 */
+    aside nav button,
+    aside nav a,
+    [data-slot="sidebar"] button,
+    [data-slot="sidebar"] a,
+    .sidebar-item,
+    .sidebar-nav button,
+    .sidebar-nav a {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+    }
+    aside nav button.font-semibold,
+    aside nav button[class*="font-semibold"],
+    [data-slot="sidebar"] button.font-semibold {
+        font-weight: 600 !important;
+    }
+
+    /* 7. Form Labels & Table Headers: 13px, font-weight 500–600 */
+    label,
+    .form-label,
+    [data-slot="label"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+    }
+
+    th,
+    [data-slot="table-head"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 13px !important;
+        font-weight: 600 !important;
+        line-height: 1.35 !important;
+        letter-spacing: 0.025em !important;
+    }
+
+    /* 8. Input Text and Button Labels: 14px, font-weight 500–600 */
+    input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]),
+    textarea,
+    select,
+    [data-slot="input"],
+    [data-slot="select-trigger"],
+    [data-slot="textarea"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 14px !important;
+        font-weight: 500 !important;
+        line-height: 1.4 !important;
+    }
+
+    button:not(.text-xs):not(.text-\[10px\]):not(.text-\[11px\]):not([data-slot="badge"]):not(aside nav button),
+    [data-slot="button"] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        line-height: 1.4 !important;
+    }
+
+    /* 9. Metadata, Timestamps, and Secondary Information: 13px, font-weight 400–500 */
+    .metadata,
+    .timestamp,
+    time,
+    caption,
+    [data-slot="table-caption"],
+    .text-secondary-info {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 13px !important;
+        font-weight: 400 !important;
+        line-height: 1.4 !important;
+    }
+
+    /* 10. Dashboard Statistics: 28px, font-weight 700 */
+    .stat-value,
+    .metric-value,
+    [data-slot="stat-value"],
+    [data-slot="card"] h3.text-3xl,
+    [data-slot="card"] h3.text-2xl,
+    [data-slot="card"] .text-3xl.font-bold,
+    [data-slot="card"] .text-2xl.font-bold,
+    [data-slot="card"] .text-3xl.font-extrabold {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 28px !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        letter-spacing: -0.015em !important;
+    }
+
+    /* 11. Status Badges: 12px, font-weight 500–600 */
+    [data-slot="badge"],
+    .badge,
+    .status-badge,
+    span[class*="rounded-full"][class*="border"][class*="text-\["],
+    span[class*="rounded-md"][class*="border"][class*="text-\["] {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        line-height: 1.25 !important;
+    }
+
+    code, kbd, samp, pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
     ::selection {
@@ -218,7 +434,7 @@ html {
 .super-admin-layout,
 .emerald-theme {
   --radius: 0.875rem;
-  --primary: 0.600 0.104 184.7;
+  --primary: 0.598 0.124 163.2;
   --primary-foreground: 1 0 0;
 }
 
@@ -226,19 +442,19 @@ html {
 :root:not(.dark) .emerald-theme,
 .super-admin-layout.light,
 .emerald-theme.light {
-  --background: 0.977 0.005 228.8;
-  --foreground: 0.280 0.038 242.3;
+  --background: 0.967 0.010 145.5;
+  --foreground: 0.321 0.050 161.8;
   --card: 1 0 0;
-  --card-foreground: 0.280 0.038 242.3;
+  --card-foreground: 0.321 0.050 161.8;
   --popover: 1 0 0;
-  --popover-foreground: 0.280 0.038 242.3;
-  --secondary: 0.950 0.008 225.0;
-  --secondary-foreground: 0.280 0.038 242.3;
-  --muted: 0.940 0.008 225.0;
-  --muted-foreground: 0.554 0.041 257.4;
-  --border: 0.925 0.011 226.0;
-  --input: 0.925 0.011 226.0;
-  --ring: 0.600 0.104 184.7;
+  --popover-foreground: 0.321 0.050 161.8;
+  --secondary: 0.980 0.008 145.5;
+  --secondary-foreground: 0.321 0.050 161.8;
+  --muted: 0.980 0.008 145.5;
+  --muted-foreground: 0.566 0.030 159.0;
+  --border: 0.906 0.025 149.1;
+  --input: 0.906 0.025 149.1;
+  --ring: 0.598 0.124 163.2;
 }
 
 .dark .super-admin-layout,
@@ -259,3 +475,264 @@ html {
   --input: 0.349 0.031 234.2;
   --ring: 0.600 0.104 184.7;
 }
+
+/* ==========================================================================
+   Global Light Mode Green Theme Rules (Strictly Preserving Dark Mode)
+   ========================================================================== */
+
+/* 1. Main Page Background (#F0F6F0) */
+:root:not(.dark) body,
+:root:not(.dark) #root,
+:root:not(.dark) .bg-background {
+  background-color: #F0F6F0 !important;
+}
+
+/* 2. Sidebar Background (#E8F1E8) */
+:root:not(.dark) aside,
+:root:not(.dark) [data-slot="sidebar"],
+:root:not(.dark) .sidebar-container {
+  background-color: #E8F1E8 !important;
+  border-color: #D5E5D7 !important;
+}
+
+/* 3. Active Navigation Background (#DDF1E2) and Text/Icons (#087A57) */
+:root:not(.dark) aside nav button[class*="bg-teal-500/10"],
+:root:not(.dark) aside nav button.font-semibold,
+:root:not(.dark) .sidebar-item.active,
+:root:not(.dark) button[class*="bg-teal-500/10"] {
+  background-color: #DDF1E2 !important;
+  color: #087A57 !important;
+  border-color: rgba(8, 122, 87, 0.25) !important;
+}
+
+:root:not(.dark) aside nav button[class*="bg-teal-500/10"] svg,
+:root:not(.dark) aside nav button.font-semibold svg,
+:root:not(.dark) button[class*="bg-teal-500/10"] svg {
+  color: #087A57 !important;
+}
+
+/* 4. Hover Backgrounds (#E3F1E5) */
+:root:not(.dark) aside nav button:hover:not(.font-semibold):not([class*="bg-teal-500/10"]),
+:root:not(.dark) aside nav a:hover:not(.font-semibold),
+:root:not(.dark) [class*="hover:bg-secondary"]:hover,
+:root:not(.dark) [class*="hover:bg-muted"]:hover,
+:root:not(.dark) [class*="hover:bg-muted/70"]:hover,
+:root:not(.dark) [class*="hover:bg-[#F4F8FA]"]:hover {
+  background-color: #E3F1E5 !important;
+  color: #183B2B !important;
+}
+
+/* 5. Headings (#183B2B) */
+:root:not(.dark) h1,
+:root:not(.dark) h2,
+:root:not(.dark) h3,
+:root:not(.dark) h4,
+:root:not(.dark) h5,
+:root:not(.dark) h6,
+:root:not(.dark) .page-title,
+:root:not(.dark) .section-title,
+:root:not(.dark) [data-slot="card-title"],
+:root:not(.dark) [data-slot="dialog-title"],
+:root:not(.dark) [data-slot="sheet-title"],
+:root:not(.dark) .text-\[\#172B3A\],
+:root:not(.dark) [class*="text-[#172B3A]"] {
+  color: #183B2B !important;
+}
+
+/* 6. Body Text (#40574A) */
+:root:not(.dark) body,
+:root:not(.dark) p,
+:root:not(.dark) li,
+:root:not(.dark) td,
+:root:not(.dark) .body-text {
+  color: #40574A;
+}
+
+/* 7. Secondary Text (#687C70) */
+:root:not(.dark) .text-muted-foreground,
+:root:not(.dark) [data-slot="card-description"],
+:root:not(.dark) [data-slot="dialog-description"],
+:root:not(.dark) [data-slot="sheet-description"],
+:root:not(.dark) .text-secondary-info,
+:root:not(.dark) .text-\[\#64748B\],
+:root:not(.dark) [class*="text-[#64748B]"] {
+  color: #687C70 !important;
+}
+
+/* 8. Main Card Surfaces (#FFFFFF) and Borders (#D5E5D7) */
+:root:not(.dark) [data-slot="card"],
+:root:not(.dark) .bg-card,
+:root:not(.dark) .card {
+  background-color: #FFFFFF;
+  border-color: #D5E5D7 !important;
+}
+
+:root:not(.dark) .border-border,
+:root:not(.dark) .border-input,
+:root:not(.dark) hr,
+:root:not(.dark) [data-slot="separator"],
+:root:not(.dark) [role="separator"],
+:root:not(.dark) .border-\[\#DFE8EC\],
+:root:not(.dark) [class*="border-[#DFE8EC]"],
+:root:not(.dark) [class*="border-[#DFE8EC]/80"],
+:root:not(.dark) [class*="border-[#DFE8EC]/70"] {
+  border-color: #D5E5D7 !important;
+}
+
+/* 9. Subtle Green-Tinted Surfaces (#F5FAF5) */
+:root:not(.dark) .bg-secondary,
+:root:not(.dark) .bg-muted,
+:root:not(.dark) .bg-\[\#F4F8FA\],
+:root:not(.dark) [class*="bg-[#F4F8FA]"],
+:root:not(.dark) [class*="bg-[#F4F8FA]/60"],
+:root:not(.dark) [class*="bg-[#F4F8FA]/50"] {
+  background-color: #F5FAF5 !important;
+}
+
+/* 10. Primary Emerald Green (#15966A) */
+:root:not(.dark) .bg-primary,
+:root:not(.dark) button.bg-primary,
+:root:not(.dark) [data-slot="button"][class*="bg-primary"],
+:root:not(.dark) .bg-\[\#0D9488\],
+:root:not(.dark) [class*="bg-[#0D9488]"] {
+  background-color: #15966A !important;
+  color: #FFFFFF !important;
+}
+
+:root:not(.dark) .bg-primary:hover,
+:root:not(.dark) button.bg-primary:hover,
+:root:not(.dark) [data-slot="button"][class*="bg-primary"]:hover,
+:root:not(.dark) [class*="hover:bg-[#0F766E]"]:hover,
+:root:not(.dark) [class*="hover:bg-[#0f766e]"]:hover {
+  background-color: #0E7F58 !important;
+}
+
+:root:not(.dark) .text-primary,
+:root:not(.dark) .text-\[\#0D9488\],
+:root:not(.dark) [class*="text-[#0D9488]"] {
+  color: #15966A !important;
+}
+
+:root:not(.dark) [class*="bg-[#0D9488]/10"],
+:root:not(.dark) [class*="bg-[#15966A]/10"] {
+  background-color: rgba(21, 150, 106, 0.12) !important;
+  color: #15966A !important;
+}
+
+:root:not(.dark) [class*="border-primary/25"],
+:root:not(.dark) [class*="border-primary/30"] {
+  border-color: rgba(21, 150, 106, 0.3) !important;
+}
+
+:root:not(.dark) [class*="focus:border-[#0D9488]"]:focus {
+  border-color: #15966A !important;
+}
+
+:root:not(.dark) [class*="hover:text-[#0D9488]"]:hover {
+  color: #15966A !important;
+}
+
+:root:not(.dark) [class*="focus-visible:ring-[#0D9488]"]:focus-visible {
+  --tw-ring-color: #15966A !important;
+}
+
+/* 11. Tables in Light Mode */
+:root:not(.dark) th,
+:root:not(.dark) [data-slot="table-head"] {
+  color: #183B2B !important;
+  background-color: #F5FAF5;
+  border-color: #D5E5D7 !important;
+}
+
+:root:not(.dark) tr,
+:root:not(.dark) [data-slot="table-row"] {
+  border-color: #D5E5D7 !important;
+}
+
+:root:not(.dark) tr:hover,
+:root:not(.dark) [data-slot="table-row"]:hover {
+  background-color: #F5FAF5;
+}
+
+:root:not(.dark) td,
+:root:not(.dark) [data-slot="table-cell"] {
+  color: #40574A;
+  border-color: #D5E5D7 !important;
+}
+
+/* 12. Inputs, Selects, and Textareas */
+:root:not(.dark) input,
+:root:not(.dark) textarea,
+:root:not(.dark) select,
+:root:not(.dark) [data-slot="input"],
+:root:not(.dark) [data-slot="textarea"],
+:root:not(.dark) [data-slot="select-trigger"] {
+  border-color: #D5E5D7 !important;
+  color: #183B2B;
+}
+
+:root:not(.dark) input:focus,
+:root:not(.dark) textarea:focus,
+:root:not(.dark) select:focus,
+:root:not(.dark) [data-slot="input"]:focus,
+:root:not(.dark) [data-slot="select-trigger"]:focus {
+  border-color: #15966A !important;
+  --tw-ring-color: #15966A !important;
+}
+
+/* 13. Tabs in Light Mode */
+:root:not(.dark) [data-slot="tabs-list"],
+:root:not(.dark) [role="tablist"] {
+  background-color: #E8F1E8;
+  border-color: #D5E5D7;
+}
+
+:root:not(.dark) [data-slot="tabs-trigger"][data-state="active"],
+:root:not(.dark) [role="tab"][data-state="active"] {
+  background-color: #FFFFFF !important;
+  color: #087A57 !important;
+  border-color: #D5E5D7;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+:root:not(.dark) [data-slot="tabs-trigger"][data-state="inactive"]:hover,
+:root:not(.dark) [role="tab"][data-state="inactive"]:hover {
+  background-color: #E3F1E5;
+  color: #183B2B;
+}
+
+/* ==========================================================================
+   14. Attendance & Shift Clock Card (Consistent #B7E4C7 in Both Light & Dark Mode)
+   ========================================================================== */
+.attendance-shift-card,
+:root .attendance-shift-card,
+.dark .attendance-shift-card {
+  background-color: #B7E4C7 !important;
+  background-image: none !important;
+  border-color: #95D5B2 !important;
+  color: #183B2B !important;
+}
+
+.attendance-shift-card h1,
+:root .attendance-shift-card h1,
+.dark .attendance-shift-card h1,
+.attendance-shift-card p,
+:root .attendance-shift-card p,
+.dark .attendance-shift-card p,
+.attendance-shift-card span,
+:root .attendance-shift-card span,
+.dark .attendance-shift-card span,
+.attendance-shift-card svg,
+:root .attendance-shift-card svg,
+.dark .attendance-shift-card svg {
+  color: #183B2B !important;
+}
+
+.attendance-shift-card .shift-badge,
+:root .attendance-shift-card .shift-badge,
+.dark .attendance-shift-card .shift-badge {
+  background-color: rgba(24, 59, 43, 0.1) !important;
+  border-color: rgba(24, 59, 43, 0.18) !important;
+  color: #183B2B !important;
+}
+
