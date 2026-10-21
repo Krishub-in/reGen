@@ -29,6 +29,7 @@ import payrollRoutes from './routes/payroll.js';
 import { runBirthdayReminderJob } from './controllers/notificationController.js';
 import SystemSetting from './models/SystemSetting.js';
 import { maintenanceCheck } from './middleware/maintenanceCheck.js';
+import { globalInputValidator } from './middleware/inputValidation.js';
 import { isPort3004Reachable } from './utils/portCheck.js';
 import { signToken, verifyToken } from './middleware/authJwt.js';
 import { companyScope } from './middleware/companyScope.js';
@@ -90,6 +91,7 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(globalInputValidator);
 
 // Setup uploads directory
 const uploadsDir = path.resolve(__dirname, '..', 'uploads');
