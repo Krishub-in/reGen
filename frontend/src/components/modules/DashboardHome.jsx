@@ -7,6 +7,7 @@ import {
   useGetUserLeaveRequests, 
   useGetAllAttendance, 
   useGetAllLeaveRequests,
+  useGetAllTasks,
   useGetRecentTransactions,
   useGetCompanyInfo
 } from '../../hooks/useQueries';
@@ -14,7 +15,7 @@ import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 import { 
   Users, Building2, UserCheck, Search, CheckCircle2, ArrowUpRight, Calendar,
-  Clock, DollarSign, CreditCard, TrendingUp
+  Clock, DollarSign, CreditCard, TrendingUp, MoreVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
