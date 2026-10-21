@@ -997,15 +997,15 @@ export default function AttendanceModule({ userProfile }) {
           <div
             onClick={!isCheckedIn && !isCheckedOut && !isCheckingIn ? handleCheckIn : isCheckedOut ? () => toast.info('Shift completed for today. Check-in reopens tomorrow.') : undefined}
             className={cn(
-              "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
+              "p-4 sm:p-6 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
               isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-emerald-500/50 hover:shadow-md cursor-pointer group"
             )}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className={cn(
-                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
+                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
                 isCheckedOut
                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                   : isCheckedIn
@@ -1013,18 +1013,18 @@ export default function AttendanceModule({ userProfile }) {
                   : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white"
               )}>
                 {isCheckedOut ? (
-                  <CheckCircle className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
                 ) : isCheckingIn ? (
-                  <div className="h-6 w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-5 w-5 sm:h-6 sm:w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <LogIn className="h-7 w-7" />
+                  <LogIn className="h-6 w-6 sm:h-7 sm:w-7" />
                 )}
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
                   {isCheckedOut ? 'Shift Completed Today' : isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   {isCheckedOut
                     ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Check-in reopens tomorrow`
                     : isCheckedIn
@@ -1040,7 +1040,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (!isCheckedIn && !isCheckedOut && !isCheckingIn) handleCheckIn();
               }}
               className={cn(
-                "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
+                "w-full sm:w-auto rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : isCheckedIn
@@ -1056,15 +1056,15 @@ export default function AttendanceModule({ userProfile }) {
           <div
             onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : isCheckedOut ? () => toast.info('Shift already completed. Reopens tomorrow.') : undefined}
             className={cn(
-              "p-6 rounded-2xl border transition-all duration-200 flex items-center justify-between",
+              "p-4 sm:p-6 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
               !isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-red-500/50 hover:shadow-md cursor-pointer group"
             )}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className={cn(
-                "h-14 w-14 rounded-2xl flex items-center justify-center transition-all",
+                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
                 isCheckedOut
                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                   : !isCheckedIn
@@ -1072,18 +1072,18 @@ export default function AttendanceModule({ userProfile }) {
                   : "bg-red-500/10 text-red-600 dark:text-red-400 group-hover:bg-red-500 group-hover:text-white"
               )}>
                 {isCheckedOut ? (
-                  <CheckCircle className="h-7 w-7 text-purple-600 dark:text-purple-400" />
+                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
                 ) : isCheckingOut ? (
-                  <div className="h-6 w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-5 w-5 sm:h-6 sm:w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <LogOut className="h-7 w-7" />
+                  <LogOut className="h-6 w-6 sm:h-7 sm:w-7" />
                 )}
               </div>
-              <div>
-                <h3 className="text-lg font-bold text-foreground">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
                   {isCheckedOut ? 'Shift Completed' : isCheckingOut ? 'Checking Out...' : 'Check Out'}
                 </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   {isCheckedOut
                     ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Reopens tomorrow`
                     : isCheckedIn
@@ -1099,7 +1099,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (isCheckedIn && !isCheckedOut && !isCheckingOut) handleCheckOut();
               }}
               className={cn(
-                "rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95",
+                "w-full sm:w-auto rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : !isCheckedIn
@@ -1307,11 +1307,11 @@ export default function AttendanceModule({ userProfile }) {
 
       {/* Filters and Actions */}
       <div className="flex flex-col gap-4 justify-between items-start md:items-center">
-        <div className="flex flex-col md:flex-row md:flex-wrap gap-3 w-full">
-          <div className="w-full md:w-[240px]">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:gap-3 w-full">
+          <div className="w-full sm:w-[220px]">
             <input
               type="date"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={format(filterDate, 'yyyy-MM-dd')}
               onChange={(e) => {
                 const d = new Date(e.target.value + 'T00:00:00');
@@ -1320,10 +1320,10 @@ export default function AttendanceModule({ userProfile }) {
             />
           </div>
 
-          <div className="flex flex-col md:flex-row md:items-center gap-2 w-full">
-            <span className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Filter by:</span>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Filter:</span>
             <Select value={filterDept} onValueChange={setFilterDept}>
-              <SelectTrigger className="w-full md:w-[150px]">
+              <SelectTrigger className="w-full sm:w-[150px] rounded-xl h-10 text-xs">
                 <SelectValue placeholder="All Departments" />
               </SelectTrigger>
               <SelectContent>
@@ -1334,7 +1334,7 @@ export default function AttendanceModule({ userProfile }) {
               </SelectContent>
             </Select>
             <Select value={filterEmployee} onValueChange={setFilterEmployee}>
-              <SelectTrigger className="w-full md:w-[180px]">
+              <SelectTrigger className="w-full sm:w-[170px] rounded-xl h-10 text-xs">
                 <SelectValue placeholder="All Employees" />
               </SelectTrigger>
               <SelectContent>
@@ -1348,7 +1348,7 @@ export default function AttendanceModule({ userProfile }) {
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-full md:w-[140px]">
+              <SelectTrigger className="w-full sm:w-[140px] rounded-xl h-10 text-xs">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -1363,7 +1363,7 @@ export default function AttendanceModule({ userProfile }) {
             <Button
               variant="secondary"
               size="sm"
-              className="w-full md:w-auto"
+              className="w-full sm:w-auto h-10 rounded-xl text-xs font-semibold"
               onClick={() => {
                 setSearchQuery('');
                 setFilterDept('all');

@@ -140,7 +140,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[96vw] max-w-7xl sm:max-w-7xl max-h-[92vh] overflow-hidden flex flex-col p-0 gap-0 bg-background border-border shadow-2xl">
         {/* Header */}
-        <DialogHeader className="p-6 pb-4 border-b border-border bg-card/60 backdrop-blur-sm">
+        <DialogHeader className="p-4 sm:p-6 pb-4 border-b border-border bg-card/60 backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -160,13 +160,13 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
             </div>
 
             {/* Quick Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => refetch()}
                 disabled={isFetching}
-                className="gap-1.5 text-xs h-9"
+                className="gap-1.5 text-xs h-9 justify-center"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
                 Refresh
@@ -175,7 +175,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
                 variant="outline"
                 size="sm"
                 onClick={handlePrint}
-                className="gap-1.5 text-xs h-9"
+                className="gap-1.5 text-xs h-9 justify-center"
               >
                 <Printer className="h-3.5 w-3.5" />
                 Print
@@ -185,7 +185,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
                 size="sm"
                 onClick={handleDownloadCsv}
                 disabled={records.length === 0}
-                className="gap-1.5 text-xs h-9 text-teal-600 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
+                className="gap-1.5 text-xs h-9 justify-center text-teal-600 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/10"
               >
                 <Download className="h-3.5 w-3.5" />
                 Download CSV
@@ -193,7 +193,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
               <Button
                 size="sm"
                 onClick={() => setShowEmailForm(prev => !prev)}
-                className="gap-1.5 text-xs h-9 bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
+                className="gap-1.5 text-xs h-9 justify-center bg-teal-600 hover:bg-teal-700 text-white shadow-sm"
               >
                 <Mail className="h-3.5 w-3.5" />
                 Send via Email
@@ -204,7 +204,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
           {/* Collapsible Email Dispatch Form */}
           {showEmailForm && (
             <form onSubmit={handleSendEmail} className="mt-4 p-4 rounded-xl border border-teal-500/30 bg-teal-500/5 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
                   <Mail className="h-4 w-4" /> Send Attendance Report via Email
                 </span>
@@ -232,13 +232,13 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-end gap-2 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-1 [&>button]:w-full sm:[&>button]:w-auto">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowEmailForm(false)}
-                  className="text-xs h-8"
+                  className="text-xs h-8 justify-center"
                 >
                   Cancel
                 </Button>
@@ -246,7 +246,7 @@ export default function AttendanceReportDialog({ open, onOpenChange, companyName
                   type="submit"
                   size="sm"
                   disabled={sendReportMutation.isPending}
-                  className="text-xs h-8 bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+                  className="text-xs h-8 bg-teal-600 hover:bg-teal-700 text-white gap-1.5 justify-center"
                 >
                   <Send className="h-3 w-3" />
                   {sendReportMutation.isPending ? 'Sending Report...' : 'Send Report Now'}

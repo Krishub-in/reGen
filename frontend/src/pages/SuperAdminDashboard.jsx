@@ -408,16 +408,16 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <main className="flex-1 overflow-y-auto bg-background p-6 lg:p-10 pb-0 transition-colors duration-300">
-          <header className="flex justify-between items-center mb-6 pb-4 border-b border-border/40">
-            <div className="flex items-center gap-3.5">
+        <main className="flex-1 overflow-y-auto bg-background p-3.5 sm:p-6 lg:p-10 pb-0 transition-colors duration-300">
+          <header className="flex justify-between items-center mb-6 pb-4 border-b border-border/40 gap-2">
+            <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
               <Sheet>
                 <SheetTrigger asChild>
-                  <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground">
+                  <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9 text-muted-foreground hover:text-foreground shrink-0">
                     <Menu className="w-5 h-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 bg-card border-r-border p-0 flex flex-col">
+                <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r-border p-0 flex flex-col">
                   <div className="px-6 py-6 mb-2 flex items-center gap-3 border-b border-border">
                     <div className="bg-primary/10 border border-primary/25 p-2 rounded-xl text-primary">
                       <ShieldCheck className="w-5 h-5" />
@@ -507,8 +507,8 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                     <div className="w-11 h-11 rounded-2xl bg-[#15966A]/10 text-[#15966A] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
                       <TabIcon className="h-5 w-5" />
                     </div>
-                    <div>
-                      <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#183B2B] dark:text-[#E8F0F4] leading-snug">
+                    <div className="min-w-0">
+                      <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-[#183B2B] dark:text-[#E8F0F4] leading-snug truncate max-w-[170px] xs:max-w-[240px] sm:max-w-none">
                         {config.title}
                       </h1>
                       <p className="text-xs sm:text-sm text-[#687C70] dark:text-[#A6B5C0] mt-0.5 font-normal hidden sm:block">

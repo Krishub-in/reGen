@@ -428,9 +428,9 @@ export default function Dashboard({ userProfile }) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Topbar Header (Matching Reference Image) */}
-        <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-4 md:px-8 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 sm:gap-4">
           {/* Mobile hamburger + brand */}
-          <div className="flex items-center gap-3 md:hidden">
+          <div className="flex items-center gap-2 sm:gap-3 md:hidden">
             <button
               onClick={() => setMobileNavOpen(true)}
               className="p-2 rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
@@ -438,7 +438,7 @@ export default function Dashboard({ userProfile }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-1.5" onClick={() => setActiveModule('home')}>
+            <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveModule('home')}>
               <span className="text-lg font-semibold tracking-normal text-foreground">ReGen</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
@@ -457,7 +457,7 @@ export default function Dashboard({ userProfile }) {
           </div>
 
           {/* Right Action Icons: Notification, Theme Switcher, Profile Badge */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+          <div className="flex items-center gap-2 sm:gap-3.5 ml-auto">
             {/* Notification Bell */}
             <div className="relative">
               <button
@@ -476,7 +476,7 @@ export default function Dashboard({ userProfile }) {
               {showNotif && (
                 <div 
                   ref={notifDropdownRef}
-                  className="absolute right-0 top-12 z-50 w-80 sm:w-96 max-w-[90vw] border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="absolute right-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm sm:w-96 border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50">
                     <div className="flex items-center gap-2">
@@ -741,7 +741,7 @@ export default function Dashboard({ userProfile }) {
 
         {/* Mobile Navigation Drawer Sheet */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetContent side="left" className="w-72 bg-card border-r border-border p-0 flex flex-col">
+          <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r border-border p-0 flex flex-col">
             <SheetHeader className="p-6 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
                 <span className="text-xl font-semibold tracking-normal text-foreground">ReGen</span>
@@ -775,7 +775,7 @@ export default function Dashboard({ userProfile }) {
         </Sheet>
 
         {/* Main Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full min-w-0">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 w-full min-w-0">
           <ErrorBoundary key={activeModule}>
             {renderModule()}
           </ErrorBoundary>

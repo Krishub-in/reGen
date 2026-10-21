@@ -606,7 +606,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
         )}
 
         {/* Global Navigation Controls */}
-        <div className="flex items-center gap-1.5 self-start sm:self-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
+        <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
           <Button
             variant="outline"
             size="sm"
@@ -718,18 +718,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
           </div>
 
           <CardContent className="p-2.5 sm:p-3.5 space-y-2 sm:space-y-2.5 flex-1 flex flex-col justify-between">
-            {/* Weekday Header - Subtle Weekend Distinction */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-0.5 text-center shrink-0">
-              <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sun</div>
-              <div>Mon</div>
-              <div>Tue</div>
-              <div>Wed</div>
-              <div>Thu</div>
-              <div>Fri</div>
-              <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sat</div>
-            </div>
-
-            {/* Month Matrix Grid */}
+            {/* Month Matrix Grid with Synchronized Weekday Header */}
             <div
               className="overflow-x-auto w-full flex-1 flex flex-col justify-between"
               onTouchStart={
@@ -757,7 +746,19 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                   : undefined
               }
             >
-              <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full min-w-[320px] flex-1">
+              <div className="min-w-[320px] flex-1 flex flex-col justify-between space-y-2">
+                {/* Weekday Header - Subtle Weekend Distinction */}
+                <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-0.5 text-center shrink-0">
+                  <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sun</div>
+                  <div>Mon</div>
+                  <div>Tue</div>
+                  <div>Wed</div>
+                  <div>Thu</div>
+                  <div>Fri</div>
+                  <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sat</div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 w-full flex-1">
                 {monthMatrix.flat().map((cell, idx) => {
                   const isToday = format(cell.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                   const hasBirthday = Boolean(cell.birthdayLabel);
@@ -875,6 +876,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                   );
                 })}
               </div>
+            </div>
             </div>
           </CardContent>
         </Card>

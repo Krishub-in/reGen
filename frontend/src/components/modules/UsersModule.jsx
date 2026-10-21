@@ -385,13 +385,13 @@ export default function UsersModule({ userProfile }) {
           <DialogTrigger asChild>
             <Button 
               onClick={() => handleOpenDialog()} 
-              className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-medium text-xs sm:text-sm rounded-xl px-4 h-9 sm:h-10 shadow-xs transition-all flex items-center gap-2 shrink-0 self-start sm:self-auto"
+              className="bg-[#0D9488] hover:bg-[#0F766E] text-white font-medium text-xs sm:text-sm rounded-xl px-4 h-9 sm:h-10 shadow-xs transition-all flex items-center justify-center gap-2 w-full sm:w-auto shrink-0"
             >
               <Plus className="h-4 w-4" />
               <span>{isOwner ? 'Add Employee' : 'Add User'}</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xl p-6">
+          <DialogContent className="max-h-[85vh] w-[95vw] max-w-xl overflow-y-auto md:max-h-[80vh] md:max-w-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-xl p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle className="text-base md:text-lg font-medium text-[#172B3A] dark:text-[#E8F0F4]">
                 {editingUser ? (isOwner ? 'Edit Employee' : 'Edit User Profile') : (isOwner ? 'Add New Employee' : 'Add New User')}

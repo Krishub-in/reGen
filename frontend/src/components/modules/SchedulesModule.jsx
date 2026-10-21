@@ -678,7 +678,7 @@ export default function SchedulesModule({ userProfile }) {
             <DialogTrigger asChild>
               <Button 
                 onClick={() => handleOpenDialog()} 
-                className="bg-[#0D9488] hover:bg-[#0F766E] text-white shadow-sm font-medium transition-all px-4 py-2 h-10 rounded-lg flex items-center gap-2 self-start sm:self-auto"
+                className="bg-[#0D9488] hover:bg-[#0F766E] text-white shadow-sm font-medium transition-all px-4 py-2 h-10 rounded-lg flex items-center justify-center gap-2 w-full sm:w-auto shrink-0"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Task</span>
