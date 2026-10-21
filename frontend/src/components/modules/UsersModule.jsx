@@ -106,11 +106,12 @@ export default function UsersModule({ userProfile }) {
 
   // Lazy loading pagination: 6 users per page, loading next 6 on scroll down
   const {
-    displayedItems: paginatedUsers,
+    displayedItems = [],
     hasMore: hasMoreUsers,
     handleScroll: handleUsersScroll,
     totalCount: totalUsersCount
   } = useScrollPagination(visibleUsers, 6, [filterRole]);
+  const paginatedUsers = Array.isArray(displayedItems) ? displayedItems : [];
 
   // Count users per role for filter badges
   const roleCounts = users.reduce((acc, user) => {

@@ -1900,7 +1900,7 @@ export default function PaymentsModule({ userProfile }) {
  */
 function PayrollTable({ items = [], isLoading, onOpenPreview, onOpenPayment, onOpenPayslip }) {
   const {
-    displayedItems,
+    displayedItems = [],
     hasMore,
     handleScroll,
     totalCount,

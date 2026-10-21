@@ -44,13 +44,17 @@ export function useScrollPagination(items = [], pageSize = 6, resetTriggers = []
     }
   }, [hasMore, maxPages]);
 
+  const safeList = Array.isArray(visibleItems) ? visibleItems : [];
+
   return {
-    visibleItems,
+    visibleItems: safeList,
+    displayedItems: safeList,
     hasMore,
     totalCount,
-    displayedCount: visibleItems.length,
+    displayedCount: safeList.length,
     loadMore,
     onScroll,
+    handleScroll: onScroll,
     containerRef,
     page,
     setPage,

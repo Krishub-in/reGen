@@ -993,7 +993,14 @@ export function useGetPayrollSettings() {
     queryKey: ['payroll', 'settings'],
     queryFn: async () => {
       const res = await authFetch('/api/payroll/settings');
-      if (!res.ok) throw new Error('Failed to fetch payroll settings');
+      if (!res.ok) {
+        return {
+          checkInTime: '09:30',
+          checkOutTime: '18:30',
+          workingHoursPerDay: 8,
+          workingDaysPerWeek: 5,
+        };
+      }
       return res.json();
     },
   });
@@ -1031,7 +1038,7 @@ export function useGetPayrollSummary(month, filters = {}) {
     queryKey: ['payroll', 'summary', month, filters.search, filters.department, filters.statusTab],
     queryFn: async () => {
       const res = await authFetch(`/api/payroll/summary?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch payroll summary');
+      if (!res.ok) return { summary: [], totalGross: 0, totalNet: 0, count: 0 };
       return res.json();
     },
     enabled: !!month,
@@ -1106,7 +1113,7 @@ export function useGetRecentTransactions(filters = {}) {
     queryKey: ['payroll', 'transactions', filters.month, filters.year, filters.search, filters.page, filters.limit],
     queryFn: async () => {
       const res = await authFetch(`/api/payroll/transactions?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch recent transactions');
+      if (!res.ok) return { transactions: [], total: 0 };
       return res.json();
     },
   });
@@ -1117,7 +1124,7 @@ export function useGetEmployeeMyPayroll(month) {
     queryKey: ['payroll', 'my-records', month],
     queryFn: async () => {
       const res = await authFetch(`/api/payroll/my-records?month=${encodeURIComponent(month || '')}`);
-      if (!res.ok) throw new Error('Failed to fetch my payroll');
+      if (!res.ok) return { records: [] };
       return res.json();
     },
   });

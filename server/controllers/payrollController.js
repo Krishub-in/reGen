@@ -16,8 +16,9 @@ import { sendReportEmail } from '../utils/mailer.js';
 /**
  * Helper to ensure the current caller belongs to the company
  */
-const requireCompanyId = (req, res) => {
+const requireCompanyId = (req, res, allowEmpty = false) => {
   if (!req.companyId) {
+    if (allowEmpty) return null;
     res.status(400).json({ message: 'Company context required' });
     return null;
   }
@@ -38,8 +39,24 @@ const isCompanyAdmin = (user) => {
  */
 export const getPayrollSettings = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({
+        checkInTime: '09:30',
+        checkOutTime: '18:30',
+        workingHoursPerDay: 8,
+        workingDaysPerWeek: 5,
+        weeklyOffDays: [0, 6],
+        hourlyDeductionPct: 50,
+        hourlyOvertimePct: 75,
+        approvedLeaveDeductionPct: 25,
+        unapprovedLeaveDeductionPct: 100,
+        graceMinutes: 0,
+        payrollDivisorType: 'scheduled_hours',
+        fixedPayrollDivisor: 200,
+        dailyBasisType: 'scheduled_days',
+      });
+    }
 
     let settings = await PayrollSetting.findOne({ companyId });
     if (!settings) {
@@ -210,8 +227,10 @@ export const updatePayrollSettings = async (req, res) => {
  */
 export const getPayrollSummary = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({ summary: [], totalGross: 0, totalNet: 0, count: 0, page: 1, totalPages: 1 });
+    }
 
     if (!isCompanyAdmin(req.user)) {
       return res.status(403).json({ message: 'Access denied' });
@@ -515,8 +534,10 @@ export const getPayrollSummary = async (req, res) => {
  */
 export const getEmployeePayrollPreview = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({});
+    }
 
     const { userId, month } = req.query;
     if (!userId || !month) {
@@ -994,8 +1015,10 @@ export const processPayment = async (req, res) => {
  */
 export const getRecentTransactions = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({ transactions: [], total: 0, page: 1, totalPages: 1 });
+    }
 
     const filter = { companyId };
 
@@ -1082,8 +1105,10 @@ export const getRecentTransactions = async (req, res) => {
  */
 export const getEmployeeMyPayroll = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({ records: [] });
+    }
 
     const callerUserId = req.user.userId;
     const now = new Date();
@@ -1412,8 +1437,10 @@ export const addPayrollAdjustment = async (req, res) => {
  */
 export const getPayrollAdjustments = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json([]);
+    }
 
     const { month, userId } = req.query;
     const filter = { companyId };
@@ -1758,8 +1785,10 @@ export const buildPayrollReportData = async (companyId, { period = 'month', date
  */
 export const getPayrollReport = async (req, res) => {
   try {
-    const companyId = requireCompanyId(req, res);
-    if (!companyId) return;
+    const companyId = requireCompanyId(req, res, true);
+    if (!companyId) {
+      return res.status(200).json({ rows: [], totals: {} });
+    }
 
     const report = await buildPayrollReportData(companyId, req.query);
     res.status(200).json(report);

@@ -681,12 +681,13 @@ export default function AttendanceModule({ userProfile }) {
 
   // Scroll-down pagination: 6 per page, loading next 6 on scroll down
   const {
-    displayedItems: paginatedData,
+    displayedItems = [],
     hasMore: hasMoreData,
     handleScroll: handleTableScroll,
     totalCount: totalDataCount,
     loadMore: loadMoreData,
   } = useScrollPagination(filteredAttendance, 6, [filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory]);
+  const paginatedData = Array.isArray(displayedItems) ? displayedItems : [];
 
   // Export CSV handler
   const handleExport = useCallback(() => {
