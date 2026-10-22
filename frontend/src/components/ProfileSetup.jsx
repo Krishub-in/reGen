@@ -62,6 +62,11 @@ export default function ProfileSetup() {
       return;
     }
 
+    if (!avatar) {
+      toast.error('Profile picture is mandatory. Please upload an image.');
+      return;
+    }
+
     if (!username.trim()) {
         toast.error('Please enter a username');
         return;
@@ -131,7 +136,7 @@ export default function ProfileSetup() {
                   <Upload className="h-3 w-3" />
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">Upload Profile Picture</p>
+              <p className="text-sm font-semibold text-destructive mt-2">Upload Profile Picture *</p>
               <input 
                 type="file" 
                 ref={fileInputRef} 

@@ -66,16 +66,6 @@ export default function StaffProfileModule({ userProfile }) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (userProfile.lastAvatarUpdate) {
-      const diff = Date.now() - new Date(userProfile.lastAvatarUpdate).getTime();
-      const days = diff / (1000 * 60 * 60 * 24);
-      if (days < 15) {
-        toast.error(`Profile photo change restricted. Please wait ${Math.ceil(15 - days)} more days.`);
-        e.target.value = '';
-        return;
-      }
-    }
-
     if (file.size > 4 * 1024 * 1024) {
       toast.error('Image size should be less than 4MB');
       return;
@@ -111,6 +101,10 @@ export default function StaffProfileModule({ userProfile }) {
     e.preventDefault();
     if (!name.trim()) {
       toast.error('Please enter your name');
+      return;
+    }
+    if (!avatar) {
+      toast.error('Profile picture is mandatory. Please upload an image.');
       return;
     }
     const role = userProfile.role;

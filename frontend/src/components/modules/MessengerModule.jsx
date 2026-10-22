@@ -667,24 +667,7 @@ export default function MessengerModule({ userProfile }) {
         <PrivateChatModule userProfile={userProfile} />
       ) : (
       <>
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const meetingId = `meeting-${Date.now()}`;
-            const socket = getSocket();
-            socket?.emit('meeting:start', { meetingId, title: 'Team Meeting', mediaType: 'video' });
-            window.dispatchEvent(new CustomEvent('join-team-meeting', { detail: { meetingId, title: 'Team Meeting', mediaType: 'video' } }));
-          }}
-          className="h-8 gap-1.5 text-xs text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
-        >
-          <Video className="h-3.5 w-3.5" /> Start Team Meeting
-        </Button>
-        <Button variant="ghost" size="icon" onClick={() => { setSearchOpen(o => !o); setSearchTerm(''); setCurrentMatchIndex(0); }}>
-          <Search className="h-5 w-5" />
-        </Button>
-      </div>
+
 
 
       {/* Search bar */}
@@ -727,7 +710,7 @@ export default function MessengerModule({ userProfile }) {
         </div>
       )}
       
-      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100vh-11rem)] min-h-[580px] flex flex-col w-full">
+      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100svh-9.5rem)] sm:h-[calc(100vh-11rem)] min-h-[460px] sm:min-h-[520px] max-h-[calc(100dvh-5rem)] flex flex-col w-full">
         <CardHeader className="h-16 px-4 md:px-6 border-b border-border bg-card/80 backdrop-blur-xs flex flex-row items-center justify-between gap-3 shrink-0 py-0">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-border">
@@ -738,7 +721,20 @@ export default function MessengerModule({ userProfile }) {
               <p className="text-xs text-muted-foreground">General workspace collaboration</p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const meetingId = `meeting-${Date.now()}`;
+                const socket = getSocket();
+                socket?.emit('meeting:start', { meetingId, title: 'Team Meeting', mediaType: 'video' });
+                window.dispatchEvent(new CustomEvent('join-team-meeting', { detail: { meetingId, title: 'Team Meeting', mediaType: 'video' } }));
+              }}
+              className="h-8 gap-1.5 text-xs text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+            >
+              <Video className="h-3.5 w-3.5" /> Start Team Meeting
+            </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setSearchOpen(o => !o); setSearchTerm(''); setCurrentMatchIndex(0); }}>
               <Search className="h-4 w-4" />
             </Button>
@@ -899,7 +895,7 @@ export default function MessengerModule({ userProfile }) {
                 <Label htmlFor="chat-files" className="h-10 w-10 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center cursor-pointer shrink-0 transition-colors border border-border">
                   <Paperclip className="h-4 w-4 text-muted-foreground" />
                 </Label>
-                <Input
+                <input
                   id="chat-files"
                   type="file"
                   multiple

@@ -1,7 +1,18 @@
 import express from 'express';
-import { createTask, getAllTasks, updateTask, deleteTask } from '../controllers/taskController.js';
+import {
+  createTask,
+  getAllTasks,
+  updateTask,
+  deleteTask,
+  getSchedulesReport,
+  sendSchedulesReport,
+} from '../controllers/taskController.js';
 
 const router = express.Router();
+
+// Report endpoints (must be before /:id)
+router.get('/report', getSchedulesReport);
+router.post('/send-report', sendSchedulesReport);
 
 router.post('/', createTask);
 router.get('/', getAllTasks);

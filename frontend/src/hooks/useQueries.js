@@ -1279,5 +1279,249 @@ export function useSendPayrollReport() {
   });
 }
 
+// ==========================================
+// Schedules & Tasks Report Hooks
+// ==========================================
+
+export function useGetSchedulesReport(filters = {}, enabled = true) {
+  const params = new URLSearchParams();
+  if (filters.period) params.set('period', filters.period);
+  if (filters.date) params.set('date', filters.date);
+  if (filters.month) params.set('month', filters.month);
+  if (filters.year) params.set('year', filters.year);
+  if (filters.department && filters.department !== 'all') params.set('department', filters.department);
+  if (filters.status && filters.status !== 'all') params.set('status', filters.status);
+  if (filters.search) params.set('search', filters.search);
+
+  return useQuery({
+    queryKey: ['tasks', 'report', filters],
+    queryFn: async () => {
+      const res = await authFetch(`/api/tasks/report?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch schedules report');
+      }
+      return res.json();
+    },
+    enabled: enabled,
+  });
+}
+
+export function useSendSchedulesReport() {
+  return useMutation({
+    mutationFn: async (payload) => {
+      const res = await authFetch('/api/tasks/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to send schedules report');
+      }
+      return res.json();
+    },
+  });
+}
+
+// ==========================================
+// Policy Compliance & Acknowledgment Hooks
+// ==========================================
+
+export function useGetEmployeePolicyStatus() {
+  return useQuery({
+    queryKey: ['policies', 'employee-status'],
+    queryFn: async () => {
+      const res = await authFetch('/api/policies/employee-status');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch policy status');
+      }
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+}
+
+export function useAcceptPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (policyId) => {
+      const res = await authFetch(`/api/policies/${policyId}/accept`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to accept policy');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+    },
+  });
+}
+
+export function useDeclinePolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ policyId, reason }) => {
+      const res = await authFetch(`/api/policies/${policyId}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to decline policy');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+    },
+  });
+}
+
+export function useGetCompanyPolicyReviews() {
+  return useQuery({
+    queryKey: ['policies', 'reviews'],
+    queryFn: async () => {
+      const res = await authFetch('/api/policies/reviews');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch policy reviews');
+      }
+      return res.json();
+    },
+  });
+}
+
+export function useAllowEmployeeWorkForward() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ackId, notes }) => {
+      const res = await authFetch(`/api/policies/acknowledgments/${ackId}/allow`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to allow employee to work forward');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] });
+    },
+  });
+}
+
+// ==========================================
+// Project Hooks (Company Schedule Segment)
+// ==========================================
+
+export function useGetProjects() {
+  return useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      const res = await authFetch('/api/projects');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to fetch projects');
+      }
+      return res.json();
+    },
+  });
+}
+
+export function useCreateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload) => {
+      const res = await authFetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to create project');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }) => {
+      const res = await authFetch(`/api/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to update project');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const res = await authFetch(`/api/projects/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to delete project');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
+export function useCreateProjectTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ projectId, ...payload }) => {
+      const res = await authFetch(`/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to create project task');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+
 
 

@@ -14,9 +14,17 @@ const DEFAULT_PASSWORD = '1234';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const assetsDir = path.resolve(__dirname, '..', '..', 'assets');
+const profilesDir = path.resolve(assetsDir, 'profiles');
 const uploadsDir = path.resolve(__dirname, '..', '..', 'uploads');
 
 const ensureUploadsDir = async () => {
+  try {
+    if (fs.existsSync(uploadsDir) && !fs.statSync(uploadsDir).isDirectory()) {
+      fs.unlinkSync(uploadsDir);
+    }
+  } catch (e) {}
+  await fs.promises.mkdir(profilesDir, { recursive: true });
   await fs.promises.mkdir(uploadsDir, { recursive: true });
 };
 
@@ -44,24 +52,27 @@ const saveAvatarDataUri = async (dataUri, seed) => {
   const ext = extFromMime(parsed.mime);
   const safeSeed = String(seed || 'user').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'user';
   const filename = `avatar-${safeSeed}-${Date.now()}.${ext}`;
-  const filePath = path.join(uploadsDir, filename);
-  await fs.promises.writeFile(filePath, Buffer.from(parsed.data, 'base64'));
-  return `/uploads/${filename}`;
+  const profileFilePath = path.join(profilesDir, filename);
+  const uploadFilePath = path.join(uploadsDir, filename);
+  const buffer = Buffer.from(parsed.data, 'base64');
+  await fs.promises.writeFile(profileFilePath, buffer);
+  try { await fs.promises.writeFile(uploadFilePath, buffer); } catch (e) {}
+  return `/assets/profiles/${filename}`;
 };
 
 const normalizeAvatarInput = async (raw, seed) => {
   if (!raw) return raw;
   const s = String(raw).trim();
   if (!s) return s;
-  const normalized = s.startsWith('/uploads/data:') ? s.replace(/^\/uploads\//, '') : s;
+  const normalized = s.startsWith('/uploads/data:') ? s.replace(/^\/uploads\//, '') : (s.startsWith('/assets/profiles/data:') ? s.replace(/^\/assets\/profiles\//, '') : s);
   if (normalized.startsWith('data:')) {
     const saved = await saveAvatarDataUri(normalized, seed);
     return saved || s;
   }
-  if (normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/uploads/')) {
+  if (normalized.startsWith('http://') || normalized.startsWith('https://') || normalized.startsWith('/assets/') || normalized.startsWith('/uploads/')) {
     return normalized;
   }
-  return `/uploads/${normalized.replace(/^\/+/, '')}`;
+  return `/assets/profiles/${normalized.replace(/^\/+/, '')}`;
 };
 
 const normalizeIsoDate = (value) => {
@@ -153,19 +164,24 @@ export const createUser = async (req, res) => {
       const comp = await Company.findById(body.companyId).select('name').lean();
       if (comp) body.company = comp.name;
     }
-    if (body.avatar !== undefined) {
-      body.avatar = await normalizeAvatarInput(body.avatar, body.userId || body.username || body.name || 'user');
-    } else {
-      // Auto-generate a gender-based avatar if none is provided
-      body.avatar = getDefaultAvatar(body.gender, body.userId || body.username || body.name || 'user');
+    if (!body.avatar) {
+      return res.status(400).json({ message: 'Profile picture is mandatory. Please upload an image.' });
     }
+    body.avatar = await normalizeAvatarInput(body.avatar, body.userId || body.username || body.name || 'user');
+    body.lastAvatarUpdate = new Date();
     const user = new User(body);
     await user.save();
 
-    // Synchronize to PostgreSQL Auth Service safely and asynchronously
-    syncMongoUserToPg(user, pwd).catch(err => {
-      console.warn('[AUTH-INTEGRATION] PG sync for user failed:', err.message);
-    });
+    // Synchronize to PostgreSQL Auth Service safely and immediately
+    try {
+      const syncResult = await syncMongoUserToPg(user, pwd);
+      if (syncResult && syncResult.pgUserId) {
+        user.pgUserId = syncResult.pgUserId;
+        user.syncedWithPg = true;
+      }
+    } catch (syncErr) {
+      console.warn('[AUTH-INTEGRATION] PG sync for user failed:', syncErr.message);
+    }
 
     res.status(201).json(sanitizeUser(user));
   } catch (error) {
@@ -319,19 +335,6 @@ export const updateUser = async (req, res) => {
     if (!existingUser) return res.status(404).json({ message: 'User not found' });
 
     if (body.avatar !== undefined && body.avatar !== existingUser.avatar) {
-      // 15-day cooldown only applies to self-edits; admin/owner/param can change any user's avatar
-      const isSelfEdit = req.user?.userId === id;
-      if (isSelfEdit || !isPrivileged) {
-        if (existingUser.lastAvatarUpdate) {
-          const diff = Date.now() - existingUser.lastAvatarUpdate.getTime();
-          const days = diff / (1000 * 60 * 60 * 24);
-          if (days < 15) {
-            return res.status(400).json({ 
-              message: `Profile photo can only be changed once every 15 days. Please wait ${Math.ceil(15 - days)} more days.` 
-            });
-          }
-        }
-      }
       body.avatar = await normalizeAvatarInput(body.avatar, id || body.userId || body.username || body.name || 'user');
       body.lastAvatarUpdate = new Date();
     }
@@ -368,6 +371,12 @@ export const updateUser = async (req, res) => {
     const updateFilter = { _id: existingUser._id };
     const user = await User.findOneAndUpdate(updateFilter, body, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Keep PostgreSQL synchronized on updates
+    syncMongoUserToPg(user).catch(err => {
+      console.warn('[AUTH-INTEGRATION] PG sync on update failed:', err.message);
+    });
+
     res.status(200).json(sanitizeUser(user));
   } catch (error) {
     res.status(400).json({ message: error.message });

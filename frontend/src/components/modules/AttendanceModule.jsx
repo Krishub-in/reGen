@@ -13,7 +13,6 @@ import { format } from 'date-fns';
 import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { toast } from 'sonner';
 import { isTaskExpired } from '@/lib/taskUtils';
-import AttendanceReportDialog from './AttendanceReportDialog';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 
 export default function AttendanceModule({ userProfile }) {
@@ -174,7 +173,6 @@ export default function AttendanceModule({ userProfile }) {
   const [filterEmployee, setFilterEmployee] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [showHistory, setShowHistory] = useState(false);
-  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
   const greeting = useMemo(() => {
     const h = currentTime.getHours();
@@ -873,15 +871,6 @@ export default function AttendanceModule({ userProfile }) {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsReportDialogOpen(true)}
-              className="gap-1.5 text-xs h-8 border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Attendance Report
-            </Button>
             <span className={cn(
               "px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5",
               isCheckedIn && !isCheckedOut
@@ -1204,13 +1193,6 @@ export default function AttendanceModule({ userProfile }) {
             </div>
           </CardContent>
         </Card>
-
-        <AttendanceReportDialog
-          open={isReportDialogOpen}
-          onOpenChange={setIsReportDialogOpen}
-          companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
-          userProfile={userProfile}
-        />
       </div>
     );
   }
@@ -1379,13 +1361,6 @@ export default function AttendanceModule({ userProfile }) {
         </div>
 
         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2 w-full md:w-auto">
-          <Button
-            className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto shadow-sm gap-1.5"
-            onClick={() => setIsReportDialogOpen(true)}
-          >
-            <FileText className="h-4 w-4" />
-            Attendance Report & Send
-          </Button>
           <Button variant="outline" className="w-full sm:w-auto shadow-2xs" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
             Export CSV
@@ -1590,13 +1565,6 @@ export default function AttendanceModule({ userProfile }) {
           )}
         </div>
       </Card>
-
-      <AttendanceReportDialog
-        open={isReportDialogOpen}
-        onOpenChange={setIsReportDialogOpen}
-        companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
-        userProfile={userProfile}
-      />
     </div>
   );
 }

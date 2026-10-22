@@ -471,8 +471,10 @@ export default function PrivateChatModule({ userProfile }) {
     if (!avatar) return '';
     const s = String(avatar).trim();
     if (!s) return '';
-    if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/uploads/')) return s;
-    return `/uploads/${s.replace(/^\/+/, '')}`;
+    if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/uploads/') || s.startsWith('/assets/')) {
+      return s.replace(/^\/uploads\/assets\//, '/assets/');
+    }
+    return `/assets/profiles/${s.replace(/^\/+/, '')}`;
   };
 
   // ─── E2E Key Exchange ──────────────────────────────────────────
@@ -1326,11 +1328,11 @@ export default function PrivateChatModule({ userProfile }) {
 
             {/* Anchored Composer */}
             <div className="p-3 md:p-4 border-t border-border bg-card/90 backdrop-blur-xs shrink-0">
-              <form onSubmit={handleSend} className="flex items-center gap-2">
+              <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
                 <Label htmlFor="dm-files" className="h-10 w-10 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center cursor-pointer shrink-0 transition-colors border border-border">
                   <Paperclip className="h-4 w-4 text-muted-foreground" />
                 </Label>
-                <Input id="dm-files" type="file" multiple className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
+                <input id="dm-files" type="file" multiple className="hidden" onChange={(e) => setFiles(Array.from(e.target.files || []))} />
 
                 {files.length > 0 && (
                   <div className="flex items-center gap-1.5 max-w-[30%] overflow-x-auto">

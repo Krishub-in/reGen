@@ -123,7 +123,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
   );
   const approvedLeaveDays = useMemo(() => {
     const list = (isAdmin ? leaveRequests : myLeaves).filter(l => l.status === 'approved');
-    const ranges = [];
+    const map = new Map();
     for (const l of list) {
       let d = new Date(l.startDate);
       const end = new Date(l.endDate);
@@ -131,19 +131,35 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
         const uid = toIdText(l.userId);
         const staff = users.find(u => toIdText(u.userId || u.id) === uid);
         const label = formatUserLabel(staff) || (l.displayId || l.userId);
-        ranges.push({ iso: format(d, 'yyyy-MM-dd'), name: label });
+        const iso = format(d, 'yyyy-MM-dd');
+        const item = {
+          id: l.id,
+          leave: l,
+          staff,
+          userId: uid,
+          name: label,
+          username: staff?.username || uid,
+          avatar: staff?.avatar || '',
+          department: staff?.department || '',
+          designation: staff?.designation || staff?.role || '',
+          type: l.type || 'Leave',
+          reason: l.reason || '',
+          startDate: l.startDate,
+          endDate: l.endDate,
+          status: 'approved'
+        };
+        const current = map.get(iso) || [];
+        current.push(item);
+        map.set(iso, current);
         d = addDays(d, 1);
       }
     }
-    const map = new Map();
-    for (const r of ranges) {
-      map.set(r.iso, r.name);
-    }
     return map;
   }, [isAdmin, leaveRequests, myLeaves, users]);
+
   const pendingLeaveDays = useMemo(() => {
     const list = (isAdmin ? leaveRequests : myLeaves).filter(l => l.status === 'pending');
-    const ranges = [];
+    const map = new Map();
     for (const l of list) {
       let d = new Date(l.startDate);
       const end = new Date(l.endDate);
@@ -151,16 +167,32 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
         const uid = toIdText(l.userId);
         const staff = users.find(u => toIdText(u.userId || u.id) === uid);
         const label = formatUserLabel(staff) || (l.displayId || l.userId);
-        ranges.push({ iso: format(d, 'yyyy-MM-dd'), name: label });
+        const iso = format(d, 'yyyy-MM-dd');
+        const item = {
+          id: l.id,
+          leave: l,
+          staff,
+          userId: uid,
+          name: label,
+          username: staff?.username || uid,
+          avatar: staff?.avatar || '',
+          department: staff?.department || '',
+          designation: staff?.designation || staff?.role || '',
+          type: l.type || 'Leave',
+          reason: l.reason || '',
+          startDate: l.startDate,
+          endDate: l.endDate,
+          status: 'pending'
+        };
+        const current = map.get(iso) || [];
+        current.push(item);
+        map.set(iso, current);
         d = addDays(d, 1);
       }
     }
-    const map = new Map();
-    for (const r of ranges) {
-      map.set(r.iso, r.name);
-    }
     return map;
   }, [isAdmin, leaveRequests, myLeaves, users]);
+
   const birthdayDays = useMemo(() => {
     const map = new Map();
     const pad2 = (n) => String(n).padStart(2, '0');
@@ -195,11 +227,22 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       }
       const iso = `${currentYear}-${pad2(month)}-${pad2(day)}`;
       const list = map.get(iso) || [];
-      list.push(getBirthdayLabel(u));
+      list.push({
+        id: u?.id || u?.userId || toIdText(u),
+        user: u,
+        name: getBirthdayLabel(u),
+        fullName: formatUserLabel(u),
+        username: u?.username || toIdText(u?.userId || u?.id),
+        avatar: u?.avatar || '',
+        department: u?.department || '',
+        designation: u?.designation || u?.role || '',
+        dateOfBirth: u?.dateOfBirth
+      });
       map.set(iso, list);
     }
     return map;
   }, [users, monthDate]);
+
   const monthMatrix = useMemo(() => {
     const start = startOfMonth(monthDate);
     const end = endOfMonth(monthDate);
@@ -209,11 +252,15 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       const d = addDays(gridStart, i);
       const inMonth = d.getMonth() === monthDate.getMonth();
       const iso = format(d, 'yyyy-MM-dd');
-      const leaveName = approvedLeaveDays.get(iso);
-      const pendingLeaveName = pendingLeaveDays.get(iso);
+      const approvedLeavesList = approvedLeaveDays.get(iso) || [];
+      const pendingLeavesList = pendingLeaveDays.get(iso) || [];
+      const allLeavesList = [...approvedLeavesList, ...pendingLeavesList];
       const holidayName = holidayMap.get(iso);
-      const bdays = birthdayDays.get(iso);
-      const birthdayLabel = bdays && bdays.length ? bdays.join(', ') : '';
+      const birthdaysList = birthdayDays.get(iso) || [];
+      const birthdayLabel = birthdaysList.length > 0 ? birthdaysList.map(b => b.name).join(', ') : '';
+      const leaveName = approvedLeavesList.length > 0 ? approvedLeavesList.map(l => l.name).join(', ') : '';
+      const pendingLeaveName = pendingLeavesList.length > 0 ? pendingLeavesList.map(l => l.name).join(', ') : '';
+
       days.push({
         date: d,
         iso,
@@ -222,7 +269,11 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
         holidayName,
         leaveName,
         pendingLeaveName,
-        birthdayLabel
+        birthdayLabel,
+        birthdaysList,
+        approvedLeavesList,
+        pendingLeavesList,
+        allLeavesList
       });
     }
     const weeks = [];
@@ -299,13 +350,13 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       const iso = format(cur, 'yyyy-MM-dd');
       
       // Birthday
-      const bdays = birthdayDays.get(iso);
-      if (bdays && bdays.length) {
+      const bdays = birthdayDays.get(iso) || [];
+      if (bdays.length > 0) {
         list.push({
           id: `bday-${iso}`,
           date: new Date(cur),
           iso,
-          title: bdays.join(', '),
+          title: bdays.map(b => b.name).join(', '),
           type: 'birthday',
           typeLabel: 'Birthday',
           icon: '🎂',
@@ -331,13 +382,13 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       }
 
       // Approved Leave
-      const appLeave = approvedLeaveDays.get(iso);
-      if (appLeave) {
+      const appLeaves = approvedLeaveDays.get(iso) || [];
+      if (appLeaves.length > 0) {
         list.push({
           id: `leave-${iso}`,
           date: new Date(cur),
           iso,
-          title: `Leave: ${appLeave}`,
+          title: `Leave: ${appLeaves.map(l => l.name).join(', ')}`,
           type: 'approved',
           typeLabel: 'Approved Leave',
           icon: '🌴',
@@ -347,13 +398,13 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
       }
 
       // Pending Leave
-      const pendLeave = pendingLeaveDays.get(iso);
-      if (pendLeave) {
+      const pendLeaves = pendingLeaveDays.get(iso) || [];
+      if (pendLeaves.length > 0) {
         list.push({
           id: `pending-${iso}`,
           date: new Date(cur),
           iso,
-          title: `Pending: ${pendLeave}`,
+          title: `Pending: ${pendLeaves.map(l => l.name).join(', ')}`,
           type: 'pending',
           typeLabel: 'Pending Leave',
           icon: '⏳',
@@ -1361,53 +1412,200 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
 
 {/* 4. Cell Detail Dialog */}
       <Dialog open={isCellDialogOpen} onOpenChange={setIsCellDialogOpen}>
-        <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground max-w-lg">
-          <DialogHeader className="pb-2 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
-            <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4] flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-[#0D9488] dark:text-[#14B8A6]" />
-              <span>{selectedCell ? format(selectedCell.date, 'EEEE, MMMM d, yyyy') : 'Event Details'}</span>
-            </DialogTitle>
+        <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader className="pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4] flex items-center gap-2">
+                <CalendarIcon className="w-5 h-5 text-[#0D9488] dark:text-[#14B8A6]" />
+                <span>{selectedCell ? format(selectedCell.date, 'EEEE, MMMM d, yyyy') : 'Day Breakdown'}</span>
+              </DialogTitle>
+            </div>
+            {selectedCell && (
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#FEF9C3] text-[#854D0E] border border-[#D4AF37]/40 dark:bg-[#2A2310] dark:text-[#FFD700]">
+                  🎂 {selectedCell.birthdaysList?.length || 0} Birthday{(selectedCell.birthdaysList?.length || 0) === 1 ? '' : 's'}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#D1FAE5] text-[#065F46] border border-[#059669]/30 dark:bg-emerald-950/60 dark:text-emerald-200">
+                  🌴 {selectedCell.allLeavesList?.length || 0} on Leave
+                  {selectedCell.allLeavesList?.length > 0 && (
+                    <span className="text-[10px] font-normal opacity-80">
+                      ({selectedCell.approvedLeavesList?.length || 0} approved, {selectedCell.pendingLeavesList?.length || 0} pending)
+                    </span>
+                  )}
+                </span>
+                {selectedCell.isHoliday && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#DBEAFE] text-[#1E40AF] border border-[#2563EB]/30 dark:bg-blue-950/60 dark:text-blue-200">
+                    🏖️ Holiday
+                  </span>
+                )}
+              </div>
+            )}
           </DialogHeader>
+
           {selectedCell && (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-4 pt-2">
+              {/* Holiday Alert */}
               {selectedCell.isHoliday && (
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#DBEAFE] text-[#1E40AF] border border-[#2563EB]/30 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-500/50">
-                  <span className="text-xl">🏖️</span>
+                <div className="flex items-start gap-3 p-3.5 rounded-xl bg-[#DBEAFE]/80 text-[#1E40AF] border border-[#2563EB]/30 dark:bg-blue-950/60 dark:text-blue-200 dark:border-blue-500/50">
+                  <span className="text-2xl shrink-0 mt-0.5">🏖️</span>
                   <div>
                     <p className="font-bold text-sm">Official Company Holiday</p>
-                    <p className="text-xs">{selectedCell.holidayName || 'Company Holiday'}</p>
+                    <p className="text-xs text-[#1E3A8A] dark:text-blue-300 font-medium">{selectedCell.holidayName || 'Company Holiday'}</p>
                   </div>
                 </div>
               )}
-              {selectedCell.birthdayLabel && (
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FEF9C3] text-[#854D0E] border border-[#D4AF37]/50 dark:bg-[#2A2310] dark:text-[#FFD700] dark:border-[#D4AF37]/60 shadow-sm">
-                  <span className="text-xl">🎂</span>
-                  <div>
-                    <p className="font-bold text-sm text-[#78350F] dark:text-[#FFD700]">Team Birthday</p>
-                    <p className="text-xs text-[#854D0E] dark:text-[#FDE047] font-medium">{String(selectedCell.birthdayLabel)}</p>
-                  </div>
+
+              {/* Birthdays Section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0] flex items-center gap-1.5">
+                    <span>🎂 Birthdays on this day</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-[#FEF9C3] text-[#854D0E] dark:bg-[#2A2310] dark:text-[#FFD700] border-[#D4AF37]/40">
+                      {selectedCell.birthdaysList?.length || 0}
+                    </Badge>
+                  </h4>
                 </div>
-              )}
-              {selectedCell.leaveName && (
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#D1FAE5] text-[#065F46] border border-[#059669]/30 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-500/50">
-                  <span className="text-xl">🌴</span>
-                  <div>
-                    <p className="font-bold text-sm">Approved Leave</p>
-                    <p className="text-xs">{selectedCell.leaveName}</p>
+
+                {selectedCell.birthdaysList?.length > 0 ? (
+                  <div className="grid gap-2">
+                    {selectedCell.birthdaysList.map((b, idx) => (
+                      <div
+                        key={b.id || idx}
+                        className="flex items-center justify-between p-3 rounded-xl border border-[#D4AF37]/40 bg-gradient-to-r from-[#FFFDF0] to-[#FFF9DB]/70 dark:from-[#242010] dark:to-[#181508] dark:border-[#D4AF37]/50 shadow-2xs"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          {b.avatar ? (
+                            <img
+                              src={b.avatar}
+                              alt={b.name}
+                              className="w-10 h-10 rounded-full object-cover border-2 border-[#D4AF37] shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-white font-bold flex items-center justify-center text-sm shrink-0 border border-amber-300 shadow-2xs">
+                              {(b.fullName || b.name || 'U').slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                              {b.fullName || b.name}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                              <span>@{b.username || 'user'}</span>
+                              {b.department && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">{b.department}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-[#FEF3C7] text-[#92400E] border border-amber-300/60 dark:bg-amber-950/80 dark:text-amber-300">
+                            🎉 Birthday
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
-              {selectedCell.pendingLeaveName && (
-                <div className="flex items-center gap-3 p-3.5 rounded-xl bg-[#FEF3C7] text-[#92400E] border border-[#D97706]/30 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-500/50">
-                  <span className="text-xl">⏳</span>
-                  <div>
-                    <p className="font-bold text-sm">Pending Leave Request</p>
-                    <p className="text-xs">{selectedCell.pendingLeaveName}</p>
+                ) : (
+                  <div className="p-3 text-center rounded-xl bg-[#F4F8FA]/60 dark:bg-[#1D303B]/40 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                    No employee birthdays on this date.
                   </div>
+                )}
+              </div>
+
+              {/* Leaves Section */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#64748B] dark:text-[#A6B5C0] flex items-center gap-1.5">
+                    <span>🌴 Team on Leave on this day</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-[#D1FAE5] text-[#065F46] dark:bg-emerald-950/60 dark:text-emerald-200 border-[#059669]/30">
+                      {selectedCell.allLeavesList?.length || 0}
+                    </Badge>
+                  </h4>
                 </div>
-              )}
-              {!selectedCell.isHoliday && !selectedCell.leaveName && !selectedCell.pendingLeaveName && !selectedCell.birthdayLabel && (
-                <div className="py-8 text-center text-sm text-[#64748B] dark:text-[#A6B5C0]">
+
+                {selectedCell.allLeavesList?.length > 0 ? (
+                  <div className="grid gap-2">
+                    {selectedCell.allLeavesList.map((l, idx) => {
+                      const daysCount = daysBetweenInclusive(l.startDate, l.endDate);
+                      const isApproved = l.status === 'approved';
+
+                      return (
+                        <div
+                          key={l.id || idx}
+                          className="p-3.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] shadow-2xs space-y-2 hover:border-[#0D9488]/40 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              {l.avatar ? (
+                                <img
+                                  src={l.avatar}
+                                  alt={l.name}
+                                  className="w-10 h-10 rounded-full object-cover border border-[#DFE8EC] dark:border-[#2A3D48] shrink-0"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-full bg-[#0D9488]/15 text-[#0D9488] dark:text-[#14B8A6] font-bold flex items-center justify-center text-sm shrink-0">
+                                  {(l.name || 'U').slice(0, 2).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                                  {l.name}
+                                </p>
+                                <div className="flex items-center gap-2 text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                                  <span>@{l.username || l.userId}</span>
+                                  {l.department && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="truncate">{l.department}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider border ${
+                                isApproved
+                                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                              }`}>
+                                {isApproved ? 'Approved Leave' : 'Pending Request'}
+                              </span>
+                              <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0] capitalize">
+                                {l.type || 'Leave'} ({daysCount} {daysCount === 1 ? 'day' : 'days'})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-xs text-[#64748B] dark:text-[#A6B5C0] pt-1 border-t border-[#DFE8EC]/60 dark:border-[#2A3D48]/60">
+                            <CalendarDays className="w-3.5 h-3.5 text-[#0D9488] dark:text-[#14B8A6] shrink-0" />
+                            <span className="font-medium text-[#172B3A] dark:text-[#E8F0F4]">
+                              {formatFriendlyDate(l.startDate)} — {formatFriendlyDate(l.endDate)}
+                            </span>
+                          </div>
+
+                          {l.reason && (
+                            <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] italic bg-[#F4F8FA] dark:bg-[#1D303B] p-2 rounded-lg">
+                              "{l.reason}"
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3 text-center rounded-xl bg-[#F4F8FA]/60 dark:bg-[#1D303B]/40 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                    No employees on leave on this date.
+                  </div>
+                )}
+              </div>
+
+              {/* Completely Empty state if neither holiday, birthday, nor leave */}
+              {!selectedCell.isHoliday && (!selectedCell.birthdaysList || selectedCell.birthdaysList.length === 0) && (!selectedCell.allLeavesList || selectedCell.allLeavesList.length === 0) && (
+                <div className="py-6 text-center text-sm text-[#64748B] dark:text-[#A6B5C0]">
                   No company events, birthdays, or leaves scheduled on this day.
                 </div>
               )}

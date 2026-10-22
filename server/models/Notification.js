@@ -19,7 +19,9 @@ const notificationSchema = new mongoose.Schema({
       'payroll',
       'bonus',
       'deduction',
-      'attendance'
+      'attendance',
+      'policy',
+      'project_task'
     ],
     default: 'general'
   },

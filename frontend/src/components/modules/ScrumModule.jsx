@@ -224,6 +224,59 @@ export default function ScrumModule({ userProfile }) {
     }
   };
 
+  const pauseAllActiveTasksForUser = async (excludeNoteId = null) => {
+    const currentId = toIdText(userProfile.userId || userProfile.id || currentUserId || '');
+    const notesSource = isAdmin ? allScrumNotes : myScrumNotes;
+    const runningNotes = notesSource.filter(n => {
+      const sid = toIdText(n.userId);
+      const applied = optimisticScrum[n.id] ? { ...n, ...optimisticScrum[n.id] } : n;
+      return sid === currentId && applied.status === 'in_progress' && n.id !== excludeNoteId;
+    });
+
+    for (const note of runningNotes) {
+      try {
+        const base = typeof note.timer === 'number' ? note.timer : (note.timer ? Number(note.timer) : (typeof note.timmer === 'number' ? note.timmer : (note.timmer ? Number(note.timmer) : 0)));
+        const startMs = optimisticScrum[note.id]?.timerStartMs || (toDate(note.updatedAt)?.getTime() || 0);
+        const addSecs = startMs ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0;
+        const newTimer = Math.floor(base + addSecs);
+
+        setOptimistic(note.id, {
+          status: 'paused',
+          timer: newTimer,
+          pausedAt: new Date().toISOString(),
+          updatedAt: BigInt(Date.now() * 1000000)
+        });
+
+        await updateScrumNote.mutateAsync({
+          ...note,
+          status: 'paused',
+          timer: newTimer,
+          pausedAt: new Date().toISOString(),
+          updatedAt: BigInt(Date.now() * 1000000)
+        });
+
+        const matchedT = tasks.find(tt =>
+          toIdText(tt.assignedTo || tt.assignee || '') === currentId &&
+          tt.title.trim().toLowerCase() === (note.taskDetails || '').trim().toLowerCase()
+        );
+        if (matchedT && matchedT.status !== 'paused' && matchedT.status !== 'completed' && matchedT.status !== 'done') {
+          await updateTask.mutateAsync({
+            id: matchedT.id,
+            title: matchedT.title,
+            description: matchedT.description,
+            assignedTo: matchedT.assignedTo || currentId,
+            assignee: matchedT.assignedTo || currentId,
+            status: 'paused',
+            startDate: matchedT.startDate,
+            endDate: matchedT.endDate
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to pause running task:', err);
+      }
+    }
+  };
+
   const handleScrumSubmit = async (e) => {
     e.preventDefault();
     if (!identity || !currentUserId) return;
@@ -268,9 +321,35 @@ export default function ScrumModule({ userProfile }) {
           toast.error('Only same-day scrums can be edited');
           return;
         }
+
+        // If switching to in_progress, pause other running tasks first
+        if (baseNote.status === 'in_progress') {
+          await pauseAllActiveTasksForUser(editingScrum.id);
+        }
+
         await updateScrumNote.mutateAsync(baseNote);
         toast.success('Scrum updated successfully');
       } else {
+        // Check if an existing uncompleted scrum note already exists for this task
+        const notesSource = isAdmin ? allScrumNotes : myScrumNotes;
+        const existingNote = notesSource.find(n =>
+          toIdText(n.userId) === currentId &&
+          n.taskDetails?.trim().toLowerCase() === baseNote.taskDetails.toLowerCase() &&
+          n.status !== 'completed'
+        );
+
+        if (existingNote) {
+          // Resume the existing note for this task (this will pause any other running task)
+          await handleMarkResume(existingNote);
+          resetScrumForm();
+          return;
+        }
+
+        // Exclusivity: if starting a task in progress, pause any currently ongoing task
+        if (baseNote.status === 'in_progress') {
+          await pauseAllActiveTasksForUser(baseNote.id);
+        }
+
         await addScrumNote.mutateAsync(baseNote);
         const t = matchedTask || tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title === baseNote.taskDetails);
         if (t) {
@@ -278,14 +357,15 @@ export default function ScrumModule({ userProfile }) {
             id: t.id,
             title: t.title,
             description: t.description,
-            assignee: t.assignee,
-            status: { inProgress: null },
+            assignedTo: t.assignedTo || currentId,
+            assignee: t.assignedTo || currentId,
+            status: 'in_progress',
             startDate: t.startDate,
             endDate: t.endDate
           });
         }
         setOptimistic(baseNote.id, { status: 'in_progress', timerStartMs: Date.now() });
-        toast.success('Scrum started successfully');
+        toast.success('Daily scrum started (ongoing task paused)');
       }
       resetScrumForm();
     } catch (error) {
@@ -313,8 +393,9 @@ export default function ScrumModule({ userProfile }) {
           id: t.id,
           title: t.title,
           description: t.description,
-          assignee: t.assignee,
-          status: { completed: null },
+          assignedTo: t.assignedTo || currentId,
+          assignee: t.assignedTo || currentId,
+          status: 'done',
           startDate: t.startDate,
           endDate: t.endDate
         });
@@ -342,6 +423,20 @@ export default function ScrumModule({ userProfile }) {
       });
       toast.success('Marked as paused');
       clearOptimistic(note.id);
+      const currentId = toIdText(userProfile.userId || userProfile.id || '');
+      const t = tasks.find(tt => toIdText(tt.assignedTo || tt.assignee || '') === currentId && tt.title.trim().toLowerCase() === (note.taskDetails || '').trim().toLowerCase());
+      if (t) {
+        await updateTask.mutateAsync({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          assignedTo: t.assignedTo || currentId,
+          assignee: t.assignedTo || currentId,
+          status: 'paused',
+          startDate: t.startDate,
+          endDate: t.endDate
+        });
+      }
     } catch (e) {
       toast.error('Failed to mark paused');
     }
@@ -363,8 +458,9 @@ export default function ScrumModule({ userProfile }) {
           id: t.id,
           title: t.title,
           description: t.description,
-          assignee: t.assignee,
-          status: { blocked: null },
+          assignedTo: t.assignedTo || currentId,
+          assignee: t.assignedTo || currentId,
+          status: 'blocked',
           startDate: t.startDate,
           endDate: t.endDate
         });
@@ -384,6 +480,10 @@ export default function ScrumModule({ userProfile }) {
         toast.error('The assigned time for this task has ended. This task is marked as Not Completed and cannot be opened or resumed.');
         return;
       }
+
+      // Exclusivity: pause any other ongoing task/scrum note first
+      await pauseAllActiveTasksForUser(note.id);
+
       setOptimistic(note.id, { status: 'in_progress', pausedAt: undefined, timerStartMs: Date.now(), updatedAt: BigInt(Date.now() * 1000000) });
       await updateScrumNote.mutateAsync({
         ...note,
@@ -391,7 +491,19 @@ export default function ScrumModule({ userProfile }) {
         pausedAt: undefined,
         updatedAt: BigInt(Date.now() * 1000000)
       });
-      toast.success('Resumed task');
+      if (t) {
+        await updateTask.mutateAsync({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          assignedTo: t.assignedTo || currentId,
+          assignee: t.assignedTo || currentId,
+          status: 'in_progress',
+          startDate: t.startDate,
+          endDate: t.endDate
+        });
+      }
+      toast.success('Task running (ongoing task paused)');
     } catch (e) {
       toast.error('Failed to resume');
     }

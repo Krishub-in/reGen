@@ -26,6 +26,8 @@ import meetingNoteRoutes from './routes/meetingNotes.js';
 import scrumRoutes from './routes/scrum.js';
 import holidayRoutes from './routes/holidays.js';
 import payrollRoutes from './routes/payroll.js';
+import policyRoutes from './routes/policyRoutes.js';
+import projectRoutes from './routes/projects.js';
 import { runBirthdayReminderJob } from './controllers/notificationController.js';
 import SystemSetting from './models/SystemSetting.js';
 import { maintenanceCheck } from './middleware/maintenanceCheck.js';
@@ -93,37 +95,53 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(globalInputValidator);
 
-// Setup uploads directory
-const uploadsDir = path.resolve(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
-app.use('/uploads', express.static(uploadsDir));
-app.get(/^\/avatar-[^/]+\.(jpg|jpeg|png|gif|webp)$/i, (req, res) => {
-  const fileName = path.basename(req.path);
-  const filePath = path.join(uploadsDir, fileName);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).end();
-  }
-  return res.sendFile(filePath);
-});
-
-// Setup attachment directory
+// Setup attachment directory & profiles directory
 const assetsDir = path.resolve(__dirname, '..', 'assets');
+const profilesDir = path.resolve(assetsDir, 'profiles');
 if (!fs.existsSync(assetsDir)) {
   fs.mkdirSync(assetsDir, { recursive: true });
 }
-app.use('/assets', express.static(assetsDir));
+if (!fs.existsSync(profilesDir)) {
+  fs.mkdirSync(profilesDir, { recursive: true });
+}
 
-// Configure multer for avatar uploads
+// Setup uploads directory with safety check against corrupted files
+const uploadsDir = path.resolve(__dirname, '..', 'uploads');
+try {
+  if (fs.existsSync(uploadsDir) && !fs.statSync(uploadsDir).isDirectory()) {
+    fs.unlinkSync(uploadsDir);
+  }
+} catch (e) {}
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+app.use('/assets', express.static(assetsDir));
+app.use('/profiles', express.static(profilesDir));
+app.use('/uploads/assets/profiles', express.static(profilesDir));
+app.use('/uploads/profiles', express.static(profilesDir));
+app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(profilesDir));
+app.get(/^\/avatar-[^/]+\.(jpg|jpeg|png|gif|webp)$/i, (req, res) => {
+  const fileName = path.basename(req.path);
+  const profilePath = path.join(profilesDir, fileName);
+  if (fs.existsSync(profilePath)) return res.sendFile(profilePath);
+  const filePath = path.join(uploadsDir, fileName);
+  if (fs.existsSync(filePath)) return res.sendFile(filePath);
+  return res.status(404).end();
+});
+
+// Configure multer for avatar & company logo uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadsDir);
+    cb(null, profilesDir);
   },
   filename: (req, file, cb) => {
-    const userId = req.body.userId || req.params.userId || Date.now();
-    const ext = path.extname(file.originalname);
-    cb(null, `avatar-${userId}-${Date.now()}${ext}`);
+    const id = req.body.userId || req.params.userId || req.params.companyId || req.body.companyId || Date.now();
+    const ext = path.extname(file.originalname) || '.png';
+    const isLogo = req.path?.includes('logo') || req.baseUrl?.includes('logo') || file.fieldname === 'logo';
+    const prefix = isLogo ? 'logo' : 'avatar';
+    cb(null, `${prefix}-${id}-${Date.now()}${ext}`);
   }
 });
 const upload = multer({ 
@@ -639,39 +657,28 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
 }, async (req, res) => {
   try {
     const userId = req.params.userId;
+    const isSuperAdmin = req.user?.role === 'param';
     const filter = { userId };
-    if (req.companyId) filter.companyId = req.companyId;
+    if (req.companyId && !isSuperAdmin) filter.companyId = req.companyId;
     const existingUser = await User.findOne(filter);
     if (!existingUser) {
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // 15-day restriction only for self-uploads; admin/owner/param can change any user's avatar
-    const isSelfUpload = req.user?.userId === userId;
-    const isPrivileged = ['admin', 'owner', 'param'].includes(req.user?.role);
-    if (isSelfUpload || !isPrivileged) {
-      if (existingUser.lastAvatarUpdate) {
-        const diff = Date.now() - existingUser.lastAvatarUpdate.getTime();
-        const days = diff / (1000 * 60 * 60 * 24);
-        if (days < 15) {
-          if (req.file) fs.unlinkSync(req.file.path);
-          return res.status(400).json({ 
-            message: `Profile photo can only be changed once every 15 days. Please wait ${Math.ceil(15 - days)} more days.` 
-          });
-        }
-      }
-    }
-
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
-    const avatarPath = `/uploads/${req.file.filename}`;
+    const avatarPath = `/assets/profiles/${req.file.filename}`;
+    try {
+      const uploadCopy = path.join(uploadsDir, req.file.filename);
+      fs.copyFileSync(req.file.path, uploadCopy);
+    } catch (e) {}
     
     // Update user's avatar field
     const avatarFilter = { userId };
-    if (req.companyId) avatarFilter.companyId = req.companyId;
+    if (req.companyId && !isSuperAdmin) avatarFilter.companyId = req.companyId;
     const user = await User.findOneAndUpdate(
       avatarFilter,
       { avatar: avatarPath, lastAvatarUpdate: new Date() },
@@ -701,6 +708,55 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
   }
 });
 
+// Company Logo Upload Endpoint
+app.post(['/api/company/:companyId/logo', '/api/company/logo'], (req, res, next) => {
+  upload.single('logo')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 5MB)' : err.message });
+    }
+    if (err) return res.status(400).json({ message: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    const companyId = req.params.companyId || req.companyId;
+    if (!companyId) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ message: 'Company ID is required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const logoPath = `/assets/profiles/${req.file.filename}`;
+    try {
+      const uploadCopy = path.join(uploadsDir, req.file.filename);
+      fs.copyFileSync(req.file.path, uploadCopy);
+    } catch (e) {}
+
+    const company = await Company.findByIdAndUpdate(
+      companyId,
+      { logo: logoPath },
+      { new: true }
+    );
+    if (!company) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ message: 'Company not found' });
+    }
+
+    res.status(200).json({
+      message: 'Company logo uploaded successfully',
+      logo: logoPath,
+      company
+    });
+  } catch (error) {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+    }
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Protected API routes (all behind verifyToken + companyScope + maintenanceCheck)
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
@@ -714,6 +770,8 @@ app.use('/api/meeting-notes', meetingNoteRoutes);
 app.use('/api/scrum', scrumRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/policies', policyRoutes);
+app.use('/api/projects', projectRoutes);
 
 // === SuperAdmin Deploy Endpoints ===
 const execAsync = promisify(exec);

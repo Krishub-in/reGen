@@ -9,19 +9,30 @@ import {
   useGetAllLeaveRequests,
   useGetAllTasks,
   useGetRecentTransactions,
-  useGetCompanyInfo
+  useGetCompanyInfo,
+  useGetProjects
 } from '../../hooks/useQueries';
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 import { 
   Users, Building2, UserCheck, Search, CheckCircle2, ArrowUpRight, Calendar,
-  Clock, DollarSign, CreditCard, TrendingUp, MoreVertical
+  Clock, DollarSign, CreditCard, TrendingUp, MoreVertical, FolderKanban, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip 
 } from 'recharts';
+
+export const toLocalDateStr = (d) => {
+  if (!d) return '';
+  const dateObj = d instanceof Date ? d : new Date(d);
+  if (isNaN(dateObj.getTime())) return '';
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
 export default function DashboardHome({ userProfile, onNavigate, selectedYear = new Date().getFullYear(), setSelectedYear }) {
   const { identity } = useCustomAuth();
@@ -38,6 +49,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
   const { data: allTasks = [] } = useGetAllTasks();
   const { data: companyInfo } = useGetCompanyInfo();
   const { data: transactionsData } = useGetRecentTransactions({ year: selectedYear, limit: 100 });
+  const { data: allProjects = [] } = useGetProjects();
 
   // Dynamically sync and refetch attendance immediately on check-in or socket update
   useEffect(() => {
@@ -149,6 +161,25 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
     return new Set(list);
   }, [userProfile, identity, toIdText]);
 
+  // Projects where this user is an assigned employee
+  const userProjects = useMemo(() => {
+    return allProjects.filter(p => {
+      return (p.assignedEmployees || []).some(e => {
+        const uid = toIdText(e.userId).toLowerCase().trim();
+        return myIds.has(uid);
+      });
+    });
+  }, [allProjects, myIds, toIdText]);
+
+  // Tasks assigned to this user that are linked to a project
+  const userProjectTasks = useMemo(() => {
+    return allTasks.filter(t => {
+      if (!t.projectId) return false;
+      const assignee = toIdText(t.assignee || t.assignedTo).toLowerCase().trim();
+      return myIds.has(assignee);
+    });
+  }, [allTasks, myIds, toIdText]);
+
   const isMyAttendance = useCallback((a) => {
     if (!a) return false;
     const aIds = [
@@ -213,20 +244,21 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
     const raw = a?.date || a?.checkIn || a?.createdAt;
     if (!raw) return '';
     if (typeof raw === 'string') {
-      if (raw.includes('T')) return raw.split('T')[0];
-      if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
-      const d = new Date(raw);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-      return raw.trim();
+      const trimmed = raw.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) return trimmed.slice(0, 10);
+      const d = new Date(trimmed);
+      if (!isNaN(d.getTime())) return toLocalDateStr(d);
+      return trimmed;
     }
     if (typeof raw === 'number' || typeof raw === 'bigint') {
       const num = Number(raw);
       const ms = num > 1e14 ? num / 1e6 : (num > 1e11 ? num : num * 1000);
       const d = new Date(ms);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      if (!isNaN(d.getTime())) return toLocalDateStr(d);
     }
     if (raw instanceof Date) {
-      return raw.toISOString().split('T')[0];
+      return toLocalDateStr(raw);
     }
     return '';
   }, []);
@@ -281,7 +313,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
   }, [combinedAttendance, selectedYear, normalizeAttendanceDate]);
 
   // Today's Attendance Stats
-  const todayDate = new Date().toISOString().split('T')[0];
+  const todayDate = toLocalDateStr(new Date());
   const todayAttendance = useMemo(() => {
     return combinedAttendance.filter(a => normalizeAttendanceDate(a) === todayDate);
   }, [combinedAttendance, todayDate, normalizeAttendanceDate]);
@@ -312,15 +344,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
 
     if (trendRange === 'week' && isCurrentYear) {
       const dayOfWeek = (now.getDay() + 6) % 7;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - dayOfWeek);
-      monday.setHours(0, 0, 0, 0);
+      const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
 
       for (let i = 0; i <= dayOfWeek; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
+        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
         if (d.getDay() !== 0) {
-          targetDates.push(d.toISOString().split('T')[0]);
+          targetDates.push(toLocalDateStr(d));
         }
       }
     } else if (trendRange === 'month' && isCurrentYear) {
@@ -329,19 +358,18 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
       for (let day = 1; day <= currentDate; day++) {
         const d = new Date(selectedYear, currentMonth, day);
         if (d.getDay() !== 0) {
-          targetDates.push(d.toISOString().split('T')[0]);
+          targetDates.push(toLocalDateStr(d));
         }
       }
     } else {
       // Annual calculation for selectedYear
       const cur = new Date(selectedYear, 0, 1);
-      const endDay = isCurrentYear ? new Date(now) : new Date(selectedYear, 11, 31);
-      endDay.setHours(0, 0, 0, 0);
+      const endDay = isCurrentYear ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) : new Date(selectedYear, 11, 31);
 
       if (cur <= endDay) {
         while (cur <= endDay) {
           if (cur.getDay() !== 0) {
-            targetDates.push(cur.toISOString().split('T')[0]);
+            targetDates.push(toLocalDateStr(cur));
           }
           cur.setDate(cur.getDate() + 1);
         }
@@ -439,8 +467,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
       const recordsInWeek = sourceRecords.filter(a => {
         const dIso = normalizeAttendanceDate(a);
         if (!dIso) return false;
-        const d = new Date(dIso);
-        return d.getFullYear() === selectedYear && d.getMonth() === targetMonthIdx && d.getDate() >= w.start && d.getDate() <= w.end;
+        const parts = dIso.split('-');
+        if (parts.length !== 3) return false;
+        const y = Number(parts[0]);
+        const m = Number(parts[1]) - 1;
+        const day = Number(parts[2]);
+        return y === selectedYear && m === targetMonthIdx && day >= w.start && day <= w.end;
       });
 
       const dateSet = new Set(recordsInWeek.map(a => normalizeAttendanceDate(a)));
@@ -452,14 +484,11 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
 
     // 3. Week Trend (Mon-Sun)
     const dayOfWeek = (now.getDay() + 6) % 7;
-    const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - dayOfWeek);
-    startOfWeek.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
 
     const weekList = days.map((name, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      const dIso = d.toISOString().split('T')[0];
+      const d = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate() + i);
+      const dIso = toLocalDateStr(d);
 
       const recordsOnDay = sourceRecords.filter(a => normalizeAttendanceDate(a) === dIso);
       const attendedCount = recordsOnDay.filter(r => isPresentStatus(r.status) || isLateStatus(r.status)).length;
@@ -810,7 +839,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
         </div>
       ) : (
         /* Employee/User Dashboard Top Cards */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-5">
           {/* Card 1: My Annual Attendance Percentage */}
           <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden">
             <div className="flex items-start justify-between">
@@ -826,6 +855,32 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
               </div>
               <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground">
                 <UserCheck className="w-5 h-5 text-primary" />
+              </div>
+            </div>
+          </Card>
+
+          {/* Card: My Assigned Projects */}
+          <Card 
+            onClick={() => onNavigate('schedules')}
+            className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 relative overflow-hidden cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors">
+                  My Projects
+                </p>
+                <h3 className="text-3xl font-bold tracking-tight text-foreground mt-2">
+                  {userProjects.length}
+                </h3>
+                <div className="mt-3 flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 dark:text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-full">
+                    <FolderKanban className="w-3 h-3" /> {userProjectTasks.length} tasks
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">assigned</span>
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-secondary/80 text-muted-foreground group-hover:bg-teal-500/10 group-hover:text-teal-600 transition-all">
+                <FolderKanban className="w-5 h-5 text-primary" />
               </div>
             </div>
           </Card>
@@ -1203,20 +1258,20 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
           {/* Leave Records for Employee */}
           <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden">
             <div className="p-5 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-foreground">My Leaves ({selectedYear})</h3>
-                <p className="text-xs text-muted-foreground">{leavesInYear.length} total applications in {selectedYear}</p>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">My Leaves ({selectedYear})</h3>
+                  <p className="text-xs text-muted-foreground">{leavesInYear.length} total applications in {selectedYear}</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onNavigate('calendar')}
+                  className="text-xs h-8 rounded-xl gap-1.5 font-semibold"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  Apply Leave
+                </Button>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => onNavigate('calendar')}
-                className="text-xs h-8 rounded-xl gap-1.5 font-semibold"
-              >
-                <Calendar className="w-3.5 h-3.5 text-primary" />
-                Apply Leave
-              </Button>
-            </div>
 
             <div className="p-5">
               {leavesInYear.length === 0 ? (

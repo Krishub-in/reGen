@@ -64,48 +64,87 @@ export async function syncMongoUserToPg(mongoUser, rawPassword = null) {
       companyId: mongoUser.companyId ? mongoUser.companyId.toString() : null,
       companyName: mongoUser.company || null,
       role: mongoUser.role || 'staff',
+      email: email,
+      phone: phone,
       syncedFrom: 'mern',
       syncedAt: new Date().toISOString()
     };
 
-    // 1. Check if user already exists in PostgreSQL
+    // 1. Identify if this user already exists in PostgreSQL
+    // Primary identification in ReGen is pgUserId, userId, and username
     let existingPgUser = null;
 
-    if (email) {
-      const byEmail = await query('SELECT id, email, "passwordHash", "isBlocked" FROM "User" WHERE email = $1', [email]);
-      if (byEmail.rows.length > 0) existingPgUser = byEmail.rows[0];
-    }
-
-    if (!existingPgUser && phone) {
-      const byPhone = await query('SELECT id, phone, "passwordHash", "isBlocked" FROM "User" WHERE phone = $1', [phone]);
-      if (byPhone.rows.length > 0) existingPgUser = byPhone.rows[0];
+    if (mongoUser.pgUserId) {
+      const byPgId = await query('SELECT id, email, phone, "passwordHash", "isBlocked", "extraData" FROM "User" WHERE id = $1', [mongoUser.pgUserId]);
+      if (byPgId.rows.length > 0) existingPgUser = byPgId.rows[0];
     }
 
     if (!existingPgUser && userId) {
-      const byUserId = await query(`SELECT id, "passwordHash", "isBlocked" FROM "User" WHERE "extraData"->>'userId' = $1`, [userId]);
+      const byUserId = await query(`SELECT id, email, phone, "passwordHash", "isBlocked", "extraData" FROM "User" WHERE "extraData"->>'userId' = $1`, [userId]);
       if (byUserId.rows.length > 0) existingPgUser = byUserId.rows[0];
     }
 
     if (!existingPgUser && username) {
-      const byUsername = await query(`SELECT id, "passwordHash", "isBlocked" FROM "User" WHERE "extraData"->>'username' = $1`, [username]);
-      if (byUsername.rows.length > 0) existingPgUser = byUsername.rows[0];
+      const byUsername = await query(`SELECT id, email, phone, "passwordHash", "isBlocked", "extraData" FROM "User" WHERE "extraData"->>'username' = $1`, [username]);
+      if (byUsername.rows.length > 0) {
+        const rowUserId = byUsername.rows[0].extraData?.userId;
+        if (!rowUserId || rowUserId === userId) {
+          existingPgUser = byUsername.rows[0];
+        }
+      }
+    }
+
+    // Only match by email if the existing row is not already bound to a different ReGen userId
+    if (!existingPgUser && email) {
+      const byEmail = await query('SELECT id, email, phone, "passwordHash", "isBlocked", "extraData" FROM "User" WHERE email = $1', [email]);
+      if (byEmail.rows.length > 0) {
+        const rowUserId = byEmail.rows[0].extraData?.userId;
+        if (!rowUserId || rowUserId === userId) {
+          existingPgUser = byEmail.rows[0];
+        }
+      }
     }
 
     let pgUserId = null;
     let isNew = false;
+    const isInactive = mongoUser.status === 'inactive' || mongoUser.status === 'suspended';
 
     if (existingPgUser) {
       pgUserId = existingPgUser.id;
-      // Update extraData and passwordHash if rawPassword was explicitly supplied
+
+      // Safe update of email and phone (avoiding duplicate key violations against other users)
+      let updateEmail = existingPgUser.email;
+      if (email && email !== existingPgUser.email) {
+        const emailCollision = await query('SELECT id FROM "User" WHERE email = $1 AND id != $2', [email, pgUserId]);
+        if (emailCollision.rows.length === 0) {
+          updateEmail = email;
+        } else {
+          console.warn(`[AUTH-INTEGRATION] Email "${email}" collision in PG; keeping existing email for ${userId}`);
+        }
+      }
+
+      let updatePhone = existingPgUser.phone;
+      if (phone && phone !== existingPgUser.phone) {
+        const phoneCollision = await query('SELECT id FROM "User" WHERE phone = $1 AND id != $2', [phone, pgUserId]);
+        if (phoneCollision.rows.length === 0) {
+          updatePhone = phone;
+        } else {
+          console.warn(`[AUTH-INTEGRATION] Phone "${phone}" collision in PG; keeping existing phone for ${userId}`);
+        }
+      }
+
+      // Merge extraData preserving any existing external fields
+      const mergedExtra = { ...(existingPgUser.extraData || {}), ...extraData };
+
       if (rawPassword) {
         await query(
-          'UPDATE "User" SET "passwordHash" = $1, "extraData" = $2, "updatedAt" = NOW() WHERE id = $3',
-          [passwordHash, JSON.stringify(extraData), pgUserId]
+          'UPDATE "User" SET "passwordHash" = $1, "firstName" = $2, "lastName" = $3, email = $4, phone = $5, "extraData" = $6, "isBlocked" = $7, "updatedAt" = NOW() WHERE id = $8',
+          [passwordHash, firstName, lastName, updateEmail, updatePhone, JSON.stringify(mergedExtra), isInactive, pgUserId]
         );
       } else {
         await query(
-          'UPDATE "User" SET "extraData" = $1, "updatedAt" = NOW() WHERE id = $2',
-          [JSON.stringify(extraData), pgUserId]
+          'UPDATE "User" SET "firstName" = $1, "lastName" = $2, email = $3, phone = $4, "extraData" = $5, "isBlocked" = $6, "updatedAt" = NOW() WHERE id = $7',
+          [firstName, lastName, updateEmail, updatePhone, JSON.stringify(mergedExtra), isInactive, pgUserId]
         );
       }
     } else {
@@ -114,17 +153,36 @@ export async function syncMongoUserToPg(mongoUser, rawPassword = null) {
       isNew = true;
 
       // Handle unique constraint collisions gracefully on email/phone
+      let safeEmail = email;
+      if (safeEmail) {
+        const emailTaken = await query('SELECT id FROM "User" WHERE email = $1', [safeEmail]);
+        if (emailTaken.rows.length > 0) {
+          console.warn(`[AUTH-INTEGRATION] Email "${safeEmail}" already taken in PG; nulling column for user ${userId}`);
+          safeEmail = null;
+        }
+      }
+
+      let safePhone = phone;
+      if (safePhone) {
+        const phoneTaken = await query('SELECT id FROM "User" WHERE phone = $1', [safePhone]);
+        if (phoneTaken.rows.length > 0) {
+          console.warn(`[AUTH-INTEGRATION] Phone "${safePhone}" already taken in PG; nulling column for user ${userId}`);
+          safePhone = null;
+        }
+      }
+
       await query(
         `INSERT INTO "User" 
-          (id, email, phone, "passwordHash", "firstName", "lastName", "extraData", "createdAt", "updatedAt") 
+          (id, email, phone, "passwordHash", "firstName", "lastName", "extraData", "isEmailVerified", "isPhoneVerified", "isBlocked", "createdAt", "updatedAt") 
          VALUES 
-          ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
-        [pgUserId, email, phone, passwordHash, firstName, lastName, JSON.stringify(extraData)]
+          ($1, $2, $3, $4, $5, $6, $7, false, false, $8, NOW(), NOW())`,
+        [pgUserId, safeEmail, safePhone, passwordHash, firstName, lastName, JSON.stringify(extraData), isInactive]
       );
     }
 
     // 2. Ensure UserAppAccess exists for ReGen app
     const appRoleId = mapRoleToAppRoleId(mongoUser.role);
+    const appIsActive = !isInactive;
     const existingAccess = await query(
       'SELECT id, "appRoleId", "isActive" FROM "UserAppAccess" WHERE "userId" = $1 AND "appId" = $2',
       [pgUserId, REGEN_APP_ID]
@@ -136,14 +194,14 @@ export async function syncMongoUserToPg(mongoUser, rawPassword = null) {
         `INSERT INTO "UserAppAccess" 
           (id, "userId", "appId", "appRoleId", "isActive", "createdAt", "updatedAt") 
          VALUES 
-          ($1, $2, $3, $4, true, NOW(), NOW())`,
-        [accessId, pgUserId, REGEN_APP_ID, appRoleId]
+          ($1, $2, $3, $4, $5, NOW(), NOW())`,
+        [accessId, pgUserId, REGEN_APP_ID, appRoleId, appIsActive]
       );
     } else {
-      // Keep role updated and ensure active
+      // Keep role updated and ensure active matches status
       await query(
-        'UPDATE "UserAppAccess" SET "appRoleId" = $1, "isActive" = true, "updatedAt" = NOW() WHERE id = $2',
-        [appRoleId, existingAccess.rows[0].id]
+        'UPDATE "UserAppAccess" SET "appRoleId" = $1, "isActive" = $2, "updatedAt" = NOW() WHERE id = $3',
+        [appRoleId, appIsActive, existingAccess.rows[0].id]
       );
     }
 
@@ -153,6 +211,10 @@ export async function syncMongoUserToPg(mongoUser, rawPassword = null) {
         { userId: mongoUser.userId || userId },
         { $set: { pgUserId, syncedWithPg: true } }
       );
+      if (mongoUser) {
+        mongoUser.pgUserId = pgUserId;
+        mongoUser.syncedWithPg = true;
+      }
     } catch (mErr) {
       console.warn('[AUTH-INTEGRATION] Could not update pgUserId on MongoDB user:', mErr.message);
     }

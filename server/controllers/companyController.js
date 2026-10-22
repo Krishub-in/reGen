@@ -18,6 +18,7 @@ import { fileURLToPath } from 'url';
 import archiver from 'archiver';
 import { TOTP } from 'otpauth';
 import { sendCompanyCredentials } from '../utils/mailer.js';
+import { syncPolicyAcknowledgmentsForCompany } from './policyController.js';
 import { syncMongoUserToPg } from '../auth-integration/pgSyncService.js';
 import { emitToCompany } from '../socket.js';
 
@@ -54,9 +55,9 @@ export const createCompany = async (req, res) => {
  */
 export const superAdminCreateCompany = async (req, res) => {
   try {
-    const { name, gst, phoneNumber, email, category, about, address, city, state, zip } = req.body;
-    if (!name || !phoneNumber || !city || !category) {
-      return res.status(400).json({ message: 'name, phoneNumber, city, and category are required' });
+    const { name, gst, phoneNumber, email, category, about, address, city, state, zip, logo } = req.body;
+    if (!name || !phoneNumber || !city || !category || !logo) {
+      return res.status(400).json({ message: 'Company name, phone number, city, category, and company logo are required' });
     }
 
     // Generate a username from company name (lowercase, no spaces, append random suffix)
@@ -87,6 +88,7 @@ export const superAdminCreateCompany = async (req, res) => {
       company: name,
       designation: 'Owner',
       status: 'active',
+      avatar: logo || '',
       joiningDate: new Date().toISOString().slice(0, 10),
     });
     await ownerUser.save();
@@ -94,6 +96,7 @@ export const superAdminCreateCompany = async (req, res) => {
     // Create the company linked to this owner
     const company = new Company({
       name, gst, phoneNumber, email, category, about, address, city, state, zip,
+      logo: logo || '',
       ownerId: userId,
     });
     await company.save();
@@ -171,6 +174,16 @@ export const updateCompany = async (req, res) => {
         { $set: { name: updates.name } }
       );
     }
+    if (updates.logo) {
+      await User.updateMany(
+        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+        { $set: { avatar: updates.logo } }
+      );
+    }
+
+    if (updates.companyPolicies) {
+      syncPolicyAcknowledgmentsForCompany(company._id, req.app.get('io')).catch(e => console.error('[SYNC-POLICY-ERR]', e));
+    }
 
     res.status(200).json(company);
   } catch (error) {
@@ -193,6 +206,12 @@ export const superAdminUpdateCompany = async (req, res) => {
       await User.updateMany(
         { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
         { $set: { name: req.body.name } }
+      );
+    }
+    if (req.body.logo) {
+      await User.updateMany(
+        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+        { $set: { avatar: req.body.logo } }
       );
     }
 

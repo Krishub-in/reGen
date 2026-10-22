@@ -929,8 +929,50 @@ function StatCard({ title, value, icon: Icon, trend, color }) {
 }
 
 function CompanyFormFields({ data, setData }) {
+  const fileInputRef = useRef(null);
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Logo file size must be under 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setData(prev => ({ ...prev, logo: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-5 gap-y-4">
+      {/* Company Logo Upload (Mandatory) */}
+      <div className="md:col-span-2 flex flex-col items-center justify-center p-3 border-2 border-dashed rounded-xl bg-background/50 border-border/80 hover:border-primary/50 transition-colors">
+        <div 
+          onClick={() => fileInputRef.current?.click()} 
+          className="relative group cursor-pointer flex flex-col items-center gap-2"
+        >
+          <div className={`w-20 h-20 rounded-2xl overflow-hidden border-2 flex items-center justify-center bg-card shadow-sm ${data.logo ? 'border-primary' : 'border-destructive/60'}`}>
+            {data.logo ? (
+              <img src={data.logo} alt="Company Logo" className="w-full h-full object-cover" />
+            ) : (
+              <Building2 className="w-8 h-8 text-destructive/80" />
+            )}
+          </div>
+          <span className="text-xs font-semibold text-destructive">
+            {data.logo ? 'Change Company Logo *' : 'Upload Company Logo * (Mandatory)'}
+          </span>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleLogoUpload} 
+          />
+        </div>
+      </div>
+
       <div className="relative group">
         <label className="text-xs font-semibold text-muted-foreground block mb-1">GST Number (Optional)</label>
         <div className="relative">
@@ -1166,6 +1208,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   };
 
   const emptyForm = {
+    logo: '',
     gst: '',
     name: '',
     phoneNumber: '',
@@ -1202,6 +1245,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
   const openEdit = (company) => {
     setEditingCompany(company);
     setEditFormData({
+      logo: company.logo || '',
       gst: company.gst || '',
       name: company.name || '',
       phoneNumber: company.phoneNumber || '',
@@ -1218,8 +1262,8 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
   const handleEditSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!editFormData.name || !editFormData.phoneNumber || !editFormData.city || !editFormData.category) {
-      toast.error('Please fill all required fields (*)');
+    if (!editFormData.name || !editFormData.phoneNumber || !editFormData.city || !editFormData.category || !editFormData.logo) {
+      toast.error('Please fill all required fields (*) including Company Logo');
       return;
     }
     try {
@@ -1345,8 +1389,8 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
   const handleSubmit = async (e, shouldContinue = false) => {
     if (e) e.preventDefault();
-    if (!formData.name || !formData.phoneNumber || !formData.city || !formData.category) {
-      toast.error('Please fill all required fields (*)');
+    if (!formData.name || !formData.phoneNumber || !formData.city || !formData.category || !formData.logo) {
+      toast.error('Please fill all required fields (*) including Company Logo');
       return;
     }
 

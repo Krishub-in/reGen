@@ -62,9 +62,11 @@ const Input = React.forwardRef(function Input({
 
     const hasError = Boolean(errorMessage || (touched && validationError));
     const activeError = errorMessage || validationError;
+    const isFlex1 = className && (className.includes('flex-1') || className.includes('flex-grow'));
+    const isHidden = className && (className.includes('hidden') || type === 'file' && className.includes('hidden'));
 
     return (
-        <div className="relative w-full">
+        <div className={cn("relative w-full", isFlex1 && "flex-1 min-w-0", isHidden && "hidden", props.containerClassName)}>
             <input
                 ref={ref}
                 type={type}

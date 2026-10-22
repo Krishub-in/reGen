@@ -55,7 +55,6 @@ import {
   Mail,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import PaymentReportDialog from './PaymentReportDialog';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 
 export default function PaymentsModule({ userProfile }) {
@@ -84,7 +83,6 @@ export default function PaymentsModule({ userProfile }) {
   const [selectedPayslipRecord, setSelectedPayslipRecord] = useState(null); // for viewing/printing payslip
   const [isBonusModalOpen, setIsBonusModalOpen] = useState(false);
   const [isDeductionModalOpen, setIsDeductionModalOpen] = useState(false);
-  const [isReportDialogOpen, setIsReportDialogOpen] = useState(false);
 
   // Bonus and Deduction forms
   const [bonusForm, setBonusForm] = useState({
@@ -461,15 +459,6 @@ export default function PaymentsModule({ userProfile }) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsReportDialogOpen(true)}
-              className="rounded-xl text-xs font-semibold h-9 border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 gap-1.5"
-            >
-              <FileText className="h-3.5 w-3.5" />
-              Payment Report
-            </Button>
 
             <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-2xl shadow-xs">
               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" onClick={handlePrevMonth}>
@@ -660,13 +649,6 @@ export default function PaymentsModule({ userProfile }) {
             </Card>
           </div>
         )}
-
-        <PaymentReportDialog
-          open={isReportDialogOpen}
-          onOpenChange={setIsReportDialogOpen}
-          companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
-          userProfile={userProfile}
-        />
       </div>
     );
   }
@@ -701,15 +683,6 @@ export default function PaymentsModule({ userProfile }) {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-
-          {/* Company Payment Report & Send */}
-          <Button
-            onClick={() => setIsReportDialogOpen(true)}
-            className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold h-9 shadow-sm gap-1.5 w-full sm:w-auto justify-center"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Payment Report & Send
-          </Button>
 
           {/* Export Report */}
           <Button onClick={handleExportCSV} variant="outline" className="rounded-xl text-xs font-semibold h-9 border-border w-full sm:w-auto justify-center">
@@ -1892,13 +1865,6 @@ export default function PaymentsModule({ userProfile }) {
           </form>
         </DialogContent>
       </Dialog>
-
-      <PaymentReportDialog
-        open={isReportDialogOpen}
-        onOpenChange={setIsReportDialogOpen}
-        companyName={userProfile?.companyName || userProfile?.tenantName || 'Company'}
-        userProfile={userProfile}
-      />
     </div>
   );
 }

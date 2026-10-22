@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { 
   Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, 
   LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search,
-  Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck
+  Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck, FileBarChart
 } from 'lucide-react';
 import DashboardHome from '../components/modules/DashboardHome';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
+import PolicyGate from '../components/PolicyGate';
 
 // Lazy-loaded modules for optimized bundle splitting & faster page loads
 const UsersModule = lazy(() => import('../components/modules/UsersModule'));
@@ -38,6 +39,7 @@ const MessengerModule = lazy(() => import('../components/modules/MessengerModule
 const ScrumModule = lazy(() => import('../components/modules/ScrumModule'));
 const CalendarModule = lazy(() => import('../components/modules/CalendarModule'));
 const PaymentsModule = lazy(() => import('../components/modules/PaymentsModule'));
+const ReportsModule = lazy(() => import('../components/modules/ReportsModule'));
 const CompanyModule = lazy(() => import('../components/modules/CompanyModule'));
 const StaffProfileModule = lazy(() => import('../components/modules/StaffProfileModule'));
 const NotificationsModule = lazy(() => import('../components/modules/NotificationsModule'));
@@ -392,9 +394,10 @@ export default function Dashboard({ userProfile }) {
     { id: 'messenger', label: 'Messenger', icon: MessageSquare, show: true },
     { id: 'scrum', label: 'Scrum', icon: FileText, show: true },
     { id: 'calendar', label: 'Calendar', icon: Calendar, show: true },
-    { id: 'profile', label: 'Settings', icon: Settings, show: true },
     { id: 'payments', label: 'Payments', icon: DollarSign, show: true },
+    { id: 'reports', label: 'Report', icon: FileBarChart, show: isAdmin || isOwner },
     { id: 'company', label: 'Company', icon: Building2, show: isAdmin || isOwner },
+    { id: 'profile', label: 'Settings', icon: Settings, show: true },
   ];
 
   const renderModule = () => {
@@ -415,6 +418,8 @@ export default function Dashboard({ userProfile }) {
         return <CalendarModule userProfile={userProfile} />;
       case 'payments':
         return <PaymentsModule userProfile={userProfile} />;
+      case 'reports':
+        return <ReportsModule userProfile={userProfile} />;
       case 'company':
         return <CompanyModule userProfile={userProfile} />;
       case 'profile':
@@ -432,9 +437,12 @@ export default function Dashboard({ userProfile }) {
       {/* Desktop Left Sidebar (Matching Reference Image) */}
       <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
         {/* Brand Logo */}
-        <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
-          <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => navigateToModule('home')}>
-            <span className="text-xl font-semibold tracking-normal text-foreground">ReGen</span>
+        <div className="h-16 flex items-center gap-2.5 px-6 border-b border-border">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateToModule('home')}>
+            {companyInfo?.logo ? (
+              <img src={companyInfo.logo} alt="Logo" className="w-7 h-7 rounded-lg object-contain border border-border/40" />
+            ) : null}
+            <span className="text-xl font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
             <span className="w-2 h-2 rounded-full bg-primary" />
           </div>
         </div>
@@ -491,8 +499,11 @@ export default function Dashboard({ userProfile }) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-1.5 cursor-pointer" onClick={() => setActiveModule('home')}>
-              <span className="text-lg font-semibold tracking-normal text-foreground">ReGen</span>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveModule('home')}>
+              {companyInfo?.logo ? (
+                <img src={companyInfo.logo} alt="Logo" className="w-6 h-6 rounded-md object-contain border border-border/40" />
+              ) : null}
+              <span className="text-lg font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
             </div>
           </div>
@@ -803,7 +814,10 @@ export default function Dashboard({ userProfile }) {
           <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r border-border p-0 flex flex-col">
             <SheetHeader className="p-6 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
-                <span className="text-xl font-semibold tracking-normal text-foreground">ReGen</span>
+                {companyInfo?.logo ? (
+                  <img src={companyInfo.logo} alt="Logo" className="w-6 h-6 rounded-md object-contain border border-border/40" />
+                ) : null}
+                <span className="text-xl font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
                 <span className="w-2 h-2 rounded-full bg-primary" />
               </SheetTitle>
             </SheetHeader>
@@ -849,6 +863,7 @@ export default function Dashboard({ userProfile }) {
 
         <Footer />
       </div>
+      <PolicyGate userProfile={userProfile} />
       <Suspense fallback={null}>
         <CallManager userProfile={userProfile} />
       </Suspense>

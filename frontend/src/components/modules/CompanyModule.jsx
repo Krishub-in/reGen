@@ -1,6 +1,14 @@
-import { useMemo, useState, useEffect } from 'react';
-import { useGetCompanyInfo, useGetAllCompanies, useCreateCompany, useUpdateCompany, useGetAllUsers } from '../../hooks/useQueries';
-import { hasUserRole, getUserRoleKey } from '@/lib/utils';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { 
+  useGetCompanyInfo, 
+  useGetAllCompanies, 
+  useCreateCompany, 
+  useUpdateCompany, 
+  useGetAllUsers,
+  useGetCompanyPolicyReviews,
+  useAllowEmployeeWorkForward
+} from '../../hooks/useQueries';
+import { cn, hasUserRole, getUserRoleKey, authFetch } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +30,13 @@ import {
   FileText,
   X,
   Save,
+  Camera,
+  Upload,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+  ArrowRight,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -64,7 +79,10 @@ export default function CompanyModule({ userProfile }) {
 
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
+  const logoFileInputRef = useRef(null);
+
   const [formData, setFormData] = useState({
+    logo: '',
     name: '',
     address: '',
     city: '',
@@ -87,6 +105,20 @@ export default function CompanyModule({ userProfile }) {
   const [editingPolicyIdx, setEditingPolicyIdx] = useState(null); // null = adding, number = editing index
   const [savingPolicy, setSavingPolicy] = useState(false);
 
+  // Policy Acknowledgment & Exemption Reviews
+  const { data: policyReviews = [], refetch: refetchReviews } = useGetCompanyPolicyReviews();
+  const allowMutation = useAllowEmployeeWorkForward();
+
+  const handleAllowEmployee = async (ackId, empName) => {
+    try {
+      await allowMutation.mutateAsync({ ackId });
+      toast.success(`Exemption approved for ${empName}. Employee is now allowed to work forward.`);
+      refetchReviews();
+    } catch (err) {
+      toast.error(err.message || 'Failed to allow employee');
+    }
+  };
+
   useEffect(() => {
     if (companies.length > 0 && !selectedCompanyId) {
       setSelectedCompanyId(companies[0]._id);
@@ -101,6 +133,7 @@ export default function CompanyModule({ userProfile }) {
     const info = currentCompany || initialInfo;
     if (info) {
       setFormData({
+        logo: info.logo || '',
         name: info.name || '',
         address: info.address || '',
         city: info.city || '',
@@ -116,12 +149,46 @@ export default function CompanyModule({ userProfile }) {
       });
     } else {
        setFormData({
-        name: '', address: '', city: '', state: '', zip: '',
+        logo: '', name: '', address: '', city: '', state: '', zip: '',
         category: '', about: '', contactEmail: '', contactPhone: '',
         gst: '', taxDetails: '', policies: DEFAULT_TERMS,
       });
     }
   }, [currentCompany, initialInfo]);
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Logo file size must be less than 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const preview = reader.result;
+      setFormData(prev => ({ ...prev, logo: preview }));
+      if (currentCompany?._id) {
+        try {
+          const fd = new FormData();
+          fd.append('logo', file);
+          const res = await authFetch(`/api/company/${currentCompany._id}/logo`, {
+            method: 'POST',
+            body: fd
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.logo) {
+              setFormData(prev => ({ ...prev, logo: data.logo }));
+              toast.success('Company logo uploaded successfully');
+            }
+          }
+        } catch (err) {
+          console.error('Failed to upload logo', err);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleGstAutofill = () => {
     if (!isAdmin && !isOwner) return;
@@ -170,7 +237,13 @@ export default function CompanyModule({ userProfile }) {
         return;
       }
 
+      if (!formData.logo) {
+        toast.error('Company logo / profile picture is mandatory');
+        return;
+      }
+
       const info = {
+        logo: formData.logo,
         name: formData.name,
         address: formData.address,
         city: formData.city,
@@ -427,8 +500,41 @@ export default function CompanyModule({ userProfile }) {
               )}
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 p-4 sm:p-6">
+                {/* Company Logo / Profile Picture (Mandatory) */}
+                <div className="md:col-span-2 flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-2xl bg-secondary/20 border-border/80 hover:border-primary/50 transition-colors">
+                  <div 
+                    onClick={() => (isAdmin || isOwner) && logoFileInputRef.current?.click()}
+                    className={`relative group flex flex-col items-center gap-2.5 ${(isAdmin || isOwner) ? 'cursor-pointer' : 'cursor-default'}`}
+                  >
+                    <div className={`w-24 h-24 rounded-2xl overflow-hidden border-2 flex items-center justify-center bg-card shadow-sm ${formData.logo ? 'border-primary' : 'border-destructive/60'}`}>
+                      {formData.logo ? (
+                        <img src={formData.logo} alt="Company Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-muted-foreground p-2 text-center">
+                          <Building className="w-8 h-8 text-destructive/80 mb-1" />
+                          <span className="text-[10px] font-bold text-destructive">Logo Required *</span>
+                        </div>
+                      )}
+                    </div>
+                    {(isAdmin || isOwner) && (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{formData.logo ? 'Change Company Logo *' : 'Upload Company Logo * (Mandatory)'}</span>
+                      </div>
+                    )}
+                    <input 
+                      type="file" 
+                      ref={logoFileInputRef} 
+                      className="hidden" 
+                      accept="image/*" 
+                      onChange={handleLogoUpload} 
+                    />
+                  </div>
+                  <span className="text-[11px] text-muted-foreground mt-1.5">Company logo is mandatory and will be displayed across the workspace.</span>
+                </div>
+
                 <div className="space-y-1.5">
-                    <Label htmlFor="name" className="text-xs font-semibold text-foreground">Company Name</Label>
+                    <Label htmlFor="name" className="text-xs font-semibold text-foreground">Company Name *</Label>
                     <Input
                         id="name"
                         value={formData.name}
@@ -661,6 +767,123 @@ export default function CompanyModule({ userProfile }) {
               )}
             </CardContent>
           </Card>
+
+          {/* Employee Policy Responses & Owner Review Section */}
+          {(isAdmin || isOwner) && (
+            <Card className="border border-border bg-card rounded-2xl shadow-xs overflow-hidden mt-6">
+              <CardHeader className="border-b border-border bg-card px-6 py-4 flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-primary" />
+                    <span>Employee Policy Responses & Exemption Review</span>
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Review which employees have accepted policies, view reasons for declined policies, and allow them to work forward.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                    {policyReviews.filter(r => r.status === 'declined').length} Declined (Restricted)
+                  </span>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                    {policyReviews.filter(r => r.status === 'accepted').length} Accepted
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {policyReviews.length === 0 ? (
+                  <div className="py-10 text-center text-muted-foreground text-xs">
+                    No employee responses recorded yet. When employees receive and respond to policies, their statuses will appear here.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-border bg-muted/40 text-muted-foreground font-semibold">
+                          <th className="text-left py-3 px-4">Employee</th>
+                          <th className="text-left py-3 px-4">Policy</th>
+                          <th className="text-left py-3 px-4">Status</th>
+                          <th className="text-left py-3 px-4">Decline Reason / Notes</th>
+                          <th className="text-right py-3 px-4">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/60">
+                        {policyReviews.map((ack) => {
+                          const isDeclined = ack.status === 'declined';
+                          const isAllowed = ack.status === 'allowed';
+                          const isAccepted = ack.status === 'accepted';
+
+                          return (
+                            <tr key={ack._id} className={cn("hover:bg-muted/30 transition-colors", isDeclined && "bg-rose-50/40 dark:bg-rose-950/20")}>
+                              <td className="py-3 px-4">
+                                <div className="font-bold text-foreground">{ack.userName || ack.userId}</div>
+                                <div className="text-[11px] text-muted-foreground">{ack.department || 'Staff'} • {ack.userId}</div>
+                              </td>
+                              <td className="py-3 px-4 font-medium text-foreground">
+                                {ack.policyTitle}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={cn(
+                                  "px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider border",
+                                  isAccepted
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                    : isDeclined
+                                    ? "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    : isAllowed
+                                    ? "bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30"
+                                    : "bg-muted text-muted-foreground border-border"
+                                )}>
+                                  {isDeclined ? 'Declined (Blocked)' : isAllowed ? 'Allowed to Work' : isAccepted ? 'Accepted' : 'Pending'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 max-w-xs">
+                                {isDeclined && (
+                                  <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-300/40 text-rose-900 dark:text-rose-200 text-xs italic">
+                                    "{ack.declineReason || 'No reason specified'}"
+                                  </div>
+                                )}
+                                {isAllowed && (
+                                  <div className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
+                                    Exemption approved by {ack.allowedBy || 'Owner'}
+                                  </div>
+                                )}
+                                {!isDeclined && !isAllowed && (
+                                  <span className="text-muted-foreground/60 text-[11px]">—</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                {isDeclined && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleAllowEmployee(ack._id, ack.userName)}
+                                    disabled={allowMutation.isPending}
+                                    className="bg-primary hover:bg-[#0F766E] text-white text-xs h-8 px-3 rounded-xl shadow-xs gap-1"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Allow to Work</span>
+                                  </Button>
+                                )}
+                                {isAllowed && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 dark:text-teal-400">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Active
+                                  </span>
+                                )}
+                                {isAccepted && (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Working Normal
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

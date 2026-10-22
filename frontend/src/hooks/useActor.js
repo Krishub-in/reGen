@@ -523,10 +523,10 @@ export const createHttpActor = (identity) => {
         if (!avatar) return avatar;
         const s = String(avatar).trim();
         if (!s) return s;
-        if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/uploads/')) {
-            return s;
+        if (s.startsWith('data:') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/uploads/') || s.startsWith('/assets/')) {
+            return s.replace(/^\/uploads\/assets\//, '/assets/');
         }
-        return `/uploads/${s.replace(/^\/+/, '')}`;
+        return `/assets/profiles/${s.replace(/^\/+/, '')}`;
     };
 
   return {

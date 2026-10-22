@@ -304,6 +304,12 @@ export default function UsersModule({ userProfile }) {
       }
     }
 
+    // Profile picture validation (mandatory)
+    if (!formData.avatar) {
+      toast.error('Profile picture is mandatory. Please upload an image.');
+      return;
+    }
+
     // Aadhaar validation (mandatory)
     const aadhaarDigits = formData.aadhaar.replace(/\D/g, '');
     if (!aadhaarDigits || aadhaarDigits.length !== 12) {
@@ -408,20 +414,13 @@ export default function UsersModule({ userProfile }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="flex flex-col items-center gap-3">
                 <div className="relative">
-                  <div className="h-20 w-20 md:h-24 md:w-24 rounded-full overflow-hidden border-2 border-muted bg-muted">
+                  <div className={`h-20 w-20 md:h-24 md:w-24 rounded-full overflow-hidden border-2 ${previewUrl ? 'border-primary' : 'border-destructive/60'} bg-muted flex items-center justify-center`}>
                     {previewUrl ? (
                       <img src={previewUrl} alt="Preview" className="h-full w-full object-cover" />
-                    ) : formData.gender ? (
-                      // Live gender-based preview when gender is already selected
-                      <img
-                        src={getGenderAvatar(formData.gender, formData.principalId || formData.username || 'user')}
-                        alt="Auto avatar"
-                        className="h-full w-full object-cover"
-                      />
                     ) : (
-                      <div className="h-full w-full flex flex-col items-center justify-center bg-muted text-muted-foreground gap-1">
-                        <Camera className="h-7 w-7" />
-                        <span className="text-[9px] text-center leading-tight px-1">Select gender for auto avatar</span>
+                      <div className="h-full w-full flex flex-col items-center justify-center bg-muted text-muted-foreground gap-1 p-1">
+                        <Camera className="h-6 w-6 text-destructive/80" />
+                        <span className="text-[9px] text-center font-semibold text-destructive leading-tight">Photo Required *</span>
                       </div>
                     )}
                   </div>
@@ -440,6 +439,7 @@ export default function UsersModule({ userProfile }) {
                     onChange={handleImageUpload}
                   />
                 </div>
+                <span className="text-[11px] font-medium text-destructive mt-1">Profile Photo *</span>
               </div>
               {!editingUser && (
                 <div className="space-y-2">

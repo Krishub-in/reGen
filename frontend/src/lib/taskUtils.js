@@ -145,6 +145,10 @@ export function getTaskUiStatus(task) {
     return 'inProgress';
   }
 
+  if (statusKey === 'paused') {
+    return 'paused';
+  }
+
   if (statusKey === 'review' || statusKey === 'blocked') {
     return 'review';
   }
@@ -160,6 +164,7 @@ export function getTaskStatusLabel(task) {
   if (ui === 'completed') return 'Completed';
   if (ui === 'not_completed') return 'Not Completed';
   if (ui === 'inProgress') return 'In Progress';
+  if (ui === 'paused') return 'Paused';
   if (ui === 'review') return 'Under Review';
   return 'To Do';
 }
@@ -177,6 +182,9 @@ export function getTaskStatusBadgeClass(task) {
   }
   if (ui === 'inProgress') {
     return 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-300 dark:border-teal-800 font-medium';
+  }
+  if (ui === 'paused') {
+    return 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-medium';
   }
   return 'bg-muted text-muted-foreground border-border font-medium';
 }
