@@ -430,7 +430,7 @@ const safePrincipal = (id) => {
 };
 
 export const createHttpActor = (identity) => {
-  const principalId = localStorage.getItem('current_user') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '') || 'anonymous';
+  const principalId = localStorage.getItem('current_user') || localStorage.getItem('active_sa_id') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '') || 'anonymous';
   const API_BASE = '/api';
 
   const getAuthToken = () => {
@@ -461,16 +461,20 @@ export const createHttpActor = (identity) => {
     };
 
   const getHeaders = () => {
+    const isSuperAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/superadmin');
+    const portalView = isSuperAdminPath ? 'superadmin' : 'ems';
+
     const token = getAuthToken();
     let pid = '';
     try {
-      pid = localStorage.getItem('current_user') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '');
+      pid = localStorage.getItem('current_user') || localStorage.getItem('active_sa_id') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '');
     } catch {
       pid = '';
     }
     return {
       'Content-Type': 'application/json',
       'x-user-id': pid || 'anonymous',
+      'x-portal-view': portalView,
       ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
   };
@@ -552,7 +556,7 @@ export const createHttpActor = (identity) => {
         // fallback for legacy paths if not an auth error
         try {
           const users = await fetchJson(`${API_BASE}/users`, []);
-          const pid = localStorage.getItem('current_user') || identity.getPrincipal().toText();
+          const pid = localStorage.getItem('current_user') || localStorage.getItem('active_sa_id') || (identity?.getPrincipal ? identity.getPrincipal().toText() : '');
           const user = users.find((u) => u.userId === pid || u.username === pid);
           if (!user) return null;
           return {
@@ -811,16 +815,28 @@ export const createHttpActor = (identity) => {
         };
 
         const payload = {
-            id: attendance.id,
+            ...attendance,
+            id: attendance.id || attendance._id,
             userId: (typeof attendance.userId === 'string' ? attendance.userId : (attendance.userId?.toText ? attendance.userId.toText() : String(attendance.userId))),
             date: attendance.date,
             status: resolveStatus(attendance.status),
             checkIn: attendance.checkIn ? attendance.checkIn : (attendance.checkInTime ? new Date(Number(attendance.checkInTime) / 1000000).toISOString() : undefined),
             checkOut: attendance.checkOut ? attendance.checkOut : (attendance.checkOutTime && attendance.checkOutTime.length > 0 ? new Date(Number(attendance.checkOutTime[0]) / 1000000).toISOString() : undefined),
             workMode: attendance.workMode || 'office',
-            notes: Array.isArray(attendance.notes) ? attendance.notes.join(', ') : (attendance.notes || '')
+            notes: Array.isArray(attendance.notes) ? attendance.notes.join(', ') : (attendance.notes || ''),
+            activeBreakType: attendance.activeBreakType,
+            breakStart: attendance.breakStart,
+            breakEnd: attendance.breakEnd,
+            breakMinutes: attendance.breakMinutes,
+            breakDelayMinutes: attendance.breakDelayMinutes,
+            casualBreakStart: attendance.casualBreakStart,
+            casualBreakEnd: attendance.casualBreakEnd,
+            casualBreakMinutes: attendance.casualBreakMinutes,
+            casualBreakDelayMinutes: attendance.casualBreakDelayMinutes,
+            totalBreakDelayMinutes: attendance.totalBreakDelayMinutes,
+            breakDeduction: attendance.breakDeduction,
         };
-        return handleResponse(await fetch(`${API_BASE}/attendance/${attendance.id}`, {
+        return handleResponse(await fetch(`${API_BASE}/attendance/${attendance.id || attendance._id}`, {
             method: 'PUT',
             headers,
             body: JSON.stringify(payload)
@@ -830,6 +846,19 @@ export const createHttpActor = (identity) => {
     // Company
     getCompanyInfo: async () => {
         const companies = await handleResponse(await fetch(`${API_BASE}/company`, { headers }));
+        if (!Array.isArray(companies) || companies.length === 0) return null;
+        let callerCompanyId = null;
+        try {
+          const storedUser = localStorage.getItem('current_user_profile');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            callerCompanyId = parsed.companyId?._id || parsed.companyId;
+          }
+        } catch {}
+        if (callerCompanyId) {
+          const match = companies.find(c => String(c._id) === String(callerCompanyId));
+          if (match) return match;
+        }
         return companies[0] || null;
     },
     getAllCompanies: async () => {
@@ -1163,7 +1192,8 @@ export const useActor = () => {
   const { identity, isAuthenticated } = useCustomAuth();
 
   const actor = useMemo(() => {
-    if (isAuthenticated && identity) {
+    const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('auth_token') || localStorage.getItem('sa_auth_token'));
+    if ((isAuthenticated && identity) || hasToken) {
       try {
         return createHttpActor(identity);
       } catch (e) {

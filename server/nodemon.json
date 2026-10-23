@@ -1,5 +1,5 @@
 {
-  "watch": ["*.js", ".env"],
+  "watch": ["*.js", ".env", "models", "routes", "controllers", "middleware", "auth-integration", "utils"],
   "ignore": ["node_modules", "package.json", "package-lock.json"],
-  "ext": "js,json"
+  "ext": "js,json,env"
 }

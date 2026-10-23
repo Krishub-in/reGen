@@ -23,38 +23,43 @@ export const companyScope = async (req, res, next) => {
     const decoded = req.user;
     if (!decoded || !decoded.userId) return next(); // no user context (handled by verifyToken)
 
-    // Look up user to get their companyId
+    // 1. Super Admin (param) role handling
+    if (decoded.role === 'param') {
+      const isSuperAdminPortal = req.headers['x-portal-view'] === 'superadmin' || 
+        (!req.headers['x-portal-view'] && req.headers.referer?.includes('/superadmin'));
+      if (isSuperAdminPortal) {
+        req.companyId = null;
+        return next();
+      }
+      // Super Admin operating inside EMS company view: scope to Super Admin's owned company
+      const { default: Company } = await import('../models/Company.js');
+      const saCompany = await Company.findOne({
+        $or: [{ ownerId: decoded.userId }, { name: 'krish Tech Computer' }]
+      }).lean();
+      if (saCompany) {
+        req.companyId = saCompany._id;
+      }
+      return next();
+    }
+
+    // 2. Company owners, admins, staff, interns: strictly resolve and scope to their companyId
     const user = await User.findOne({ userId: decoded.userId }).lean();
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
 
     if (!user.companyId) {
-      // Owner might not have companyId set yet (legacy data).
-      // Try to find it from Company collection.
       if (user.role === 'owner') {
         const { default: Company } = await import('../models/Company.js');
         const company = await Company.findOne({ ownerId: user.userId }).lean();
         if (company) {
-          // Fix the user record for future calls
-          await User.updateOne({ userId: user.userId }, { companyId: company._id });
+          await User.updateOne({ userId: user.userId }, { companyId: company._id, company: company.name });
           req.companyId = company._id;
           return next();
         }
       }
-      // Users without a company yet — allow them through but mark companyId as undefined
-      // Controllers will handle this (they'll see empty results which is correct)
       req.companyId = undefined;
       return next();
-    }
-
-    // Check if company is blocked (skip for SuperAdmin/param)
-    if (user.role !== 'param') {
-      const { default: Company } = await import('../models/Company.js');
-      const company = await Company.findById(user.companyId).lean();
-      if (company && company.status === 'blocked') {
-        return res.status(403).json({ message: 'Your company has been blocked. Please contact system admin (ReGen) for assistance.', code: 'COMPANY_BLOCKED' });
-      }
     }
 
     req.companyId = user.companyId;

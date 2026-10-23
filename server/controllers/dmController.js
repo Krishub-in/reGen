@@ -106,13 +106,22 @@ export const getOrCreateConversation = async (req, res) => {
     if (!recipientId) return res.status(400).json({ message: 'recipientId is required' });
     if (recipientId === myId) return res.status(400).json({ message: 'Cannot create conversation with yourself' });
 
+    // Verify participants belong to the same company
+    const [meUser, recipientUser] = await Promise.all([
+      User.findOne({ userId: myId }).select('companyId role').lean(),
+      User.findOne({ userId: recipientId }).select('companyId role').lean()
+    ]);
+    if (meUser && recipientUser && meUser.companyId && recipientUser.companyId) {
+      if (String(meUser.companyId) !== String(recipientUser.companyId)) {
+        return res.status(403).json({ message: 'Direct messaging across different companies is not allowed' });
+      }
+    }
+
     // Fallback companyId from recipient or sender if SuperAdmin or missing
     if (!companyId && recipientId) {
-      const recipientUser = await User.findOne({ userId: recipientId }).select('companyId').lean();
       if (recipientUser?.companyId) companyId = recipientUser.companyId;
     }
     if (!companyId && myId) {
-      const meUser = await User.findOne({ userId: myId }).select('companyId').lean();
       if (meUser?.companyId) companyId = meUser.companyId;
     }
 

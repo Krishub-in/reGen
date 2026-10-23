@@ -21,7 +21,10 @@ export const createLeave = async (req, res) => {
 
 export const getAllLeaves = async (req, res) => {
   try {
-    const filter = req.companyId ? { companyId: req.companyId } : {};
+    const isSuperAdminView = req.headers['x-portal-view'] === 'superadmin' || req.query.portalView === 'superadmin';
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin' || isSuperAdminView;
+    const filter = (isSuperAdmin && !isEmsView) ? {} : (req.companyId ? { companyId: req.companyId } : {});
     const leaves = await Leave.find(filter);
     res.status(200).json(leaves);
   } catch (error) {

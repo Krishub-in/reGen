@@ -29,6 +29,14 @@ export async function resolveCompanyId(req, body) {
     if (user?.companyId) return user.companyId;
   }
 
-  // 3. Nothing found – return null (record stays global / SuperAdmin-only)
+  // 3. If caller is Super Admin (param), associate with their inbuild company
+  if (req.user?.role === 'param') {
+    const { default: Company } = await import('../models/Company.js');
+    const saUsername = process.env.SUPER_ADMIN_USERNAME || 'Vyshwa';
+    const saCompany = await Company.findOne({ ownerId: saUsername }).select('_id').lean();
+    if (saCompany?._id) return saCompany._id;
+  }
+
+  // 4. Nothing found – return null (record stays global / SuperAdmin-only)
   return null;
 }

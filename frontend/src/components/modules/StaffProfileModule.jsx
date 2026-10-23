@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { authFetch, cn, hasUserRole } from '@/lib/utils';
 import PageHeader from '../PageHeader';
+import { SafeAvatar } from '../SafeAvatar';
 
 export default function StaffProfileModule({ userProfile }) {
   const normalizeDateForInput = (value) => {
@@ -62,6 +63,13 @@ export default function StaffProfileModule({ userProfile }) {
     if (userProfile.age !== undefined) setAge(userProfile.age?.toString() || '');
   }, [userProfile.name, userProfile.gender, userProfile.dateOfBirth, userProfile.age]);
 
+  useEffect(() => {
+    if (userProfile.avatar) {
+      setAvatar(prev => prev || userProfile.avatar);
+      setPreviewUrl(prev => prev || userProfile.avatar);
+    }
+  }, [userProfile.avatar]);
+
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -89,6 +97,21 @@ export default function StaffProfileModule({ userProfile }) {
       const avatarPath = data?.avatar || '';
       setAvatar(avatarPath);
       setPreviewUrl(avatarPath);
+
+      // Immediately sync with React Query cache
+      queryClient.setQueriesData({ queryKey: ['currentUserProfile'] }, (old) =>
+        old ? { ...old, avatar: avatarPath } : old
+      );
+      queryClient.setQueriesData({ queryKey: ['users'] }, (old = []) =>
+        Array.isArray(old) ? old.map(u => {
+          const uIdStr = u.userId?.toText ? u.userId.toText() : (u.id?.toText ? u.id.toText() : String(u.userId || u.id || ''));
+          return (uIdStr === uid || u.username === userProfile.username) ? { ...u, avatar: avatarPath } : u;
+        }) : old
+      );
+      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
+
       toast.success('Profile picture updated successfully');
     } catch (err) {
       toast.error(err.message || 'Failed to upload image');
@@ -103,12 +126,12 @@ export default function StaffProfileModule({ userProfile }) {
       toast.error('Please enter your name');
       return;
     }
-    if (!avatar) {
+    const finalAvatar = avatar || userProfile.avatar;
+    if (!finalAvatar) {
       toast.error('Profile picture is mandatory. Please upload an image.');
       return;
     }
     const role = userProfile.role;
-    const finalAvatar = avatar || undefined;
     const profile = {
       id: userProfile.id,
       username: userProfile.username,
@@ -130,6 +153,11 @@ export default function StaffProfileModule({ userProfile }) {
     };
     try {
       await saveProfile.mutateAsync(profile);
+      queryClient.setQueriesData({ queryKey: ['currentUserProfile'] }, (old) =>
+        old ? { ...old, ...profile, avatar: finalAvatar } : old
+      );
+      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       toast.success('Profile updated successfully');
     } catch {
       toast.error('Failed to update profile');
@@ -212,13 +240,12 @@ export default function StaffProfileModule({ userProfile }) {
               onClick={() => fileInputRef.current?.click()}
               title="Click to update profile photo"
             >
-              <img
-                src={previewUrl || userProfile.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || userProfile.name || 'user')}`}
-                alt="Profile"
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name || userProfile.name || 'user')}`;
-                }}
+              <SafeAvatar
+                src={previewUrl || userProfile.avatar}
+                name={name || userProfile.name}
+                username={userProfile.username}
+                gender={userProfile.gender}
+                className="h-full w-full rounded-2xl"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity rounded-2xl">
                 <Camera className="h-5 w-5" />

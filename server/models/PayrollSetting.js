@@ -30,6 +30,18 @@ const payrollSettingSchema = new mongoose.Schema({
     min: 1,
     max: 7,
   },
+  breakTime: {
+    type: Number,
+    default: 60, // in minutes (official / lunch break)
+    min: 0,
+    max: 300,
+  },
+  casualBreakTime: {
+    type: Number,
+    default: 15, // in minutes (casual / tea break)
+    min: 0,
+    max: 180,
+  },
   weeklyOffDays: {
     type: [Number],
     default: [0, 6], // 0 = Sunday, 6 = Saturday

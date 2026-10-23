@@ -15,6 +15,7 @@ export function authFetch(url, options = {}) {
         ? (localStorage.getItem('sa_auth_token') || localStorage.getItem('auth_token'))
         : localStorage.getItem('auth_token');
     const headers = { ...(options.headers || {}) };
+    headers['x-portal-view'] = isSuperAdminPath ? 'superadmin' : 'ems';
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }

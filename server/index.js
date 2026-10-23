@@ -158,57 +158,146 @@ const upload = multer({
   }
 });
 
-// Database Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log('Connected to MongoDB');
-    pushLog('INFO', 'Database connection established', `URI: ${process.env.MONGODB_URI?.replace(/\/\/.*@/, '//***@')}`);
-  })
-  .catch((err) => {
-    console.error('MongoDB connection error:', err);
-    pushLog('ERROR', 'Database connection failed', err.message);
-  });
-
-// Seed Super Admin
+// Seed Super Admin & Company Owner into separate sectors
 async function seedSuperAdmin() {
   try {
-    const existing = await User.findOne({ username: SUPER_ADMIN_USERNAME }).select('+password');
-    if (!existing) {
-      const seedPwd = process.env.SUPER_ADMIN_PASSWORD;
-      if (!seedPwd) { console.warn('SUPER_ADMIN_PASSWORD not set — skipping seed'); return; }
-      const password = await bcrypt.hash(seedPwd, 10);
-      await User.create({
-        userId: SUPER_ADMIN_USERNAME,
-        username: SUPER_ADMIN_USERNAME,
-        password,
-        mustChangePassword: false,
-        name: SUPER_ADMIN_USERNAME,
-        role: 'param',
+    const targetUsername = (process.env.SUPER_ADMIN_USERNAME || 'Vyshwa').trim();
+    const targetPassword = (process.env.SUPER_ADMIN_PASSWORD || 'S@@ttv1k@').trim();
+    const pwdHash = await bcrypt.hash(targetPassword, 10);
+
+    // 1. Ensure Super Admin's inbuild company exists
+    let saCompany = await Company.findOne({ ownerId: targetUsername });
+    if (!saCompany) {
+      saCompany = await Company.findOne({ name: 'krish Tech Computer' });
+    }
+    if (!saCompany) {
+      saCompany = await Company.create({
+        name: 'krish Tech Computer',
+        phoneNumber: '9092024444',
+        email: 'info@krishub.in',
+        city: 'CBE',
+        category: 'it',
+        ownerId: targetUsername,
+        ownerName: targetUsername,
         status: 'active',
-        joiningDate: new Date().toISOString()
+        companyPolicies: []
       });
+      pushLog('INFO', `Super Admin inbuild company created: ${saCompany._id}`);
+    } else {
+      if (saCompany.ownerId !== targetUsername || saCompany.ownerName !== targetUsername) {
+        saCompany.ownerId = targetUsername;
+        saCompany.ownerName = targetUsername;
+        await saCompany.save();
+      }
+    }
+
+    // 2. SECTOR 1: Super Admin (Isolated in SuperAdmin collection)
+    const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+    let superAdmin = await SuperAdmin.findOne({
+      $or: [{ username: targetUsername }, { adminId: targetUsername }]
+    }).select('+password');
+
+    if (!superAdmin) {
+      superAdmin = await SuperAdmin.create({
+        adminId: targetUsername,
+        username: targetUsername,
+        password: pwdHash,
+        name: targetUsername,
+        role: 'param',
+        email: 'info@krishub.in',
+        phone: '9092024444',
+        avatar: '/assets/profiles/avatar-Vyshwa-1792750287056.png',
+        status: 'active'
+      });
+      pushLog('INFO', `Super Admin sector created with username: ${targetUsername}`);
     } else {
       let changed = false;
-      const seedPwd = process.env.SUPER_ADMIN_PASSWORD || 'admin123';
-      const isMatch = await bcrypt.compare(seedPwd, existing.password || '');
+      if (superAdmin.username !== targetUsername || superAdmin.adminId !== targetUsername) {
+        superAdmin.username = targetUsername;
+        superAdmin.adminId = targetUsername;
+        changed = true;
+      }
+      const isMatch = superAdmin.password ? await bcrypt.compare(targetPassword, superAdmin.password) : false;
       if (!isMatch) {
-        existing.password = await bcrypt.hash(seedPwd, 10);
-        changed = true;
-      }
-      if (existing.role !== 'param') {
-        existing.role = 'param';
-        changed = true;
-      }
-      if (existing.mustChangePassword !== false) {
-        existing.mustChangePassword = false;
+        superAdmin.password = pwdHash;
+        superAdmin.tokenVersion = Number(superAdmin.tokenVersion || 0) + 1;
         changed = true;
       }
       if (changed) {
-        await existing.save();
-        pushLog('INFO', 'Super Admin record patched');
+        await superAdmin.save();
+        pushLog('INFO', `Super Admin sector synchronized from .env for "${targetUsername}"`);
       }
     }
-    pushLog('INFO', 'Super Admin seed check complete');
+
+    // 3. SECTOR 2: Company Owner (Isolated in User collection with role: 'owner')
+    let companyOwner = await User.findOne({
+      $or: [
+        { userId: targetUsername },
+        { username: targetUsername, role: 'owner' },
+        { companyId: saCompany._id, role: 'owner' }
+      ]
+    }).select('+password');
+
+    if (!companyOwner) {
+      companyOwner = await User.create({
+        userId: targetUsername,
+        username: targetUsername,
+        password: pwdHash,
+        mustChangePassword: false,
+        name: targetUsername,
+        role: 'owner',
+        company: saCompany.name,
+        companyId: saCompany._id,
+        status: 'active',
+        joiningDate: new Date().toISOString().slice(0, 10)
+      });
+      pushLog('INFO', `Company Owner account created for "${targetUsername}" in company "${saCompany.name}"`);
+    } else {
+      let changed = false;
+      if (companyOwner.role !== 'owner') {
+        companyOwner.role = 'owner';
+        changed = true;
+      }
+      if (companyOwner.username !== targetUsername || companyOwner.userId !== targetUsername) {
+        companyOwner.username = targetUsername;
+        companyOwner.userId = targetUsername;
+        changed = true;
+      }
+      if (!companyOwner.companyId || String(companyOwner.companyId) !== String(saCompany._id)) {
+        companyOwner.companyId = saCompany._id;
+        companyOwner.company = saCompany.name;
+        changed = true;
+      }
+      const isMatch = companyOwner.password ? await bcrypt.compare(targetPassword, companyOwner.password) : false;
+      if (!isMatch) {
+        companyOwner.password = pwdHash;
+        companyOwner.tokenVersion = Number(companyOwner.tokenVersion || 0) + 1;
+        changed = true;
+      }
+      if (changed) {
+        await companyOwner.save();
+        pushLog('INFO', `Company Owner account synchronized from .env for "${targetUsername}"`);
+      }
+    }
+
+    // 4. Clean up any stray param records from User collection
+    const cleaned = await User.deleteMany({ role: 'param' });
+    if (cleaned.deletedCount > 0) {
+      pushLog('WARN', `Removed ${cleaned.deletedCount} legacy param accounts from User collection`);
+    }
+
+    // 5. Also synchronize PostgreSQL AuthServiceAdmin if connected
+    try {
+      const { isPgConnected, query } = await import('./auth-integration/pgClient.js');
+      if (await isPgConnected()) {
+        await query(
+          'UPDATE "AuthServiceAdmin" SET "passwordHash" = $1, "fullName" = $2, "updatedAt" = NOW() WHERE LOWER("fullName") = LOWER($2) OR LOWER("fullName") = \'vyshwa\'',
+          [pwdHash, targetUsername]
+        );
+      }
+    } catch {}
+
+    pushLog('INFO', 'Super Admin and Company Owner sector check complete');
   } catch (e) {
     console.error('seedSuperAdmin failed:', e.message);
     pushLog('ERROR', 'seedSuperAdmin failed', e.message);
@@ -227,29 +316,16 @@ async function seedMaintenanceMode() {
   }
 }
 
-mongoose.connection.once('open', async () => {
-  pushLog('INFO', 'MongoDB connection ready', `readyState=${mongoose.connection.readyState}`);
+let dbInitDone = false;
+async function runDbInit() {
+  if (dbInitDone) return;
+  dbInitDone = true;
+
+  pushLog('INFO', 'MongoDB connection ready, executing startup tasks');
   await seedSuperAdmin();
   await seedMaintenanceMode();
 
-  // Auto-sync company names across all users, and ensure owner name matches company name
-  try {
-    const { default: Company } = await import('./models/Company.js');
-    const companies = await Company.find({});
-    for (const c of companies) {
-      await User.updateMany(
-        { $or: [{ companyId: c._id }, { userId: c.ownerId }] },
-        { $set: { company: c.name } }
-      );
-      // Owner name should be same as company name
-      await User.updateMany(
-        { $or: [{ userId: c.ownerId }, { companyId: c._id, role: 'owner' }] },
-        { $set: { name: c.name } }
-      );
-    }
-  } catch (err) {
-    console.error('Company-user sync error:', err.message);
-  }
+  // Startup initialization complete
 
   try {
     await runBirthdayReminderJob();
@@ -288,7 +364,25 @@ mongoose.connection.once('open', async () => {
     // Start background PostgreSQL user deletion & reconciliation worker
     startDeletionSyncWorker();
   }).catch(() => {});
-});
+}
+
+// Database Connection
+mongoose.connect(process.env.MONGODB_URI)
+  .then(async () => {
+    console.log('Connected to MongoDB');
+    pushLog('INFO', 'Database connection established', `URI: ${process.env.MONGODB_URI?.replace(/\/\/.*@/, '//***@')}`);
+    await runDbInit();
+  })
+  .catch((err) => {
+    console.error('MongoDB connection error:', err);
+    pushLog('ERROR', 'Database connection failed', err.message);
+  });
+
+if (mongoose.connection.readyState === 1) {
+  runDbInit();
+} else {
+  mongoose.connection.once('open', runDbInit);
+}
 
 // Routes
 app.get('/', async (req, res) => {
@@ -391,6 +485,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const identifier = String(req.body?.identifier || '').trim();
     const password = String(req.body?.password || '');
+    const portal = req.body?.portal || req.headers['x-portal-view'] || (req.headers.referer?.includes('/superadmin') ? 'superadmin' : 'company');
     if (!identifier || !password) {
       return res.status(400).json({ message: 'Identifier and password are required' });
     }
@@ -398,12 +493,13 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
     // Maintenance Mode Check
     const maintenance = await isMaintenanceMode();
 
-    // Authenticate across PostgreSQL (Auth Service) and MongoDB securely
+    // Authenticate across PostgreSQL (Auth Service) and MongoDB securely with isolated sector resolution
     const authResult = await authenticateUser({
       identifier,
       password,
       ipAddress: req.ip,
-      deviceName: req.headers['user-agent']
+      deviceName: req.headers['user-agent'],
+      portal
     });
 
     const user = authResult.user;
@@ -435,11 +531,16 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       }
     }
 
-    // Update lastLogin and lastActive timestamps
+    // Update lastLogin and lastActive timestamps in the appropriate sector
     const loginNow = new Date();
-    await User.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
+    if (user.role === 'param') {
+      const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+      await SuperAdmin.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
+    } else {
+      await User.updateOne({ _id: user._id }, { $set: { lastLogin: loginNow, lastActive: loginNow } });
+    }
 
-    pushLog('AUTH', `User logged in: ${user.username}`, `role=${user.role}, source=${authResult.authSource}`);
+    pushLog('AUTH', `User logged in: ${user.username}`, `role=${user.role}, portal=${portal}, source=${authResult.authSource}`);
 
     const token = authResult.token || signToken(user);
     res.status(200).json({
@@ -449,6 +550,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       name: user.name,
       role: user.role,
       companyId: user.companyId,
+      company: user.company,
       avatar: user.avatar,
       mustChangePassword: user.mustChangePassword || false,
       token,
@@ -646,6 +748,263 @@ app.use(verifyToken);
 // Company data isolation — resolves companyId for the current user
 app.use(companyScope);
 
+// Switch from Super Admin console to Company Owner (EMS App)
+app.post('/api/auth/switch-to-ems', async (req, res) => {
+  try {
+    if (req.user?.role !== 'param') {
+      return res.status(403).json({ message: 'Only Super Admin can switch to EMS Company Owner mode' });
+    }
+    const targetUsername = (process.env.SUPER_ADMIN_USERNAME || 'Vyshwa').trim();
+    let saCompany = await Company.findOne({ ownerId: targetUsername });
+    if (!saCompany) {
+      saCompany = await Company.findOne({ name: 'krish Tech Computer' });
+    }
+    if (!saCompany) {
+      saCompany = await Company.create({
+        name: 'krish Tech Computer',
+        phoneNumber: '9092024444',
+        email: 'info@krishub.in',
+        city: 'CBE',
+        category: 'it',
+        ownerId: targetUsername,
+        ownerName: targetUsername,
+        status: 'active',
+        companyPolicies: []
+      });
+    }
+
+    let companyOwner = await User.findOne({
+      $or: [
+        { userId: targetUsername },
+        { username: targetUsername, role: 'owner' },
+        { companyId: saCompany._id, role: 'owner' }
+      ]
+    }).select('+password');
+
+    const targetPassword = (process.env.SUPER_ADMIN_PASSWORD || 'S@@ttv1k@').trim();
+    const ownerPwdHash = await bcrypt.hash(targetPassword, 10);
+
+    if (!companyOwner) {
+      companyOwner = await User.create({
+        userId: targetUsername,
+        username: targetUsername,
+        password: ownerPwdHash,
+        mustChangePassword: false,
+        name: targetUsername,
+        role: 'owner',
+        company: saCompany.name,
+        companyId: saCompany._id,
+        status: 'active',
+        joiningDate: new Date().toISOString().slice(0, 10)
+      });
+    } else {
+      if (companyOwner.role !== 'owner' || companyOwner.companyId?.toString() !== saCompany._id.toString()) {
+        companyOwner.role = 'owner';
+        companyOwner.companyId = saCompany._id;
+        companyOwner.company = saCompany.name;
+        await companyOwner.save();
+      }
+    }
+
+    const token = signToken({
+      userId: companyOwner.userId,
+      username: companyOwner.username,
+      role: 'owner',
+      companyId: companyOwner.companyId,
+      tokenVersion: companyOwner.tokenVersion
+    });
+
+    res.status(200).json({
+      _id: companyOwner._id,
+      userId: companyOwner.userId,
+      username: companyOwner.username,
+      name: companyOwner.name,
+      role: 'owner',
+      companyId: companyOwner.companyId,
+      company: companyOwner.company,
+      avatar: companyOwner.avatar,
+      token,
+      redirect: '/?view=ems'
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Switch from Company Owner back to Super Admin console
+app.post('/api/auth/switch-to-superadmin', async (req, res) => {
+  try {
+    const targetUsername = (process.env.SUPER_ADMIN_USERNAME || 'Vyshwa').trim();
+    const isSaUser = req.user?.username?.toLowerCase() === targetUsername.toLowerCase() ||
+                     req.user?.userId?.toLowerCase() === targetUsername.toLowerCase() ||
+                     req.user?.role === 'param';
+
+    if (!isSaUser) {
+      return res.status(403).json({ message: 'Unauthorized to switch to Super Admin console' });
+    }
+
+    const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+    let sa = await SuperAdmin.findOne({
+      $or: [{ adminId: targetUsername }, { username: targetUsername }]
+    });
+
+    if (!sa) {
+      const targetPassword = (process.env.SUPER_ADMIN_PASSWORD || 'S@@ttv1k@').trim();
+      const pwdHash = await bcrypt.hash(targetPassword, 10);
+      sa = await SuperAdmin.create({
+        adminId: targetUsername,
+        username: targetUsername,
+        password: pwdHash,
+        name: targetUsername,
+        role: 'param',
+        email: 'info@krishub.in',
+        phone: '9092024444',
+        status: 'active'
+      });
+    }
+
+    const token = signToken({
+      userId: sa.adminId,
+      username: sa.username,
+      role: 'param',
+      companyId: null,
+      tokenVersion: sa.tokenVersion
+    });
+
+    res.status(200).json({
+      _id: sa._id,
+      userId: sa.adminId,
+      username: sa.username,
+      name: sa.name,
+      role: 'param',
+      companyId: null,
+      company: 'ReGen Central',
+      avatar: sa.avatar,
+      token,
+      redirect: '/superadmin'
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Dedicated Super Admin Profile Get
+app.get('/api/superadmin/profile', async (req, res) => {
+  try {
+    if (req.user?.role !== 'param') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+    const sa = await SuperAdmin.findOne({
+      $or: [{ adminId: req.user.userId }, { username: req.user.username }]
+    }).lean();
+    if (!sa) return res.status(404).json({ message: 'Super Admin record not found' });
+    res.status(200).json({
+      _id: sa._id,
+      userId: sa.adminId,
+      username: sa.username,
+      name: sa.name,
+      role: 'param',
+      companyId: null,
+      company: 'ReGen Central',
+      email: sa.email,
+      phone: sa.phone,
+      designation: sa.designation,
+      department: sa.department,
+      avatar: sa.avatar,
+      status: sa.status
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Dedicated Super Admin Profile Update (Only touches SuperAdmin sector)
+app.put('/api/superadmin/profile', async (req, res) => {
+  try {
+    if (req.user?.role !== 'param') {
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+    const sa = await SuperAdmin.findOne({
+      $or: [{ adminId: req.user.userId }, { username: req.user.username }]
+    });
+    if (!sa) return res.status(404).json({ message: 'Super Admin record not found' });
+    if (req.body.name !== undefined) sa.name = req.body.name;
+    if (req.body.email !== undefined) sa.email = req.body.email;
+    if (req.body.phone !== undefined) sa.phone = req.body.phone;
+    if (req.body.designation !== undefined) sa.designation = req.body.designation;
+    if (req.body.department !== undefined) sa.department = req.body.department;
+    if (req.body.avatar !== undefined) sa.avatar = req.body.avatar;
+    await sa.save();
+    res.status(200).json({
+      _id: sa._id,
+      userId: sa.adminId,
+      username: sa.username,
+      name: sa.name,
+      role: 'param',
+      companyId: null,
+      company: 'ReGen Central',
+      email: sa.email,
+      phone: sa.phone,
+      designation: sa.designation,
+      department: sa.department,
+      avatar: sa.avatar,
+      status: sa.status
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Dedicated Super Admin Avatar Upload (Only touches SuperAdmin sector)
+app.post('/api/superadmin/avatar', (req, res, next) => {
+  upload.single('avatar')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ message: err.code === 'LIMIT_FILE_SIZE' ? 'File too large (max 5MB)' : err.message });
+    }
+    if (err) return res.status(400).json({ message: err.message });
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (req.user?.role !== 'param') {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ message: 'Super Admin access required' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const avatarPath = `/assets/profiles/${req.file.filename}`;
+    try {
+      const uploadCopy = path.join(uploadsDir, req.file.filename);
+      fs.copyFileSync(req.file.path, uploadCopy);
+    } catch {}
+
+    const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+    const sa = await SuperAdmin.findOneAndUpdate(
+      { $or: [{ adminId: req.user.userId }, { username: req.user.username }] },
+      { avatar: avatarPath, lastAvatarUpdate: new Date() },
+      { new: true }
+    );
+    res.status(200).json({
+      message: 'Super Admin avatar updated successfully',
+      avatar: avatarPath,
+      user: {
+        userId: sa.adminId,
+        username: sa.username,
+        name: sa.name,
+        avatar: sa.avatar
+      }
+    });
+  } catch (err) {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch {}
+    }
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.post('/api/users/:userId/avatar', (req, res, next) => {
   upload.single('avatar')(req, res, (err) => {
     if (err instanceof multer.MulterError) {
@@ -658,6 +1017,37 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
   try {
     const userId = req.params.userId;
     const isSuperAdmin = req.user?.role === 'param';
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    const avatarPath = `/assets/profiles/${req.file.filename}`;
+    try {
+      const uploadCopy = path.join(uploadsDir, req.file.filename);
+      fs.copyFileSync(req.file.path, uploadCopy);
+    } catch (e) {}
+
+    // If caller is Super Admin updating their own profile, update SuperAdmin collection ONLY
+    if (isSuperAdmin && (userId === req.user?.userId || userId === req.user?.username)) {
+      const { default: SuperAdmin } = await import('./models/SuperAdmin.js');
+      const sa = await SuperAdmin.findOneAndUpdate(
+        { $or: [{ adminId: userId }, { username: userId }] },
+        { avatar: avatarPath, lastAvatarUpdate: new Date() },
+        { new: true }
+      );
+      return res.status(200).json({
+        message: 'Super Admin avatar updated successfully',
+        avatar: avatarPath,
+        user: {
+          userId: sa.adminId,
+          username: sa.username,
+          name: sa.name,
+          avatar: sa.avatar
+        }
+      });
+    }
+
     const filter = { userId };
     if (req.companyId && !isSuperAdmin) filter.companyId = req.companyId;
     const existingUser = await User.findOne(filter);
@@ -665,18 +1055,8 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(404).json({ message: 'User not found' });
     }
-
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
     
-    const avatarPath = `/assets/profiles/${req.file.filename}`;
-    try {
-      const uploadCopy = path.join(uploadsDir, req.file.filename);
-      fs.copyFileSync(req.file.path, uploadCopy);
-    } catch (e) {}
-    
-    // Update user's avatar field
+    // Update user's avatar field in User collection
     const avatarFilter = { userId };
     if (req.companyId && !isSuperAdmin) avatarFilter.companyId = req.companyId;
     const user = await User.findOneAndUpdate(
@@ -684,6 +1064,9 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
       { avatar: avatarPath, lastAvatarUpdate: new Date() },
       { new: true }
     );
+    if (user && user.companyId && user.role === 'owner') {
+      await Company.findByIdAndUpdate(user.companyId, { logo: avatarPath }).catch(() => {});
+    }
     
     res.status(200).json({ 
       message: 'Avatar uploaded successfully', 
@@ -696,13 +1079,8 @@ app.post('/api/users/:userId/avatar', (req, res, next) => {
       }
     });
   } catch (error) {
-    // Clean up uploaded file on error
     if (req.file) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (e) {
-        console.error('Failed to delete uploaded file:', e);
-      }
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
     }
     res.status(500).json({ message: error.message });
   }
@@ -743,6 +1121,11 @@ app.post(['/api/company/:companyId/logo', '/api/company/logo'], (req, res, next)
       if (req.file) fs.unlinkSync(req.file.path);
       return res.status(404).json({ message: 'Company not found' });
     }
+
+    await User.updateMany(
+      { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+      { $set: { avatar: logoPath } }
+    ).catch(() => {});
 
     res.status(200).json({
       message: 'Company logo uploaded successfully',

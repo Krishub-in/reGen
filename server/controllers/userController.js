@@ -191,24 +191,28 @@ export const createUser = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
   try {
-    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin';
-    if (!isSuperAdmin && !req.companyId) {
+    const isSuperAdminMonitoring = (req.user?.role === 'param' || req.user?.role === 'admin') && 
+      (req.headers['x-portal-view'] === 'superadmin' || (!req.headers['x-portal-view'] && req.headers.referer?.includes('/superadmin')));
+    if (!isSuperAdminMonitoring && !req.companyId) {
       // Never expose global users to non-superadmin callers
       return res.status(200).json([]);
     }
 
     let filter = {};
-    if (isSuperAdmin) {
-      // Super Admin sees all users across the platform (active and suspended/inactive)
+    if (isSuperAdminMonitoring) {
+      // Super Admin central monitoring sees all users across the platform (active and suspended/inactive)
       // so inactive/suspended counts update accurately and Super Admin can manage/re-enable profiles
       if (req.query.status) {
         filter.status = req.query.status;
       }
     } else {
-      // Company admins and staff only see active users in their own company
+      // Company admins and staff (and Super Admin switched to EMS app) only see users in their own company
       filter = { companyId: req.companyId, status: { $ne: 'inactive' } };
       if (req.query.includeInactive === 'true') {
         delete filter.status;
+      }
+      if (req.query.status) {
+        filter.status = req.query.status;
       }
     }
 
@@ -218,9 +222,6 @@ export const getAllUsers = async (req, res) => {
       if (u.companyId && typeof u.companyId === 'object' && u.companyId.name) {
         obj.company = u.companyId.name;
         obj.companyId = u.companyId._id;
-      }
-      if (u.role === 'owner' && obj.company) {
-        obj.name = obj.company;
       }
       return obj;
     });
@@ -235,9 +236,32 @@ export const getCurrentUser = async (req, res) => {
     const currentUserId = String(req.user?.userId || '').trim();
     if (!currentUserId) return res.status(401).json({ message: 'Unauthorized' });
 
-    const isSuperAdmin = req.user?.role === 'param';
+    if (req.user?.role === 'param') {
+      const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+      const sa = await SuperAdmin.findOne({
+        $or: [{ adminId: currentUserId }, { username: currentUserId }]
+      }).lean();
+      if (sa) {
+        return res.status(200).json({
+          _id: sa._id,
+          userId: sa.adminId,
+          username: sa.username,
+          name: sa.name,
+          role: 'param',
+          companyId: null,
+          company: 'ReGen Central',
+          avatar: sa.avatar || '',
+          email: sa.email || '',
+          phone: sa.phone || '',
+          designation: sa.designation || 'Platform Administrator',
+          department: sa.department || 'Central Administration',
+          status: sa.status
+        });
+      }
+    }
+
     const filter = { userId: currentUserId };
-    if (!isSuperAdmin && req.companyId) {
+    if (req.companyId) {
       filter.companyId = req.companyId;
     }
 
@@ -248,9 +272,6 @@ export const getCurrentUser = async (req, res) => {
       obj.company = user.companyId.name;
       obj.companyId = user.companyId._id;
     }
-    if (user.role === 'owner' && obj.company) {
-      obj.name = obj.company;
-    }
     res.status(200).json(obj);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -259,12 +280,37 @@ export const getCurrentUser = async (req, res) => {
 
 export const getUser = async (req, res) => {
   try {
+    const targetId = req.params.id;
+    if (req.user?.role === 'param' && (targetId === req.user.userId || targetId === req.user.username)) {
+      const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+      const sa = await SuperAdmin.findOne({
+        $or: [{ adminId: targetId }, { username: targetId }]
+      }).lean();
+      if (sa) {
+        return res.status(200).json({
+          _id: sa._id,
+          userId: sa.adminId,
+          username: sa.username,
+          name: sa.name,
+          role: 'param',
+          companyId: null,
+          company: 'ReGen Central',
+          avatar: sa.avatar || '',
+          email: sa.email || '',
+          phone: sa.phone || '',
+          designation: sa.designation || 'Platform Administrator',
+          department: sa.department || 'Central Administration',
+          status: sa.status
+        });
+      }
+    }
+
     const isPrivileged = req.user?.role === 'param' || req.user?.role === 'admin';
     const filter = {
       $or: [
-        { userId: req.params.id },
-        { username: req.params.id },
-        ...(mongoose.isValidObjectId(req.params.id) ? [{ _id: req.params.id }] : [])
+        { userId: targetId },
+        { username: targetId },
+        ...(mongoose.isValidObjectId(targetId) ? [{ _id: targetId }] : [])
       ]
     };
     if (req.companyId && !isPrivileged) filter.companyId = req.companyId;
@@ -274,9 +320,6 @@ export const getUser = async (req, res) => {
     if (user.companyId && typeof user.companyId === 'object' && user.companyId.name) {
       obj.company = user.companyId.name;
       obj.companyId = user.companyId._id;
-    }
-    if (user.role === 'owner' && obj.company) {
-      obj.name = obj.company;
     }
     res.status(200).json(obj);
   } catch (error) {
@@ -288,6 +331,39 @@ export const updateUser = async (req, res) => {
   try {
     // Expecting id in body or params. Support body.userId or params.id
     const id = req.body.userId || req.params.id;
+
+    // If caller is Super Admin updating their own Super Admin profile, update SuperAdmin collection only
+    if (req.user?.role === 'param' && (id === req.user.userId || id === req.user.username)) {
+      const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+      const sa = await SuperAdmin.findOne({
+        $or: [{ adminId: id }, { username: id }]
+      });
+      if (sa) {
+        if (req.body.name !== undefined) sa.name = req.body.name;
+        if (req.body.email !== undefined) sa.email = req.body.email;
+        if (req.body.phone !== undefined) sa.phone = req.body.phone;
+        if (req.body.designation !== undefined) sa.designation = req.body.designation;
+        if (req.body.department !== undefined) sa.department = req.body.department;
+        if (req.body.avatar !== undefined) sa.avatar = req.body.avatar;
+        await sa.save();
+        return res.status(200).json({
+          _id: sa._id,
+          userId: sa.adminId,
+          username: sa.username,
+          name: sa.name,
+          role: 'param',
+          companyId: null,
+          company: 'ReGen Central',
+          avatar: sa.avatar,
+          email: sa.email,
+          phone: sa.phone,
+          designation: sa.designation,
+          department: sa.department,
+          status: sa.status
+        });
+      }
+    }
+
     const body = { ...req.body };
     if (body.contact && !body.phone) {
       body.phone = body.contact;
@@ -334,9 +410,13 @@ export const updateUser = async (req, res) => {
     const existingUser = await User.findOne(findFilter);
     if (!existingUser) return res.status(404).json({ message: 'User not found' });
 
-    if (body.avatar !== undefined && body.avatar !== existingUser.avatar) {
-      body.avatar = await normalizeAvatarInput(body.avatar, id || body.userId || body.username || body.name || 'user');
-      body.lastAvatarUpdate = new Date();
+    if (body.avatar !== undefined) {
+      if (!body.avatar || body.avatar === 'null') {
+        body.avatar = existingUser.avatar;
+      } else if (body.avatar !== existingUser.avatar) {
+        body.avatar = await normalizeAvatarInput(body.avatar, id || body.userId || body.username || body.name || 'user');
+        body.lastAvatarUpdate = new Date();
+      }
     }
 
     // Status management by SuperAdmin or Admin

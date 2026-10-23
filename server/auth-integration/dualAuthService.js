@@ -25,7 +25,7 @@ function mapAppRoleCodeToMongo(code) {
  * respects blocked/inactive states, ensures Super Admin compatibility, and
  * issues secure MERN JWTs with trusted claims.
  */
-export async function authenticateUser({ identifier, password, ipAddress = null, deviceName = null }) {
+export async function authenticateUser({ identifier, password, ipAddress = null, deviceName = null, portal = 'company' }) {
   const cleanId = String(identifier || '').trim();
   const cleanPwd = String(password || '');
 
@@ -44,54 +44,200 @@ export async function authenticateUser({ identifier, password, ipAddress = null,
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1. SUPER ADMIN CHECK (AuthServiceAdmin in PG & Mongo Param)
+  // 1. SUPER ADMIN / COMPANY OWNER CREDENTIAL CHECK (ENV ENFORCED)
   // ─────────────────────────────────────────────────────────────────────────────
-  if (pgAvailable) {
-    try {
-      const adminRes = await query(
-        'SELECT id, email, "passwordHash", "fullName", "isActive" FROM "AuthServiceAdmin" WHERE LOWER(email) = LOWER($1)',
-        [cleanId]
-      );
-      if (adminRes.rows.length > 0) {
-        const admin = adminRes.rows[0];
-        if (!admin.isActive) {
-          const err = new Error('Super Admin account is deactivated in Auth Service');
-          err.statusCode = 403;
-          throw err;
+  const targetSaUsername = (process.env.SUPER_ADMIN_USERNAME || 'Vyshwa').trim();
+  const targetSaPassword = (process.env.SUPER_ADMIN_PASSWORD || 'S@@ttv1k@').trim();
+  const isSaIdentifier = 
+    cleanId.toLowerCase() === targetSaUsername.toLowerCase() ||
+    cleanId.toLowerCase() === 'info@krishub.in' ||
+    cleanId.toLowerCase() === 'admin@krishub.in';
+
+  if (isSaIdentifier) {
+    if (cleanPwd !== targetSaPassword) {
+      // Old password or wrong password must NEVER work
+      const err = new Error('Invalid credentials');
+      err.statusCode = 401;
+      throw err;
+    }
+
+    // 1A. Ensure Super Admin's company exists
+    let saCompany = await Company.findOne({ ownerId: targetSaUsername });
+    if (!saCompany) {
+      saCompany = await Company.findOne({ name: 'krish Tech Computer' });
+    }
+    if (!saCompany) {
+      saCompany = await Company.create({
+        name: 'krish Tech Computer',
+        phoneNumber: '9092024444',
+        email: 'info@krishub.in',
+        city: 'CBE',
+        category: 'it',
+        ownerId: targetSaUsername,
+        ownerName: targetSaUsername,
+        status: 'active',
+        companyPolicies: []
+      });
+    }
+
+    const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASE A: LOGGING IN THROUGH SUPER ADMIN PORTAL
+    // Returns isolated SuperAdmin record with role 'param'
+    // ─────────────────────────────────────────────────────────────────────────
+    if (portal === 'superadmin') {
+      let superAdmin = await SuperAdmin.findOne({
+        $or: [{ username: targetSaUsername }, { adminId: targetSaUsername }]
+      }).select('+password');
+
+      const pwdHash = await bcrypt.hash(cleanPwd, 10);
+      if (!superAdmin) {
+        superAdmin = await SuperAdmin.create({
+          adminId: targetSaUsername,
+          username: targetSaUsername,
+          password: pwdHash,
+          name: targetSaUsername,
+          role: 'param',
+          email: 'info@krishub.in',
+          phone: '9092024444',
+          avatar: '',
+          status: 'active'
+        });
+      } else {
+        let changed = false;
+        if (superAdmin.username !== targetSaUsername || superAdmin.adminId !== targetSaUsername) {
+          superAdmin.username = targetSaUsername;
+          superAdmin.adminId = targetSaUsername;
+          changed = true;
         }
-
-        const adminMatch = await bcrypt.compare(cleanPwd, admin.passwordHash);
-        if (adminMatch) {
-          // Find or sync corresponding Super Admin in MongoDB
-          let mongoAdmin = await User.findOne({
-            $or: [{ email: admin.email }, { role: 'param' }, { username: 'Vyshwa' }]
-          });
-
-          if (!mongoAdmin) {
-            mongoAdmin = await User.create({
-              userId: admin.id || 'superadmin-pg',
-              username: admin.fullName || 'Vyshwa',
-              email: admin.email,
-              name: admin.fullName,
-              role: 'param',
-              status: 'active',
-              mustChangePassword: false,
-              joiningDate: new Date().toISOString()
-            });
-          }
-
-          const token = signToken(mongoAdmin);
-          return {
-            user: mongoAdmin,
-            token,
-            authSource: 'postgresql:AuthServiceAdmin'
-          };
+        const isHashMatch = superAdmin.password ? await bcrypt.compare(cleanPwd, superAdmin.password) : false;
+        if (!isHashMatch) {
+          superAdmin.password = pwdHash;
+          superAdmin.tokenVersion = Number(superAdmin.tokenVersion || 0) + 1;
+          changed = true;
+        }
+        if (changed) {
+          await superAdmin.save();
         }
       }
-    } catch (err) {
-      if (err.statusCode) throw err;
-      console.warn('[AUTH-INTEGRATION] AuthServiceAdmin check notice:', err.message);
+
+      if (pgAvailable) {
+        try {
+          await query(
+            'UPDATE "AuthServiceAdmin" SET "passwordHash" = $1, "updatedAt" = NOW() WHERE LOWER("fullName") = LOWER($2) OR LOWER("fullName") = \'vyshwa\' OR LOWER("email") = \'info@krishub.in\'',
+            [pwdHash, targetSaUsername]
+          );
+        } catch {}
+      }
+
+      const token = signToken({
+        userId: superAdmin.adminId,
+        username: superAdmin.username,
+        role: 'param',
+        companyId: null,
+        tokenVersion: superAdmin.tokenVersion
+      });
+
+      return {
+        user: {
+          _id: superAdmin._id,
+          userId: superAdmin.adminId,
+          username: superAdmin.username,
+          name: superAdmin.name,
+          role: 'param',
+          companyId: null,
+          company: 'ReGen Central',
+          avatar: superAdmin.avatar,
+          email: superAdmin.email,
+          phone: superAdmin.phone,
+          designation: superAdmin.designation,
+          department: superAdmin.department,
+          mustChangePassword: false,
+          token
+        },
+        token,
+        authSource: 'superadmin:isolated_sector'
+      };
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CASE B: LOGGING IN THROUGH NORMAL COMPANY LOGIN
+    // Acts strictly as Company Owner (role 'owner') of his company
+    // ─────────────────────────────────────────────────────────────────────────
+    let companyOwner = await User.findOne({
+      $or: [
+        { userId: targetSaUsername },
+        { username: targetSaUsername, role: 'owner' },
+        { companyId: saCompany._id, role: 'owner' }
+      ]
+    }).select('+password');
+
+    const ownerPwdHash = await bcrypt.hash(cleanPwd, 10);
+    if (!companyOwner) {
+      companyOwner = await User.create({
+        userId: targetSaUsername,
+        username: targetSaUsername,
+        password: ownerPwdHash,
+        mustChangePassword: false,
+        name: targetSaUsername,
+        role: 'owner',
+        company: saCompany.name,
+        companyId: saCompany._id,
+        status: 'active',
+        joiningDate: new Date().toISOString().slice(0, 10)
+      });
+    } else {
+      let changed = false;
+      if (companyOwner.role !== 'owner') {
+        companyOwner.role = 'owner';
+        changed = true;
+      }
+      if (companyOwner.username !== targetSaUsername || companyOwner.userId !== targetSaUsername) {
+        companyOwner.username = targetSaUsername;
+        companyOwner.userId = targetSaUsername;
+        changed = true;
+      }
+      if (!companyOwner.companyId || String(companyOwner.companyId) !== String(saCompany._id)) {
+        companyOwner.companyId = saCompany._id;
+        companyOwner.company = saCompany.name;
+        changed = true;
+      }
+      const isHashMatch = companyOwner.password ? await bcrypt.compare(cleanPwd, companyOwner.password) : false;
+      if (!isHashMatch) {
+        companyOwner.password = ownerPwdHash;
+        companyOwner.tokenVersion = Number(companyOwner.tokenVersion || 0) + 1;
+        changed = true;
+      }
+      if (changed) {
+        await companyOwner.save();
+      }
+    }
+
+    const token = signToken({
+      userId: companyOwner.userId,
+      username: companyOwner.username,
+      role: 'owner',
+      companyId: companyOwner.companyId,
+      tokenVersion: companyOwner.tokenVersion
+    });
+
+    return {
+      user: {
+        _id: companyOwner._id,
+        userId: companyOwner.userId,
+        username: companyOwner.username,
+        name: companyOwner.name,
+        role: 'owner',
+        companyId: companyOwner.companyId,
+        company: companyOwner.company,
+        avatar: companyOwner.avatar,
+        mustChangePassword: false,
+        token
+      },
+      token,
+      authSource: 'company_owner:isolated_sector'
+    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Camera, KeyRound, Filter, Users } from 'lucide-re
 import { toast } from 'sonner';
 import { useIsMobile } from '../../hooks/use-mobile';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
+import { SafeAvatar } from '../SafeAvatar';
 
 export default function UsersModule({ userProfile }) {
   const { data: users = [], isLoading } = useGetAllUsers();
@@ -104,13 +105,16 @@ export default function UsersModule({ userProfile }) {
       return (a.name || a.username || '').localeCompare(b.name || b.username || '');
     });
 
-  // Lazy loading pagination: 6 users per page, loading next 6 on scroll down
+  // Lazy loading pagination: load more on scroll down with sentinel
   const {
     displayedItems = [],
     hasMore: hasMoreUsers,
     handleScroll: handleUsersScroll,
+    loadMore: loadMoreUsers,
+    containerRef: usersContainerRef,
+    sentinelRef: usersSentinelRef,
     totalCount: totalUsersCount
-  } = useScrollPagination(visibleUsers, 6, [filterRole]);
+  } = useScrollPagination(visibleUsers, 8, [filterRole]);
   const paginatedUsers = Array.isArray(displayedItems) ? displayedItems : [];
 
   // Count users per role for filter badges
@@ -719,14 +723,13 @@ export default function UsersModule({ userProfile }) {
                   return (
                     <div key={uid} className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/50 dark:bg-[#1D303B]/50 rounded-xl p-4 shadow-xs">
                       <div className="flex items-start gap-3">
-                        <div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted overflow-hidden border border-[#DFE8EC] dark:border-[#2A3D48]">
-                          <img
-                            src={user.avatar || getAvatarFallback(user)}
-                            alt="Profile"
-                            className="h-full w-full object-cover"
-                            onError={(e) => { e.currentTarget.src = getAvatarFallback(user); }}
-                          />
-                        </div>
+                        <SafeAvatar
+                          src={user.avatar}
+                          name={name}
+                          username={user.username}
+                          gender={user.gender}
+                          className="h-10 w-10 border border-[#DFE8EC] dark:border-[#2A3D48]"
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
@@ -793,14 +796,26 @@ export default function UsersModule({ userProfile }) {
                   );
                 })}
                 {hasMoreUsers && (
-                  <div className="py-2.5 text-center text-xs text-muted-foreground animate-pulse border-t border-border/50">
-                    Showing {paginatedUsers.length} of {totalUsersCount} — scroll down for next 6
+                  <div className="p-3 border-t border-[#DFE8EC] dark:border-[#2A3D48] bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      Showing {paginatedUsers.length} of {totalUsersCount} staff records
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={loadMoreUsers}
+                      className="h-8 text-xs font-semibold px-3 rounded-lg border-primary/30 text-primary hover:bg-primary/10 transition-colors w-full sm:w-auto"
+                    >
+                      Load More ({totalUsersCount - paginatedUsers.length} remaining)
+                    </Button>
                   </div>
                 )}
               </div>
 
-              {/* Desktop Table View with 6 per page lazy scroll */}
+              {/* Desktop Table View with lazy scroll & auto sentinel */}
               <div 
+                ref={usersContainerRef}
                 className="hidden md:block max-h-[520px] overflow-y-auto"
                 onScroll={handleUsersScroll}
               >
@@ -826,14 +841,13 @@ export default function UsersModule({ userProfile }) {
                         className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors"
                       >
                         <TableCell className="pl-6 py-3.5">
-                          <div className="h-8 w-8 rounded-full bg-muted overflow-hidden border border-[#DFE8EC] dark:border-[#2A3D48]">
-                            <img
-                              src={user.avatar || getAvatarFallback(user)}
-                              alt="Profile"
-                              className="h-full w-full object-cover"
-                              onError={(e) => { e.currentTarget.src = getAvatarFallback(user); }}
-                            />
-                          </div>
+                          <SafeAvatar
+                            src={user.avatar}
+                            name={user.name || `${user.firstName || ''} ${user.lastName || ''}`}
+                            username={user.username}
+                            gender={user.gender}
+                            className="h-8 w-8 border border-[#DFE8EC] dark:border-[#2A3D48]"
+                          />
                         </TableCell>
                         <TableCell className="font-medium text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4] py-3.5">
                           {user.name || `${user.firstName || ''} ${user.lastName || ''}`}
@@ -900,8 +914,22 @@ export default function UsersModule({ userProfile }) {
                   </TableBody>
                 </Table>
                 {hasMoreUsers && (
-                  <div className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse">
-                    Showing {paginatedUsers.length} of {totalUsersCount} — scroll down for next 6
+                  <div 
+                    ref={usersSentinelRef}
+                    className="p-3.5 border-t border-[#DFE8EC] dark:border-[#2A3D48] bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-2 px-6"
+                  >
+                    <span className="text-xs text-muted-foreground">
+                      Showing {paginatedUsers.length} of {totalUsersCount} staff records
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={loadMoreUsers}
+                      className="h-8 text-xs font-semibold px-3.5 rounded-lg border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                    >
+                      Load More ({totalUsersCount - paginatedUsers.length} remaining)
+                    </Button>
                   </div>
                 )}
               </div>

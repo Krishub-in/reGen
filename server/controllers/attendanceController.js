@@ -1,11 +1,43 @@
 import Attendance from '../models/Attendance.js';
 import User from '../models/User.js';
 import Company from '../models/Company.js';
+import PayrollSetting from '../models/PayrollSetting.js';
 import mongoose from 'mongoose';
 import { resolveCompanyId } from '../utils/resolveCompanyId.js';
 import { emitToCompany, emitToUser, getIO } from '../socket.js';
 import { calculateWorkedHours, round2 } from '../utils/payrollCalculator.js';
 import { sendReportEmail } from '../utils/mailer.js';
+
+export const calculateBreakDelayDeduction = async (companyId, userId, delayMinutes) => {
+  if (!delayMinutes || delayMinutes <= 0) return 0;
+  try {
+    const user = await User.findOne({ 
+      $or: [
+        { userId }, 
+        { StaffId: userId }, 
+        { username: userId }, 
+        { name: userId }, 
+        { _id: mongoose.isValidObjectId(userId) ? userId : null }
+      ] 
+    }).select('salary').lean();
+    const monthlySalary = Number(user?.salary) || 0;
+    if (monthlySalary <= 0) return 0;
+
+    const settings = await PayrollSetting.findOne({ companyId }).lean();
+    const workingHoursPerDay = Number(settings?.workingHoursPerDay) || 8;
+    const workingDaysPerWeek = Number(settings?.workingDaysPerWeek) || 5;
+    const hourlyDeductionPct = Number(settings?.hourlyDeductionPct) >= 0 ? Number(settings.hourlyDeductionPct) : 50;
+    
+    // Scheduled monthly hours = workingDaysPerWeek * 4.33 * workingHoursPerDay
+    const scheduledHours = Math.max(1, workingDaysPerWeek * 4.33 * workingHoursPerDay);
+    const hourlyDeductionRate = (monthlySalary * (hourlyDeductionPct / 100)) / scheduledHours;
+    const minuteRate = hourlyDeductionRate / 60;
+    return round2(delayMinutes * minuteRate);
+  } catch (err) {
+    console.error('calculateBreakDelayDeduction error:', err.message);
+    return 0;
+  }
+};
 
 export const recordAttendance = async (req, res) => {
   try {
@@ -40,7 +72,9 @@ export const recordAttendance = async (req, res) => {
 
 export const getAllAttendance = async (req, res) => {
   try {
-    const filter = req.companyId ? { companyId: req.companyId } : {};
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin';
+    const filter = (isSuperAdmin && !isEmsView) ? {} : (req.companyId ? { companyId: req.companyId } : {});
     const attendance = await Attendance.find(filter);
     res.status(200).json(attendance);
   } catch (error) {
@@ -74,6 +108,54 @@ export const updateAttendance = async (req, res) => {
         delete updateData.status;
       }
     }
+
+    const existing = await Attendance.findOne(filter);
+    if (!existing) return res.status(404).json({ message: 'Attendance not found' });
+
+    const companyId = existing.companyId || req.companyId;
+    const userId = existing.userId || updateData.userId;
+    const settings = companyId ? await PayrollSetting.findOne({ companyId }).lean() : null;
+
+    // If starting official break, clear stale breakEnd
+    if (updateData.activeBreakType === 'official' && updateData.breakStart && !updateData.breakEnd) {
+      updateData.breakEnd = null;
+    }
+    // If starting casual break, clear stale casualBreakEnd
+    if (updateData.activeBreakType === 'casual' && updateData.casualBreakStart && !updateData.casualBreakEnd) {
+      updateData.casualBreakEnd = null;
+    }
+
+    // Official break calculation
+    const bStart = updateData.breakStart !== undefined ? updateData.breakStart : existing.breakStart;
+    const bEnd = updateData.breakEnd !== undefined ? updateData.breakEnd : existing.breakEnd;
+    if (bStart && bEnd && new Date(bEnd).getTime() >= new Date(bStart).getTime()) {
+      const bMin = Math.max(0, Math.round((new Date(bEnd).getTime() - new Date(bStart).getTime()) / 60000));
+      updateData.breakMinutes = bMin;
+      const allowedBreak = Number(settings?.breakTime) || 60;
+      updateData.breakDelayMinutes = Math.max(0, bMin - allowedBreak);
+    }
+
+    // Casual break calculation
+    const cbStart = updateData.casualBreakStart !== undefined ? updateData.casualBreakStart : existing.casualBreakStart;
+    const cbEnd = updateData.casualBreakEnd !== undefined ? updateData.casualBreakEnd : existing.casualBreakEnd;
+    if (cbStart && cbEnd && new Date(cbEnd).getTime() >= new Date(cbStart).getTime()) {
+      const cbMin = Math.max(0, Math.round((new Date(cbEnd).getTime() - new Date(cbStart).getTime()) / 60000));
+      updateData.casualBreakMinutes = cbMin;
+      const allowedCasual = Number(settings?.casualBreakTime) || 15;
+      updateData.casualBreakDelayMinutes = Math.max(0, cbMin - allowedCasual);
+    }
+
+    const bDelay = updateData.breakDelayMinutes !== undefined ? updateData.breakDelayMinutes : (existing.breakDelayMinutes || 0);
+    const cbDelay = updateData.casualBreakDelayMinutes !== undefined ? updateData.casualBreakDelayMinutes : (existing.casualBreakDelayMinutes || 0);
+    const totalDelay = (Number(bDelay) || 0) + (Number(cbDelay) || 0);
+    updateData.totalBreakDelayMinutes = totalDelay;
+
+    if (totalDelay > 0) {
+      updateData.breakDeduction = await calculateBreakDelayDeduction(companyId, userId, totalDelay);
+    } else {
+      updateData.breakDeduction = 0;
+    }
+
     const attendance = await Attendance.findOneAndUpdate(filter, updateData, { new: true });
     if (!attendance) return res.status(404).json({ message: 'Attendance not found' });
 
@@ -183,6 +265,13 @@ export const buildAttendanceReportData = async (companyId, { period = 'month', d
       checkOutDisplay: formatTimeDisplay(r.checkOut),
       workingHours: workedHours,
       workMode: r.workMode || 'office',
+      breakMinutes: r.breakMinutes || 0,
+      breakDelayMinutes: r.breakDelayMinutes || 0,
+      casualBreakMinutes: r.casualBreakMinutes || 0,
+      casualBreakDelayMinutes: r.casualBreakDelayMinutes || 0,
+      totalBreakDelayMinutes: r.totalBreakDelayMinutes || 0,
+      breakDeduction: r.breakDeduction || 0,
+      activeBreakType: r.activeBreakType || 'none',
       location: r.location || 'Main Office',
       notes: r.notes || '',
     };

@@ -998,68 +998,6 @@ export default function PaymentsModule({ userProfile }) {
           </DialogHeader>
 
           <form onSubmit={handleSaveSettings} className="space-y-4 pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Standard Check-In Time</Label>
-                <Input
-                  type="time"
-                  required
-                  value={settingsForm.checkInTime}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, checkInTime: e.target.value })}
-                  className="font-mono text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground">Clock-in past this is marked Late</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Standard Check-Out Time</Label>
-                <Input
-                  type="time"
-                  required
-                  value={settingsForm.checkOutTime}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, checkOutTime: e.target.value })}
-                  className="font-mono text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground">End of shift timing</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Working Hours / Day</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="24"
-                  step="0.5"
-                  required
-                  value={settingsForm.workingHoursPerDay}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, workingHoursPerDay: e.target.value })}
-                  className="font-mono text-xs"
-                />
-                <p className="text-[10px] text-muted-foreground">Standard daily requirement (e.g. 8h)</p>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Working Days / Week</Label>
-                <Select
-                  value={String(settingsForm.workingDaysPerWeek)}
-                  onValueChange={(val) => setSettingsForm({ ...settingsForm, workingDaysPerWeek: Number(val) })}
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="4">4 Days (Mon - Thu, Fri/Sat/Sun Off)</SelectItem>
-                    <SelectItem value="5">5 Days (Mon - Fri, Sat/Sun Off)</SelectItem>
-                    <SelectItem value="6">6 Days (Mon - Sat, Sun Off)</SelectItem>
-                    <SelectItem value="7">7 Days (Full Week)</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-[10px] text-muted-foreground">Normal working days schedule</p>
-              </div>
-            </div>
-
             <div className="p-3 bg-muted/30 rounded-xl border border-border/80 space-y-3">
               <span className="text-xs font-bold text-foreground block">
                 Hourly Deduction & Overtime Rates (% of Monthly Base Salary)

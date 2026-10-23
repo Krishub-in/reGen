@@ -30,6 +30,7 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import Footer from '../components/Footer';
 import PolicyGate from '../components/PolicyGate';
+import { SafeAvatar, SafeCompanyLogo } from '../components/SafeAvatar';
 
 // Lazy-loaded modules for optimized bundle splitting & faster page loads
 const UsersModule = lazy(() => import('../components/modules/UsersModule'));
@@ -156,11 +157,18 @@ export default function Dashboard({ userProfile }) {
     const targetModule = moduleId === 'settings' ? 'profile' : moduleId;
     setActiveModule(targetModule);
 
+    const isEmsView = typeof window !== 'undefined' && (
+      window.location.search.includes('view=ems') || 
+      sessionStorage.getItem('portal_view') === 'ems'
+    );
+
     let newUrl = '/';
     if (targetModule === 'profile' || targetModule === 'settings') {
-      newUrl = '/settings';
+      newUrl = isEmsView ? '/settings?view=ems' : '/settings';
     } else if (targetModule && targetModule !== 'home') {
-      newUrl = `/?tab=${targetModule}`;
+      newUrl = isEmsView ? `/?tab=${targetModule}&view=ems` : `/?tab=${targetModule}`;
+    } else if (isEmsView) {
+      newUrl = '/?view=ems';
     }
 
     const currentUrl = window.location.pathname + window.location.search;
@@ -360,7 +368,7 @@ export default function Dashboard({ userProfile }) {
   };
 
 
-  const isAdmin = hasUserRole(userProfile, 'admin');
+  const isAdmin = hasUserRole(userProfile, 'admin') || hasUserRole(userProfile, 'param');
   const isOwner = hasUserRole(userProfile, 'owner') || hasUserRole(userProfile, 'param');
   const isStaff = hasUserRole(userProfile, 'staff') || hasUserRole(userProfile, 'intern') || hasUserRole(userProfile, 'freelancer');
 
@@ -440,7 +448,7 @@ export default function Dashboard({ userProfile }) {
         <div className="h-16 flex items-center gap-2.5 px-6 border-b border-border">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateToModule('home')}>
             {companyInfo?.logo ? (
-              <img src={companyInfo.logo} alt="Logo" className="w-7 h-7 rounded-lg object-contain border border-border/40" />
+              <SafeCompanyLogo src={companyInfo.logo} name={companyInfo?.name || 'ReGen'} className="w-7 h-7 rounded-lg" />
             ) : null}
             <span className="text-xl font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
             <span className="w-2 h-2 rounded-full bg-primary" />
@@ -469,13 +477,31 @@ export default function Dashboard({ userProfile }) {
           })}
         </nav>
 
-        {/* Superadmin button if param */}
-        {userProfile?.role === 'param' && (
+        {/* Superadmin button for authorized accounts */}
+        {(userProfile?.role === 'param' || (typeof window !== 'undefined' && !!localStorage.getItem('sa_auth_token')) || userProfile?.username?.toLowerCase() === 'vyshwa' || userProfile?.userId?.toLowerCase() === 'vyshwa') && (
           <div className="p-3 border-t border-border">
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => window.location.href = '/superadmin'}
+              onClick={async () => {
+                try {
+                  const resp = await authFetch('/api/auth/switch-to-superadmin', { method: 'POST' });
+                  if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.token) {
+                      localStorage.setItem('sa_auth_token', data.token);
+                      localStorage.setItem('auth_token', data.token);
+                      localStorage.setItem('active_sa_id', data.userId);
+                    }
+                  }
+                } catch (e) {
+                  console.error('Switch to Super Admin error', e);
+                }
+                if (typeof window !== 'undefined') {
+                  sessionStorage.removeItem('portal_view');
+                  window.location.href = '/superadmin';
+                }
+              }}
               className="w-full text-xs font-semibold justify-start gap-2 border-primary/30 text-primary hover:bg-primary/10 rounded-xl"
             >
               <ShieldCheck className="w-4 h-4" />
@@ -501,7 +527,7 @@ export default function Dashboard({ userProfile }) {
             </button>
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveModule('home')}>
               {companyInfo?.logo ? (
-                <img src={companyInfo.logo} alt="Logo" className="w-6 h-6 rounded-md object-contain border border-border/40" />
+                <SafeCompanyLogo src={companyInfo.logo} name={companyInfo?.name || 'ReGen'} className="w-6 h-6 rounded-md" />
               ) : null}
               <span className="text-lg font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -717,11 +743,29 @@ export default function Dashboard({ userProfile }) {
             </div>
 
             {/* Super Admin Console Button */}
-            {userProfile?.role === 'param' && (
+            {(userProfile?.role === 'param' || (typeof window !== 'undefined' && !!localStorage.getItem('sa_auth_token')) || userProfile?.username?.toLowerCase() === 'vyshwa' || userProfile?.userId?.toLowerCase() === 'vyshwa') && (
               <Button 
                 variant="default" 
                 size="sm" 
-                onClick={() => window.location.href = '/superadmin'}
+                onClick={async () => {
+                  try {
+                    const resp = await authFetch('/api/auth/switch-to-superadmin', { method: 'POST' });
+                    if (resp.ok) {
+                      const data = await resp.json();
+                      if (data.token) {
+                        localStorage.setItem('sa_auth_token', data.token);
+                        localStorage.setItem('auth_token', data.token);
+                        localStorage.setItem('active_sa_id', data.userId);
+                      }
+                    }
+                  } catch (e) {
+                    console.error('Switch to Super Admin error', e);
+                  }
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.removeItem('portal_view');
+                    window.location.href = '/superadmin';
+                  }
+                }}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-xs px-3 h-9 rounded-xl text-xs"
               >
                 <ShieldCheck className="h-4 w-4" />
@@ -741,13 +785,13 @@ export default function Dashboard({ userProfile }) {
                   title="User Account"
                   aria-label="User account menu"
                 >
-                  <div className="w-8 h-8 rounded-full overflow-hidden border border-border shrink-0 bg-muted">
-                    <img 
-                      src={userProfile?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile?.name || 'user'}`} 
-                      alt="" 
-                      className="w-full h-full object-cover" 
-                    />
-                  </div>
+                  <SafeAvatar
+                    src={userProfile?.avatar}
+                    name={userProfile?.name}
+                    username={userProfile?.username}
+                    gender={userProfile?.gender}
+                    className="w-8 h-8 rounded-full border border-border"
+                  />
                   <div className="hidden sm:block text-left">
                     <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
                     <p className="text-[10px] text-muted-foreground font-medium capitalize">

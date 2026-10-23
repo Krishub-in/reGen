@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   useGetCompanyInfo, 
   useGetAllCompanies, 
@@ -71,6 +72,7 @@ We may freeze or terminate your access to the application gracefully and without
 If you have any queries regarding any of our terms, please contact the administration directly.`;
 
 export default function CompanyModule({ userProfile }) {
+  const queryClient = useQueryClient();
   const { data: initialInfo } = useGetCompanyInfo();
   const { data: companies = [] } = useGetAllCompanies();
   const createCompany = useCreateCompany();
@@ -84,6 +86,7 @@ export default function CompanyModule({ userProfile }) {
   const [formData, setFormData] = useState({
     logo: '',
     name: '',
+    ownerName: '',
     address: '',
     city: '',
     state: '',
@@ -132,9 +135,10 @@ export default function CompanyModule({ userProfile }) {
   useEffect(() => {
     const info = currentCompany || initialInfo;
     if (info) {
-      setFormData({
-        logo: info.logo || '',
+      setFormData(prev => ({
+        logo: prev.logo || info.logo || '',
         name: info.name || '',
+        ownerName: info.ownerName || '',
         address: info.address || '',
         city: info.city || '',
         state: info.state || '',
@@ -146,10 +150,10 @@ export default function CompanyModule({ userProfile }) {
         gst: info.gst || '',
         taxDetails: info.taxDetails || '',
         policies: info.policies || DEFAULT_TERMS,
-      });
+      }));
     } else {
        setFormData({
-        logo: '', name: '', address: '', city: '', state: '', zip: '',
+        logo: '', name: '', ownerName: '', address: '', city: '', state: '', zip: '',
         category: '', about: '', contactEmail: '', contactPhone: '',
         gst: '', taxDetails: '', policies: DEFAULT_TERMS,
       });
@@ -179,6 +183,13 @@ export default function CompanyModule({ userProfile }) {
             const data = await res.json();
             if (data.logo) {
               setFormData(prev => ({ ...prev, logo: data.logo }));
+              queryClient.setQueryData(['companies'], (old = []) =>
+                Array.isArray(old) ? old.map(c => c._id === currentCompany._id ? { ...c, logo: data.logo } : c) : old
+              );
+              queryClient.invalidateQueries({ queryKey: ['companies'] });
+              queryClient.invalidateQueries({ queryKey: ['companyInfo'] });
+              queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+              queryClient.invalidateQueries({ queryKey: ['users'] });
               toast.success('Company logo uploaded successfully');
             }
           }
@@ -245,6 +256,7 @@ export default function CompanyModule({ userProfile }) {
       const info = {
         logo: formData.logo,
         name: formData.name,
+        ownerName: formData.ownerName,
         address: formData.address,
         city: formData.city,
         state: formData.state,
@@ -260,6 +272,13 @@ export default function CompanyModule({ userProfile }) {
 
       if (currentCompany) {
         await updateCompany.mutateAsync({ id: currentCompany._id, info });
+        queryClient.setQueryData(['companies'], (old = []) =>
+          Array.isArray(old) ? old.map(c => c._id === currentCompany._id ? { ...c, ...info } : c) : old
+        );
+        queryClient.invalidateQueries({ queryKey: ['companies'] });
+        queryClient.invalidateQueries({ queryKey: ['companyInfo'] });
+        queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+        queryClient.invalidateQueries({ queryKey: ['users'] });
         toast.success('Company profile updated');
       } else {
         toast.error('Only SuperAdmin can create new companies');
@@ -540,6 +559,17 @@ export default function CompanyModule({ userProfile }) {
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="ReGen Innovations Inc."
+                        className="rounded-xl border border-border bg-background text-foreground"
+                        disabled={!isAdmin && !isOwner}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor="ownerName" className="text-xs font-semibold text-foreground">Company Owner Name *</Label>
+                    <Input
+                        id="ownerName"
+                        value={formData.ownerName}
+                        onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
+                        placeholder="e.g. Ramesh Kumar"
                         className="rounded-xl border border-border bg-background text-foreground"
                         disabled={!isAdmin && !isOwner}
                     />

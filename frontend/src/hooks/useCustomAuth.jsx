@@ -114,7 +114,7 @@ export const CustomAuthProvider = ({ children }) => {
       const response = await fetch(`/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: username, password })
+        body: JSON.stringify({ identifier: username, password, portal: 'company' })
       });
       if (response.status === 503) {
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('server-maintenance'));
@@ -140,8 +140,10 @@ export const CustomAuthProvider = ({ children }) => {
           localStorage.setItem('sa_auth_token', backendUser.token);
           localStorage.setItem('active_sa_id', backendUser.userId);
         } else {
+          // Normal company owner or employee session
           localStorage.removeItem('sa_auth_token');
           localStorage.removeItem('active_sa_id');
+          sessionStorage.removeItem('portal_view');
         }
       }
     } catch (e) {

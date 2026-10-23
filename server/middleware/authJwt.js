@@ -37,7 +37,27 @@ export const verifyToken = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, getSecret());
-    const dbUser = await User.findOne({ userId: decoded.userId }).select('userId tokenVersion lastActive status role').lean();
+    let dbUser = null;
+
+    if (decoded.role === 'param') {
+      const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+      const sa = await SuperAdmin.findOne({ adminId: decoded.userId }).select('adminId tokenVersion lastActive status role username').lean();
+      if (sa) {
+        dbUser = {
+          userId: sa.adminId,
+          tokenVersion: sa.tokenVersion,
+          lastActive: sa.lastActive,
+          status: sa.status,
+          role: sa.role,
+          username: sa.username
+        };
+      }
+    }
+
+    if (!dbUser) {
+      dbUser = await User.findOne({ userId: decoded.userId }).select('userId tokenVersion lastActive status role username').lean();
+    }
+
     if (!dbUser) {
       return res.status(401).json({ message: 'Invalid session. Please login again.' });
     }
@@ -51,7 +71,12 @@ export const verifyToken = async (req, res, next) => {
     }
     const now = Date.now();
     if (!dbUser.lastActive || (now - new Date(dbUser.lastActive).getTime()) > 60000) {
-      User.updateOne({ userId: decoded.userId }, { $set: { lastActive: new Date() } }).catch(() => {});
+      if (dbUser.role === 'param') {
+        const { default: SuperAdmin } = await import('../models/SuperAdmin.js');
+        SuperAdmin.updateOne({ adminId: decoded.userId }, { $set: { lastActive: new Date() } }).catch(() => {});
+      } else {
+        User.updateOne({ userId: decoded.userId }, { $set: { lastActive: new Date() } }).catch(() => {});
+      }
     }
     req.user = decoded; // { userId, username, role, companyId, iat, exp }
     next();

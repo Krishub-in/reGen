@@ -55,9 +55,9 @@ export const createCompany = async (req, res) => {
  */
 export const superAdminCreateCompany = async (req, res) => {
   try {
-    const { name, gst, phoneNumber, email, category, about, address, city, state, zip, logo } = req.body;
-    if (!name || !phoneNumber || !city || !category || !logo) {
-      return res.status(400).json({ message: 'Company name, phone number, city, category, and company logo are required' });
+    const { name, ownerName, gst, phoneNumber, email, category, about, address, city, state, zip, logo } = req.body;
+    if (!name || !ownerName || !phoneNumber || !city || !category || !logo) {
+      return res.status(400).json({ message: 'Company name, owner name, phone number, city, category, and company logo are required' });
     }
 
     // Generate a username from company name (lowercase, no spaces, append random suffix)
@@ -81,7 +81,7 @@ export const superAdminCreateCompany = async (req, res) => {
       username,
       password: hashedPassword,
       mustChangePassword: true,
-      name: name,
+      name: String(ownerName).trim(),
       email: email || '',
       phone: phoneNumber || '',
       role: 'owner',
@@ -95,7 +95,9 @@ export const superAdminCreateCompany = async (req, res) => {
 
     // Create the company linked to this owner
     const company = new Company({
-      name, gst, phoneNumber, email, category, about, address, city, state, zip,
+      name,
+      ownerName: String(ownerName).trim(),
+      gst, phoneNumber, email, category, about, address, city, state, zip,
       logo: logo || '',
       ownerId: userId,
     });
@@ -159,6 +161,9 @@ export const updateCompany = async (req, res) => {
       delete updates.ownerId;
       delete updates.status;
     }
+    if (updates.logo !== undefined && (!updates.logo || updates.logo === 'null')) {
+      delete updates.logo;
+    }
 
     const company = await Company.findByIdAndUpdate(id, updates, { new: true });
     if (!company) return res.status(404).json({ message: 'Company not found' });
@@ -168,10 +173,11 @@ export const updateCompany = async (req, res) => {
         { $or: [{ companyId: company._id }, { userId: company.ownerId }] },
         { $set: { company: updates.name } }
       );
-      // For owners, owner name should be same as company name
+    }
+    if (updates.ownerName) {
       await User.updateMany(
         { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
-        { $set: { name: updates.name } }
+        { $set: { name: String(updates.ownerName).trim() } }
       );
     }
     if (updates.logo) {
@@ -194,24 +200,29 @@ export const updateCompany = async (req, res) => {
 export const superAdminUpdateCompany = async (req, res) => {
   try {
     const { id } = req.params;
-    const company = await Company.findByIdAndUpdate(id, req.body, { new: true });
+    const updates = { ...req.body };
+    if (updates.logo !== undefined && (!updates.logo || updates.logo === 'null')) {
+      delete updates.logo;
+    }
+    const company = await Company.findByIdAndUpdate(id, updates, { new: true });
     if (!company) return res.status(404).json({ message: 'Company not found' });
 
-    if (req.body.name) {
+    if (updates.name) {
       await User.updateMany(
         { $or: [{ companyId: company._id }, { userId: company.ownerId }] },
-        { $set: { company: req.body.name } }
-      );
-      // For owners, owner name should be same as company name
-      await User.updateMany(
-        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
-        { $set: { name: req.body.name } }
+        { $set: { company: updates.name } }
       );
     }
-    if (req.body.logo) {
+    if (updates.ownerName) {
       await User.updateMany(
         { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
-        { $set: { avatar: req.body.logo } }
+        { $set: { name: String(updates.ownerName).trim() } }
+      );
+    }
+    if (updates.logo) {
+      await User.updateMany(
+        { $or: [{ userId: company.ownerId }, { companyId: company._id, role: 'owner' }] },
+        { $set: { avatar: updates.logo } }
       );
     }
 
@@ -602,12 +613,14 @@ export const restoreCompany = async (req, res) => {
 
 export const getAllCompanies = async (req, res) => {
   try {
+    const isSuperAdminMonitoring = req.user?.role === 'param' && 
+      (req.headers['x-portal-view'] === 'superadmin' || (!req.headers['x-portal-view'] && req.headers.referer?.includes('/superadmin')));
     let query = {};
-    if (req.user && req.user.role === 'param') {
-      // SuperAdmin sees all companies
+    if (isSuperAdminMonitoring) {
+      // SuperAdmin central monitoring sees all companies
       query = {};
     } else if (req.companyId) {
-      // All other users see only their own company
+      // All other users (or SuperAdmin switched to EMS) see only their own company
       query = { _id: req.companyId };
     } else {
       // Fallback: owner without companyId set yet
@@ -615,8 +628,18 @@ export const getAllCompanies = async (req, res) => {
       if (ownerId) query = { ownerId };
       else return res.status(200).json([]);
     }
-    const companies = await Company.find(query);
-    res.status(200).json(companies);
+    const companies = await Company.find(query).lean();
+    const enriched = await Promise.all(companies.map(async (c) => {
+      let ownerName = c.ownerName;
+      if (!ownerName && c.ownerId) {
+        const ownerUser = await User.findOne({ userId: c.ownerId }).select('name').lean();
+        if (ownerUser && ownerUser.name) {
+          ownerName = ownerUser.name;
+        }
+      }
+      return { ...c, ownerName: ownerName || '' };
+    }));
+    res.status(200).json(enriched);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

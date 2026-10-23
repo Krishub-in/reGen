@@ -45,7 +45,10 @@ export const deleteHoliday = async (req, res) => {
 
 export const getAllHolidays = async (req, res) => {
   try {
-    const filter = req.companyId ? { companyId: req.companyId } : {};
+    const isSuperAdminView = req.headers['x-portal-view'] === 'superadmin' || req.query.portalView === 'superadmin';
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin' || isSuperAdminView;
+    const filter = (isSuperAdmin && !isEmsView) ? {} : (req.companyId ? { companyId: req.companyId } : {});
     const holidays = await Holiday.find(filter).sort({ date: 1 });
     res.status(200).json(holidays);
   } catch (error) {

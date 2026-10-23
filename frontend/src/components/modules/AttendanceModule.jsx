@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle, FileText, Mail } from 'lucide-react';
+import { User, Bell, Clock, Calendar, Download, History, Filter, Search, MapPin, LogIn, LogOut, CheckCircle, ListTodo, ChevronLeft, ChevronRight, Timer, CalendarClock, Briefcase, AlertCircle, FileText, Mail, Coffee, PauseCircle, PlayCircle, AlertTriangle, Square } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn, safeRandomUUID, hasUserRole } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -51,13 +51,15 @@ export default function AttendanceModule({ userProfile }) {
     };
   }, [queryClient]);
 
-  // Default Work Schedule: 09:30 AM to 06:30 PM, 5 Days/week, 8 Working Hours
+  // Default Work Schedule: 09:30 AM to 06:30 PM, 5 Days/week, 8 Working Hours, 60m Break, 15m Casual Break
   const DEFAULT_SCHEDULE = useMemo(() => ({
     checkInTime: '09:30',
     checkOutTime: '18:30',
     daysPerWeek: '5',
     workingHours: '8',
     graceMinutes: '0',
+    breakTime: '60',
+    casualBreakTime: '15',
   }), []);
 
   const getCompanyScheduleKey = useCallback(() => {
@@ -69,7 +71,7 @@ export default function AttendanceModule({ userProfile }) {
     try {
       const key = `company_work_schedule_${userProfile?.companyId || userProfile?.tenantId || 'global'}`;
       const saved = localStorage.getItem(key) || localStorage.getItem('company_work_schedule');
-      if (saved) return { checkInTime: '09:30', checkOutTime: '18:30', daysPerWeek: '5', workingHours: '8', graceMinutes: '0', ...JSON.parse(saved) };
+      if (saved) return { checkInTime: '09:30', checkOutTime: '18:30', daysPerWeek: '5', workingHours: '8', graceMinutes: '0', breakTime: '60', casualBreakTime: '15', ...JSON.parse(saved) };
     } catch (e) {
       console.warn('Failed to parse work schedule:', e);
     }
@@ -79,6 +81,8 @@ export default function AttendanceModule({ userProfile }) {
       daysPerWeek: '5',
       workingHours: '8',
       graceMinutes: '0',
+      breakTime: '60',
+      casualBreakTime: '15',
     };
   });
 
@@ -97,6 +101,8 @@ export default function AttendanceModule({ userProfile }) {
         daysPerWeek: String(dbPayrollSettings.workingDaysPerWeek || 5),
         workingHours: String(dbPayrollSettings.workingHoursPerDay || 8),
         graceMinutes: String(dbPayrollSettings.graceMinutes || 0),
+        breakTime: String(dbPayrollSettings.breakTime || 60),
+        casualBreakTime: String(dbPayrollSettings.casualBreakTime || 15),
       };
       setWorkSchedule(merged);
       setScheduleForm(merged);
@@ -138,10 +144,12 @@ export default function AttendanceModule({ userProfile }) {
         workingDaysPerWeek: Number(scheduleForm.daysPerWeek),
         workingHoursPerDay: Number(scheduleForm.workingHours),
         graceMinutes: Number(scheduleForm.graceMinutes || 0),
+        breakTime: Number(scheduleForm.breakTime || 60),
+        casualBreakTime: Number(scheduleForm.casualBreakTime || 15),
       });
 
       setIsScheduleModalOpen(false);
-      toast.success('Work schedule & payroll timings updated successfully!');
+      toast.success('Work schedule, break timings & payroll policy updated successfully!');
     } catch (err) {
       toast.error(err.message || 'Failed to save schedule');
     }
@@ -524,6 +532,13 @@ export default function AttendanceModule({ userProfile }) {
           duration,
           status: resolvedStatus,
           location: record.location || 'Office Main',
+          breakMinutes: Number(record.breakMinutes) || 0,
+          casualBreakMinutes: Number(record.casualBreakMinutes) || 0,
+          breakDelayMinutes: Number(record.breakDelayMinutes) || 0,
+          casualBreakDelayMinutes: Number(record.casualBreakDelayMinutes) || 0,
+          totalBreakDelayMinutes: Number(record.totalBreakDelayMinutes) || ((Number(record.breakDelayMinutes) || 0) + (Number(record.casualBreakDelayMinutes) || 0)),
+          breakDeduction: Number(record.breakDeduction) || 0,
+          activeBreakType: record.activeBreakType || 'none',
           hasRecord: true,
           originalRecord: record,
         };
@@ -546,6 +561,13 @@ export default function AttendanceModule({ userProfile }) {
         duration: null,
         status,
         location: '--',
+        breakMinutes: 0,
+        casualBreakMinutes: 0,
+        breakDelayMinutes: 0,
+        casualBreakDelayMinutes: 0,
+        totalBreakDelayMinutes: 0,
+        breakDeduction: 0,
+        activeBreakType: 'none',
         hasRecord: false,
         originalRecord: null,
       };
@@ -635,6 +657,13 @@ export default function AttendanceModule({ userProfile }) {
           duration: calculateDuration(inTime, outTime),
           status: resolvedStatus,
           location: r.location || 'Office Main',
+          breakMinutes: Number(r.breakMinutes) || 0,
+          casualBreakMinutes: Number(r.casualBreakMinutes) || 0,
+          breakDelayMinutes: Number(r.breakDelayMinutes) || 0,
+          casualBreakDelayMinutes: Number(r.casualBreakDelayMinutes) || 0,
+          totalBreakDelayMinutes: Number(r.totalBreakDelayMinutes) || ((Number(r.breakDelayMinutes) || 0) + (Number(r.casualBreakDelayMinutes) || 0)),
+          breakDeduction: Number(r.breakDeduction) || 0,
+          activeBreakType: r.activeBreakType || 'none',
           hasRecord: true,
           originalRecord: r,
         };
@@ -677,14 +706,16 @@ export default function AttendanceModule({ userProfile }) {
     return list;
   }, [showHistory, dailyRoster, attendanceData, filterStatus, filterDept, filterEmployee, searchQuery, getUserDetails, isLateStatus, isAbsentStatus, getAttendanceStatus, toIdText, normalizeAttendanceDate]);
 
-  // Scroll-down pagination: 6 per page, loading next 6 on scroll down
+  // Scroll-down pagination: load more on scroll down with sentinel & auto-detection
   const {
     displayedItems = [],
     hasMore: hasMoreData,
     handleScroll: handleTableScroll,
     totalCount: totalDataCount,
     loadMore: loadMoreData,
-  } = useScrollPagination(filteredAttendance, 6, [filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory]);
+    containerRef: attendanceContainerRef,
+    sentinelRef: attendanceSentinelRef,
+  } = useScrollPagination(filteredAttendance, 8, [filterDate, filterStatus, filterDept, filterEmployee, searchQuery, showHistory]);
   const paginatedData = Array.isArray(displayedItems) ? displayedItems : [];
 
   // Export CSV handler
@@ -858,6 +889,101 @@ export default function AttendanceModule({ userProfile }) {
       setIsCheckingOut(false);
     }
   };
+
+  const [isUpdatingBreak, setIsUpdatingBreak] = useState(false);
+
+  const handleStartBreak = async (type = 'official') => {
+    if (!todayRecord) {
+      toast.error('Please check in first before taking a break');
+      return;
+    }
+    if (isCheckedOut) {
+      toast.info('Shift already completed for today.');
+      return;
+    }
+    if (todayRecord.activeBreakType && todayRecord.activeBreakType !== 'none') {
+      toast.warning('You are already on break. Please stop current break first.');
+      return;
+    }
+    if (isUpdatingBreak) return;
+
+    setIsUpdatingBreak(true);
+    const now = new Date();
+    try {
+      const payload = {
+        ...todayRecord,
+        id: todayRecord.id || todayRecord._id,
+        userId: staffIdStr || toIdText(todayRecord.userId),
+        activeBreakType: type,
+        ...(type === 'official' 
+          ? { breakStart: now.toISOString(), breakEnd: null } 
+          : { casualBreakStart: now.toISOString(), casualBreakEnd: null })
+      };
+      await updateAttendance.mutateAsync(payload);
+      const limit = type === 'official' ? (workSchedule.breakTime || 60) : (workSchedule.casualBreakTime || 15);
+      toast.success(`${type === 'official' ? 'Official / Meal' : 'Casual / Tea'} Break started! Allowed limit: ${limit} mins.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to start break');
+    } finally {
+      setIsUpdatingBreak(false);
+    }
+  };
+
+  const handleEndBreak = async () => {
+    if (!todayRecord) return;
+    if (!todayRecord.activeBreakType || todayRecord.activeBreakType === 'none') {
+      toast.info('No active break running');
+      return;
+    }
+    if (isUpdatingBreak) return;
+
+    setIsUpdatingBreak(true);
+    const now = new Date();
+    const type = todayRecord.activeBreakType;
+    try {
+      const payload = {
+        ...todayRecord,
+        id: todayRecord.id || todayRecord._id,
+        userId: staffIdStr || toIdText(todayRecord.userId),
+        activeBreakType: 'none',
+        ...(type === 'official' ? { breakEnd: now.toISOString() } : { casualBreakEnd: now.toISOString() })
+      };
+      const res = await updateAttendance.mutateAsync(payload);
+      const delay = Number(res?.totalBreakDelayMinutes ?? ((res?.breakDelayMinutes || 0) + (res?.casualBreakDelayMinutes || 0)));
+      const deduction = Number(res?.breakDeduction || 0);
+      if (delay > 0) {
+        toast.warning(`Break ended! You exceeded the limit by ${delay} min(s). Salary deduction of ₹${deduction.toFixed(2)} applied.`);
+      } else {
+        toast.success(`Break ended on time! Great job.`);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to stop break');
+    } finally {
+      setIsUpdatingBreak(false);
+    }
+  };
+
+  const activeBreakType = todayRecord?.activeBreakType && todayRecord.activeBreakType !== 'none' ? todayRecord.activeBreakType : null;
+  const isOnBreak = !!activeBreakType;
+  const breakStartTimestamp = activeBreakType === 'official' 
+    ? todayRecord?.breakStart 
+    : activeBreakType === 'casual' 
+    ? todayRecord?.casualBreakStart 
+    : null;
+
+  const elapsedBreakSeconds = useMemo(() => {
+    if (!isOnBreak || !breakStartTimestamp) return 0;
+    const startMs = new Date(breakStartTimestamp).getTime();
+    if (isNaN(startMs)) return 0;
+    return Math.max(0, Math.floor((currentTime.getTime() - startMs) / 1000));
+  }, [isOnBreak, breakStartTimestamp, currentTime]);
+
+  const elapsedBreakMinutes = Math.floor(elapsedBreakSeconds / 60);
+  const elapsedBreakRemainderSeconds = elapsedBreakSeconds % 60;
+  const currentBreakLimit = Number(activeBreakType === 'official' ? (workSchedule.breakTime || 60) : (workSchedule.casualBreakTime || 15));
+  const isBreakOverdue = elapsedBreakMinutes > currentBreakLimit;
+  const currentBreakDelayMinutes = Math.max(0, elapsedBreakMinutes - currentBreakLimit);
+
   // --- Render Mobile/User View ---
   if (!isAdmin) {
     return (
@@ -980,13 +1106,13 @@ export default function AttendanceModule({ userProfile }) {
           </Card>
         </div>
 
-        {/* Action Punch Cards (Full-Width Responsive 2-Column Grid) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+        {/* Action Punch Cards (Full-Width Responsive 3-Column Grid) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
           {/* Check In Action Card */}
           <div
             onClick={!isCheckedIn && !isCheckedOut && !isCheckingIn ? handleCheckIn : isCheckedOut ? () => toast.info('Shift completed for today. Check-in reopens tomorrow.') : undefined}
             className={cn(
-              "p-4 sm:p-6 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
               isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-emerald-500/50 hover:shadow-md cursor-pointer group"
@@ -1011,14 +1137,14 @@ export default function AttendanceModule({ userProfile }) {
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
-                  {isCheckedOut ? 'Shift Completed Today' : isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
+                  {isCheckedOut ? 'Shift Completed' : isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   {isCheckedOut
-                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Check-in reopens tomorrow`
+                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))}`
                     : isCheckedIn
                     ? `Punched in at ${formatTime(getCheckInTime(todayRecord))}`
-                    : 'Tap here to mark your arrival for today'}
+                    : 'Tap to mark arrival for today'}
                 </p>
               </div>
             </div>
@@ -1029,7 +1155,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (!isCheckedIn && !isCheckedOut && !isCheckingIn) handleCheckIn();
               }}
               className={cn(
-                "w-full sm:w-auto rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
+                "w-full rounded-xl h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : isCheckedIn
@@ -1041,11 +1167,122 @@ export default function AttendanceModule({ userProfile }) {
             </Button>
           </div>
 
+          {/* Break & Casual Break Action Card */}
+          <div
+            className={cn(
+              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
+              !isCheckedIn || isCheckedOut
+                ? "bg-secondary/40 border-border opacity-80 cursor-default"
+                : isOnBreak
+                ? (isBreakOverdue ? "bg-red-500/10 border-red-500/50 shadow-md ring-1 ring-red-500/50" : "bg-amber-500/10 border-amber-500/50 shadow-md")
+                : "bg-card border-border hover:border-amber-500/50 hover:shadow-md group"
+            )}
+          >
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+              <div className={cn(
+                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
+                isCheckedOut
+                  ? "bg-muted text-muted-foreground"
+                  : !isCheckedIn
+                  ? "bg-muted text-muted-foreground"
+                  : isOnBreak
+                  ? (isBreakOverdue ? "bg-red-500 text-white animate-pulse" : "bg-amber-500 text-white animate-pulse")
+                  : "bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500 group-hover:text-white"
+              )}>
+                <Coffee className="h-6 w-6 sm:h-7 sm:w-7" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                    {isOnBreak 
+                      ? `${activeBreakType === 'official' ? 'Official' : 'Casual'} Break`
+                      : 'Break Time'}
+                  </h3>
+                  {isOnBreak && (
+                    <span className={cn(
+                      "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase",
+                      isBreakOverdue ? "bg-red-500 text-white animate-pulse" : "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                    )}>
+                      {isBreakOverdue ? 'Over Limit' : 'Running'}
+                    </span>
+                  )}
+                </div>
+
+                {isOnBreak ? (
+                  <div className="mt-1 space-y-1">
+                    <p className="font-mono text-sm font-bold text-foreground flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{String(elapsedBreakMinutes).padStart(2, '0')}:{String(elapsedBreakRemainderSeconds).padStart(2, '0')}</span>
+                      <span className="text-xs text-muted-foreground font-normal">/ {currentBreakLimit}m limit</span>
+                    </p>
+                    {isBreakOverdue ? (
+                      <p className="text-[11px] font-semibold text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        <span>Delay: {currentBreakDelayMinutes}m (Salary deduction accruing)</span>
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-muted-foreground">
+                        Stop before {currentBreakLimit}m to avoid salary deduction.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                    {isCheckedOut
+                      ? 'Shift completed for today'
+                      : !isCheckedIn
+                      ? 'Check in first to take break'
+                      : `Limits: Official ${workSchedule.breakTime || 60}m • Casual ${workSchedule.casualBreakTime || 15}m`}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="w-full pt-1">
+              {isOnBreak ? (
+                <Button
+                  disabled={isUpdatingBreak}
+                  onClick={handleEndBreak}
+                  className={cn(
+                    "w-full rounded-xl h-11 font-bold text-white shadow-md cursor-pointer transition-all flex items-center justify-center gap-2",
+                    isBreakOverdue 
+                      ? "bg-rose-600 hover:bg-rose-700 animate-pulse border border-rose-400" 
+                      : "bg-amber-600 hover:bg-amber-700 border border-amber-400"
+                  )}
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  <span>Stop {activeBreakType === 'official' ? 'Official' : 'Casual'} Break ({String(elapsedBreakMinutes).padStart(2, '0')}:{String(elapsedBreakRemainderSeconds).padStart(2, '0')})</span>
+                </Button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  <Button
+                    size="sm"
+                    disabled={!isCheckedIn || isCheckedOut || isUpdatingBreak}
+                    onClick={() => handleStartBreak('official')}
+                    className="rounded-xl h-10 font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Coffee className="w-3.5 h-3.5 shrink-0" />
+                    <span>Break ({workSchedule.breakTime || 60}m)</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!isCheckedIn || isCheckedOut || isUpdatingBreak}
+                    onClick={() => handleStartBreak('casual')}
+                    className="rounded-xl h-10 font-semibold bg-teal-500/15 hover:bg-teal-500/25 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span>Casual ({workSchedule.casualBreakTime || 15}m)</span>
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Check Out Action Card */}
           <div
             onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : isCheckedOut ? () => toast.info('Shift already completed. Reopens tomorrow.') : undefined}
             className={cn(
-              "p-4 sm:p-6 rounded-2xl border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4",
+              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
               !isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-red-500/50 hover:shadow-md cursor-pointer group"
@@ -1074,9 +1311,9 @@ export default function AttendanceModule({ userProfile }) {
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                   {isCheckedOut
-                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))} • Reopens tomorrow`
+                    ? `Punched out at ${formatTime(getCheckOutTime(todayRecord))}`
                     : isCheckedIn
-                    ? 'Tap here when you finish your shift'
+                    ? 'Tap when you finish your shift'
                     : 'Check in required first'}
                 </p>
               </div>
@@ -1088,7 +1325,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (isCheckedIn && !isCheckedOut && !isCheckingOut) handleCheckOut();
               }}
               className={cn(
-                "w-full sm:w-auto rounded-xl px-5 h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
+                "w-full rounded-xl h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : !isCheckedIn
@@ -1127,6 +1364,7 @@ export default function AttendanceModule({ userProfile }) {
                     <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Check In</TableHead>
                     <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Check Out</TableHead>
                     <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Working Hours</TableHead>
+                    <TableHead className="py-3.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">Breaks & Policy</TableHead>
                     <TableHead className="pr-6 py-3.5 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Location</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1140,6 +1378,8 @@ export default function AttendanceModule({ userProfile }) {
                     const isPresent = isPresentStatus(rawStatus);
                     const isAbsent = isAbsentStatus(rawStatus);
                     const statusText = isLate ? 'late' : (isPresent ? 'present' : (isAbsent ? 'absent' : 'present'));
+                    const totalDelay = (record.totalBreakDelayMinutes ?? ((record.breakDelayMinutes || 0) + (record.casualBreakDelayMinutes || 0))) || 0;
+                    const breakDed = Number(record.breakDeduction || 0);
 
                     return (
                       <TableRow key={record.id || record._id} className="border-b border-border/50">
@@ -1173,6 +1413,20 @@ export default function AttendanceModule({ userProfile }) {
                         <TableCell className="py-3.5 font-mono text-xs font-semibold text-primary">
                           {durationStr || '--'}
                         </TableCell>
+                        <TableCell className="py-3.5 text-xs">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-muted-foreground text-[11px]">
+                              Off: {record.breakMinutes || 0}m | Cas: {record.casualBreakMinutes || 0}m
+                            </span>
+                            {totalDelay > 0 ? (
+                              <span className="text-[11px] font-semibold text-rose-500 inline-flex items-center gap-1">
+                                Delay: {totalDelay}m (-₹{breakDed.toFixed(2)})
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-emerald-500 font-medium">On schedule</span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="pr-6 py-3.5 text-right text-xs text-muted-foreground">
                           <span className="inline-flex items-center gap-1">
                             <MapPin className="h-3 w-3" /> {record.location || 'Office Main'}
@@ -1183,7 +1437,7 @@ export default function AttendanceModule({ userProfile }) {
                   })}
                   {myAttendanceHistory.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground text-sm">
+                      <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
                         No previous attendance records recorded yet.
                       </TableCell>
                     </TableRow>
@@ -1215,6 +1469,14 @@ export default function AttendanceModule({ userProfile }) {
             <span>{workSchedule.workingHours || 8} hrs/day</span>
             <span>•</span>
             <span>{workSchedule.daysPerWeek || 5} days/wk</span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-medium">
+              <Coffee className="w-3 h-3" /> Break: {workSchedule.breakTime || 60}m
+            </span>
+            <span>•</span>
+            <span className="inline-flex items-center gap-1 text-teal-600 dark:text-teal-400 font-medium">
+              <Clock className="w-3 h-3" /> Casual: {workSchedule.casualBreakTime || 15}m
+            </span>
           </div>
         </div>
 
@@ -1228,8 +1490,156 @@ export default function AttendanceModule({ userProfile }) {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                className="rounded-xl h-10 gap-2 border-teal-500/30 text-teal-600 dark:text-teal-400 hover:bg-teal-500/10 font-semibold text-xs shrink-0 cursor-pointer"
+                onClick={() => {
+                  setScheduleForm(workSchedule);
+                  setIsScheduleModalOpen(true);
+                }}
+              >
+                <Timer className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+                <span>Work Schedule & Break Policy</span>
+              </Button>
+            )}
         </div>
       </div>
+
+      {/* Dialog for Work Schedule, Shift Timings, and Break Time Policy */}
+      <Dialog open={isScheduleModalOpen} onOpenChange={setIsScheduleModalOpen}>
+        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Timer className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+              Company Work Schedule & Break Policy
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Configure standard work schedules, working hours, and official & casual break time limits. Exceeding break limits calculates salary deduction on a per-minute delay basis.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveSchedule} className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Standard Check-In Time</label>
+                <Input
+                  type="time"
+                  required
+                  value={scheduleForm.checkInTime}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, checkInTime: e.target.value })}
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">Clock-in past this is marked Late</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Standard Check-Out Time</label>
+                <Input
+                  type="time"
+                  required
+                  value={scheduleForm.checkOutTime}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, checkOutTime: e.target.value })}
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">End of shift timing</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Working Hours / Day</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="24"
+                  step="0.5"
+                  required
+                  value={scheduleForm.workingHours}
+                  onChange={(e) => setScheduleForm({ ...scheduleForm, workingHours: e.target.value })}
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">Standard daily requirement (e.g. 8h)</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold">Working Days / Week</label>
+                <Select
+                  value={String(scheduleForm.daysPerWeek)}
+                  onValueChange={(val) => setScheduleForm({ ...scheduleForm, daysPerWeek: val })}
+                >
+                  <SelectTrigger className="text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="4">4 Days (Mon - Thu, Fri/Sat/Sun Off)</SelectItem>
+                    <SelectItem value="5">5 Days (Mon - Fri, Sat/Sun Off)</SelectItem>
+                    <SelectItem value="6">6 Days (Mon - Sat, Sun Off)</SelectItem>
+                    <SelectItem value="7">7 Days (Full Week)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">Normal working days schedule</p>
+              </div>
+            </div>
+
+            {/* Break Time Limits Configuration */}
+            <div className="p-3 bg-muted/30 rounded-xl border border-border/80 space-y-3">
+              <span className="text-xs font-bold text-foreground block">
+                Break Time Limits & Salary Delay Deductions
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold flex items-center justify-between">
+                    <span>Break Time (Official / Lunch)</span>
+                    <span className="text-teal-600 font-mono text-[11px]">{scheduleForm.breakTime || 60} mins</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="5"
+                    max="300"
+                    step="5"
+                    required
+                    value={scheduleForm.breakTime}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, breakTime: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Standard lunch/meal duration</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold flex items-center justify-between">
+                    <span>Casual Break Time (Tea / Coffee)</span>
+                    <span className="text-teal-600 font-mono text-[11px]">{scheduleForm.casualBreakTime || 15} mins</span>
+                  </label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="180"
+                    step="1"
+                    required
+                    value={scheduleForm.casualBreakTime}
+                    onChange={(e) => setScheduleForm({ ...scheduleForm, casualBreakTime: e.target.value })}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">Refreshment break limit</p>
+                </div>
+              </div>
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                Notice: If an employee exceeds either break limit, their salary is automatically reduced for every minute of delay based on their hourly salary rate.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setIsScheduleModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white font-semibold">
+                Save Schedule & Break Policy
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4 mb-6">
@@ -1448,8 +1858,9 @@ export default function AttendanceModule({ userProfile }) {
           )}
         </div>
 
-        {/* Desktop table with 6 per page lazy scroll */}
+        {/* Desktop table with lazy scroll & auto sentinel */}
         <div 
+          ref={attendanceContainerRef}
           className="hidden md:block max-h-[520px] overflow-y-auto"
           onScroll={handleTableScroll}
         >
@@ -1464,6 +1875,8 @@ export default function AttendanceModule({ userProfile }) {
                 <TableHead>Out Time</TableHead>
                 <TableHead>Working Hours</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Breaks (Mins)</TableHead>
+                <TableHead>Break Delay / Ded.</TableHead>
                 <TableHead>Geo-Location</TableHead>
               </TableRow>
             </TableHeader>
@@ -1515,6 +1928,32 @@ export default function AttendanceModule({ userProfile }) {
                           {status === 'on_leave' ? 'On Leave' : status === 'half_day' ? 'Half Day' : status}
                         </span>
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {(Number(record.breakMinutes || 0) + Number(record.casualBreakMinutes || 0)) > 0 ? (
+                          <div className="flex flex-col gap-0.5 font-mono text-[11px]">
+                            {Number(record.breakMinutes || 0) > 0 && <span>Official: {record.breakMinutes}m</span>}
+                            {Number(record.casualBreakMinutes || 0) > 0 && <span>Casual: {record.casualBreakMinutes}m</span>}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">--</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {Number(record.totalBreakDelayMinutes || (Number(record.breakDelayMinutes || 0) + Number(record.casualBreakDelayMinutes || 0))) > 0 ? (
+                          <div className="flex flex-col gap-0.5 font-mono">
+                            <span className="text-red-500 font-semibold text-[11px]">
+                              +{record.totalBreakDelayMinutes || (Number(record.breakDelayMinutes || 0) + Number(record.casualBreakDelayMinutes || 0))}m delay
+                            </span>
+                            {Number(record.breakDeduction || 0) > 0 && (
+                              <span className="text-red-600 dark:text-red-400 font-bold text-[11px]">
+                                -₹{record.breakDeduction}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-emerald-600 dark:text-emerald-400 text-xs font-medium">On Time</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                           <div className="flex items-center text-muted-foreground text-xs">
                               <MapPin className="h-3 w-3 mr-1 text-muted-foreground/70" />
@@ -1526,7 +1965,7 @@ export default function AttendanceModule({ userProfile }) {
               })}
               {paginatedData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={showHistory ? 9 : 8} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={showHistory ? 11 : 10} className="text-center py-16 text-muted-foreground">
                     <div className="flex flex-col items-center justify-center">
                       <div className="p-3 rounded-2xl bg-muted/60 mb-3 text-muted-foreground">
                         <Clock className="w-8 h-8 opacity-40" />
@@ -1542,8 +1981,11 @@ export default function AttendanceModule({ userProfile }) {
             </TableBody>
           </Table>
           {hasMoreData && (
-            <div className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse">
-              Showing {paginatedData.length} of {totalDataCount} — scroll down for next 6
+            <div 
+              ref={attendanceSentinelRef}
+              className="py-2.5 text-center text-xs text-muted-foreground bg-muted/20 border-t border-border animate-pulse"
+            >
+              Showing {paginatedData.length} of {totalDataCount} — scroll down for next
             </div>
           )}
         </div>

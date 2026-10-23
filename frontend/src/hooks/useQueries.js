@@ -3,6 +3,15 @@ import { useActor } from './useActor';
 import { Principal } from '@dfinity/principal';
 import { authFetch } from '../lib/utils';
 
+// Helper to scope query keys by active portal view
+export function getQueryPortalScope() {
+  if (typeof window === 'undefined') return 'company';
+  const isSuperAdminPath = window.location.pathname.startsWith('/superadmin');
+  if (isSuperAdminPath) return 'superadmin';
+  const isEmsView = window.location.search.includes('view=ems') || sessionStorage.getItem('portal_view') === 'ems';
+  return isEmsView ? 'ems' : 'company';
+}
+
 // User Profile Queries
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
@@ -52,9 +61,10 @@ export function useSaveCallerUserProfile() {
 // User Management Queries
 export function useGetAllUsers() {
   const { actor, isFetching } = useActor();
+  const portalScope = getQueryPortalScope();
 
   return useQuery({
-    queryKey: ['users'],
+    queryKey: ['users', portalScope],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllUsers();
@@ -330,9 +340,10 @@ export function useDeleteTask() {
 // Attendance Queries
 export function useGetAllAttendance() {
   const { actor, isFetching } = useActor();
+  const portalScope = getQueryPortalScope();
 
   return useQuery({
-    queryKey: ['attendance'],
+    queryKey: ['attendance', portalScope],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllAttendance();
@@ -346,8 +357,9 @@ export function useGetAllAttendance() {
 // Leave Requests
 export function useGetAllLeaveRequests() {
   const { actor, isFetching } = useActor();
+  const portalScope = getQueryPortalScope();
   return useQuery({
-    queryKey: ['leaves', 'all'],
+    queryKey: ['leaves', 'all', portalScope],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllLeaveRequests();
@@ -780,9 +792,10 @@ export function useUpdateScrumNote() {
 // Holiday Queries
 export function useGetAllHolidays() {
   const { actor, isFetching } = useActor();
+  const portalScope = getQueryPortalScope();
 
   return useQuery({
-    queryKey: ['holidays'],
+    queryKey: ['holidays', portalScope],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllHolidays();

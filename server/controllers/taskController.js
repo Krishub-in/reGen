@@ -93,7 +93,9 @@ export const isTaskExpired = (task) => {
 
 export const getAllTasks = async (req, res) => {
   try {
-    const filter = req.companyId ? { companyId: req.companyId } : {};
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin';
+    const filter = (isSuperAdmin && !isEmsView) ? {} : (req.companyId ? { companyId: req.companyId } : {});
     const tasks = await Task.find(filter);
 
     // Auto-update any expired incomplete tasks to not_completed

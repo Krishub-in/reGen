@@ -50,6 +50,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Footer from '../components/Footer';
 import CalendarModule from '../components/modules/CalendarModule';
 import { Menu } from 'lucide-react';
+import { SafeAvatar, SafeCompanyLogo } from '../components/SafeAvatar';
 
 // Real-time Calculation and Pricing Helpers
 export const toLocalDateStr = (d) => {
@@ -104,8 +105,11 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
       localStorage.setItem('sa_auth_token', token);
       localStorage.setItem('active_sa_id', saId);
       try {
-        // Validate token by fetching the user profile
-        const resp = await authFetch(`/api/users/${saId}`);
+        // Validate token by fetching the Super Admin profile from isolated sector
+        let resp = await authFetch('/api/superadmin/profile');
+        if (!resp.ok) {
+          resp = await authFetch(`/api/users/${saId}`);
+        }
         if (!resp.ok) throw new Error('Token invalid');
         const dbUser = await resp.json();
         if (dbUser.role !== 'param' && dbUser.role !== 'admin') throw new Error('Not an admin');
@@ -179,7 +183,11 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
       const resp = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: (loginForm.id || '').trim(), password: (loginForm.password || '').trim() })
+        body: JSON.stringify({
+          identifier: (loginForm.id || '').trim(),
+          password: (loginForm.password || '').trim(),
+          portal: 'superadmin'
+        })
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ message: 'Invalid Super Admin credentials' }));
@@ -195,24 +203,25 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
         localStorage.setItem('active_sa_id', user.userId);
         localStorage.setItem('current_user', user.userId);
         setIsAuthenticated(true);
-        // Load full profile from DB
+        // Load full profile from SuperAdmin isolated sector in DB
         try {
-          const profileResp = await authFetch(`/api/users/${user.userId}`);
+          let profileResp = await authFetch('/api/superadmin/profile');
+          if (!profileResp.ok) {
+            profileResp = await authFetch(`/api/users/${user.userId}`);
+          }
           if (profileResp.ok) {
             const dbUser = await profileResp.json();
-            if (dbUser.role === 'param' || dbUser.role === 'admin') {
-              setProfileData({
-                userId: dbUser.userId,
-                name: dbUser.name || dbUser.username || '',
-                username: dbUser.username || '',
-                email: dbUser.email || '',
-                phone: dbUser.phone || '',
-                designation: dbUser.designation || '',
-                department: dbUser.department || '',
-                avatar: dbUser.avatar || '',
-                role: dbUser.role,
-              });
-            }
+            setProfileData({
+              userId: dbUser.userId,
+              name: dbUser.name || dbUser.username || '',
+              username: dbUser.username || '',
+              email: dbUser.email || '',
+              phone: dbUser.phone || '',
+              designation: dbUser.designation || '',
+              department: dbUser.department || '',
+              avatar: dbUser.avatar || '',
+              role: dbUser.role,
+            });
           }
         } catch (e) {
           console.error('Failed to load profile from DB', e);
@@ -400,7 +409,24 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
           <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
           <div className="pt-3 mt-3 border-t border-border/80 space-y-1">
             <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
-            <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={() => window.location.href = '/?view=ems'} />
+            <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
+              try {
+                const resp = await authFetch('/api/auth/switch-to-ems', { method: 'POST' });
+                if (resp.ok) {
+                  const data = await resp.json();
+                  if (data.token) {
+                    localStorage.setItem('auth_token', data.token);
+                    localStorage.setItem('current_user', data.userId);
+                  }
+                }
+              } catch (e) {
+                console.error('Failed to switch token', e);
+              }
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('portal_view', 'ems');
+                window.location.href = '/?view=ems';
+              }
+            }} />
           </div>
         </nav>
 
@@ -452,6 +478,26 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                     <div className="pt-3 mt-3 border-t border-border space-y-1">
                       <SheetClose asChild>
                         <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
+                      </SheetClose>
+                      <SheetClose asChild>
+                        <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
+                          try {
+                            const resp = await authFetch('/api/auth/switch-to-ems', { method: 'POST' });
+                            if (resp.ok) {
+                              const data = await resp.json();
+                              if (data.token) {
+                                localStorage.setItem('auth_token', data.token);
+                                localStorage.setItem('current_user', data.userId);
+                              }
+                            }
+                          } catch (e) {
+                            console.error('Failed to switch token', e);
+                          }
+                          if (typeof window !== 'undefined') {
+                            sessionStorage.setItem('portal_view', 'ems');
+                            window.location.href = '/?view=ems';
+                          }
+                        }} />
                       </SheetClose>
                     </div>
                   </nav>
@@ -609,7 +655,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
           {activeTab === 'users' && <TabUsers dbUsers={dbUsers} dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
           {activeTab === 'calendar' && (
             <div className="pb-10">
-              <CalendarModule userProfile={profileData} portalType="superadmin" />
+              <CalendarModule userProfile={profileData} portalType="superadmin" initialUsers={dbUsers} />
             </div>
           )}
           {activeTab === 'payments' && <TabPayments dbCompanies={dbCompanies} dbUsers={dbUsers} />}
@@ -823,18 +869,29 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
                 <XAxis dataKey="month" stroke="#A6B5C0" fontSize={12} />
                 <YAxis stroke="#A6B5C0" fontSize={12} tickFormatter={(v) => `$${v}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '12px', color: 'hsl(var(--foreground))' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  formatter={(val, name, item) => [
-                    `$${Number(val).toLocaleString()}`, 
-                    'Monthly Revenue'
-                  ]}
-                  labelFormatter={(label, items) => {
-                    const item = items && items[0] && items[0].payload;
-                    if (item) {
-                      return `${label} — ${item.companies} Companies, ${item.activeUsers} Users (${item.growth >= 0 ? '+' : ''}${item.growth}% MoM)`;
+                  cursor={{ stroke: '#0D9488', strokeWidth: 1.5, strokeDasharray: '4 4' }}
+                  content={({ active, payload, label }) => {
+                    if (active && payload && payload.length) {
+                      const item = payload[0].payload;
+                      const val = payload[0].value;
+                      return (
+                        <div style={{ backgroundColor: '#0B1E24', border: '1px solid #1B3D45', borderRadius: '12px', padding: '10px 14px', color: '#F1F5F9', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)' }}>
+                          <p style={{ fontWeight: 600, color: '#F1F5F9', marginBottom: '4px', fontSize: '13px' }}>
+                            {label}
+                            {item?.companies !== undefined ? ` — ${item.companies} Companies, ${item.activeUsers || 0} Users` : ''}
+                          </p>
+                          <p style={{ color: '#0D9488', fontWeight: 700, fontSize: '15px', margin: 0 }}>
+                            Monthly Revenue: ${Number(val || 0).toLocaleString()}
+                          </p>
+                          {item?.growth !== undefined && (
+                            <p style={{ fontSize: '11px', color: item.growth >= 0 ? '#10B981' : '#EF4444', marginTop: '4px', margin: 0 }}>
+                              {item.growth >= 0 ? '+' : ''}{item.growth}% MoM
+                            </p>
+                          )}
+                        </div>
+                      );
                     }
-                    return label;
+                    return null;
                   }}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#0D9488" fillOpacity={1} fill="url(#colorRev)" strokeWidth={2.5} />
@@ -1000,6 +1057,15 @@ function CompanyFormFields({ data, setData }) {
           placeholder="e.g. Acme Innovations Inc." 
           value={data.name}
           onChange={(e) => setData({...data, name: e.target.value})}
+          className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold text-muted-foreground block mb-1">Company Owner Name *</label>
+        <Input 
+          placeholder="e.g. Ramesh Kumar" 
+          value={data.ownerName}
+          onChange={(e) => setData({...data, ownerName: e.target.value})}
           className="h-10 bg-background/80 border-border/80 rounded-lg focus:border-primary text-sm transition-all placeholder:text-muted-foreground/50 text-foreground"
         />
       </div>
@@ -1211,6 +1277,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
     logo: '',
     gst: '',
     name: '',
+    ownerName: '',
     phoneNumber: '',
     email: '',
     category: '',
@@ -1231,6 +1298,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
       if (!term) return true;
       return (
         co.name?.toLowerCase().includes(term) || 
+        co.ownerName?.toLowerCase().includes(term) ||
         co._id?.toLowerCase().includes(term) ||
         co.gst?.toLowerCase().includes(term) ||
         co.category?.toLowerCase().includes(term) ||
@@ -1248,6 +1316,7 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
       logo: company.logo || '',
       gst: company.gst || '',
       name: company.name || '',
+      ownerName: company.ownerName || '',
       phoneNumber: company.phoneNumber || '',
       email: company.email || '',
       category: company.category || '',
@@ -1262,8 +1331,8 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
   const handleEditSubmit = async (e) => {
     if (e) e.preventDefault();
-    if (!editFormData.name || !editFormData.phoneNumber || !editFormData.city || !editFormData.category || !editFormData.logo) {
-      toast.error('Please fill all required fields (*) including Company Logo');
+    if (!editFormData.name || !editFormData.ownerName || !editFormData.phoneNumber || !editFormData.city || !editFormData.category || !editFormData.logo) {
+      toast.error('Please fill all required fields (*) including Company Logo and Owner Name');
       return;
     }
     try {
@@ -1389,8 +1458,8 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 
   const handleSubmit = async (e, shouldContinue = false) => {
     if (e) e.preventDefault();
-    if (!formData.name || !formData.phoneNumber || !formData.city || !formData.category || !formData.logo) {
-      toast.error('Please fill all required fields (*) including Company Logo');
+    if (!formData.name || !formData.ownerName || !formData.phoneNumber || !formData.city || !formData.category || !formData.logo) {
+      toast.error('Please fill all required fields (*) including Company Logo and Owner Name');
       return;
     }
 
@@ -1566,6 +1635,11 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
                       <div className="font-semibold text-sm text-slate-900 dark:text-foreground truncate" title={co.name}>
                         {co.name || 'Unnamed Company'}
                       </div>
+                      {co.ownerName && (
+                        <div className="text-xs text-primary font-medium mt-0.5 truncate" title={`Owner: ${co.ownerName}`}>
+                          Owner: {co.ownerName}
+                        </div>
+                      )}
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-xs text-slate-500 dark:text-muted-foreground/80 font-mono">
                         <span className="truncate max-w-[150px]" title={co._id}>ID: {co._id}</span>
                         {co.gst && (
@@ -2033,22 +2107,13 @@ function TabCompanies({ dbCompanies, searchTerm, onRefresh }) {
 }
 
 function UserAvatar({ src, name, username, className = "w-9 h-9" }) {
-  const [hasError, setHasError] = useState(false);
-  const initials = (name || username || 'U').trim().slice(0, 2).toUpperCase();
-
   return (
-    <div className={`${className} rounded-full bg-muted/60 border border-border/80 flex items-center justify-center overflow-hidden shrink-0`}>
-      {!hasError && (src || username) ? (
-        <img 
-          src={src || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(username || 'user')}`} 
-          alt={name || 'User'} 
-          className="w-full h-full object-cover"
-          onError={() => setHasError(true)} 
-        />
-      ) : (
-        <span className="text-xs font-semibold text-muted-foreground">{initials}</span>
-      )}
-    </div>
+    <SafeAvatar
+      src={src}
+      name={name}
+      username={username}
+      className={className}
+    />
   );
 }
 
@@ -2324,29 +2389,28 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
   const companyGroups = useMemo(() => {
     const groupsMap = new Map();
     const idAliasMap = new Map();
-    const nameMap = new Map();
     const ownerMap = new Map();
 
-    // 1. Register all official companies from dbCompanies first
+    // 1. Register all official companies from dbCompanies strictly by ID (avoiding any cross-company collisions)
     dbCompanies.forEach(c => {
       const cId = String(c._id || c.id || '');
       if (!cId) return;
       const cleanName = (c.name || 'Unnamed Company').trim();
-      const normName = cleanName.toLowerCase();
 
-      // Avoid duplicate company entries if multiple company records share the same normalized name
-      if (nameMap.has(normName)) {
-        const canonicalId = nameMap.get(normName);
-        idAliasMap.set(cId, canonicalId);
-        if (c.ownerId) {
-          ownerMap.set(String(c.ownerId), canonicalId);
+      // Look up owner's personal name if not directly saved
+      let ownerName = c.ownerName || '';
+      if (!ownerName && c.ownerId) {
+        const ownerUser = dbUsers.find(u => String(u.userId) === String(c.ownerId) || String(u._id) === String(c.ownerId));
+        if (ownerUser) {
+          ownerName = ownerUser.name || ownerUser.username || '';
         }
-        return;
       }
 
       groupsMap.set(cId, {
         id: cId,
         name: cleanName,
+        ownerName: ownerName,
+        ownerId: c.ownerId || '',
         city: c.city || '',
         category: c.category || '',
         logo: c.logo || '',
@@ -2354,7 +2418,6 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
         employees: []
       });
       idAliasMap.set(cId, cId);
-      nameMap.set(normName, cId);
       if (c.ownerId) {
         ownerMap.set(String(c.ownerId), cId);
       }
@@ -2362,60 +2425,53 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
 
     const unassignedUsers = [];
 
-    // 2. Bucket each user into their affiliated company reliably
+    // 2. Bucket each user into their affiliated company strictly by ID
     dbUsers.forEach(u => {
       const uCompanyId = u.companyId ? String(u.companyId?._id || u.companyId) : null;
-      const uCompanyName = (u.company || '').trim();
-      const normUCoName = uCompanyName.toLowerCase();
-
       let matchedGroupId = null;
 
-      // Match A: By companyId via registered id or alias
-      if (uCompanyId && idAliasMap.has(uCompanyId)) {
-        matchedGroupId = idAliasMap.get(uCompanyId);
-      } else if (uCompanyId && groupsMap.has(uCompanyId)) {
+      // Match A: By companyId directly
+      if (uCompanyId && groupsMap.has(uCompanyId)) {
         matchedGroupId = uCompanyId;
       }
-      // Match B: By company name
-      else if (normUCoName && nameMap.has(normUCoName)) {
-        matchedGroupId = nameMap.get(normUCoName);
-        if (uCompanyId) idAliasMap.set(uCompanyId, matchedGroupId);
-      }
-      // Match C: By owner role / ownerId
+      // Match B: By owner role / ownerId
       else if (u.role === 'owner' && (ownerMap.has(String(u.userId)) || ownerMap.has(String(u._id)))) {
         matchedGroupId = ownerMap.get(String(u.userId)) || ownerMap.get(String(u._id));
+      }
+      // Match C: Fallback by company name ONLY if exactly one company matches that name
+      else if (u.company) {
+        const uCompTrim = u.company.trim().toLowerCase();
+        const matches = Array.from(groupsMap.values()).filter(g => g.name.toLowerCase() === uCompTrim);
+        if (matches.length === 1) {
+          matchedGroupId = matches[0].id;
+        }
       }
 
       if (matchedGroupId && groupsMap.has(matchedGroupId)) {
         groupsMap.get(matchedGroupId).employees.push(u);
-      } else if (normUCoName) {
-        // User has a company name not found in dbCompanies - group uniquely
-        if (nameMap.has(normUCoName)) {
-          const vId = nameMap.get(normUCoName);
-          groupsMap.get(vId).employees.push(u);
-        } else {
-          const virtualKey = uCompanyId || `company-${normUCoName}`;
-          const newGroup = {
+      } else if (u.company) {
+        // User has a company name not found in dbCompanies
+        const virtualKey = uCompanyId || `company-${u.company.trim().toLowerCase()}`;
+        if (!groupsMap.has(virtualKey)) {
+          groupsMap.set(virtualKey, {
             id: virtualKey,
-            name: uCompanyName,
+            name: u.company.trim(),
+            ownerName: u.role === 'owner' ? (u.name || '') : '',
             city: '',
             category: '',
             logo: '',
             status: 'active',
-            employees: [u]
-          };
-          groupsMap.set(virtualKey, newGroup);
-          nameMap.set(normUCoName, virtualKey);
-          idAliasMap.set(virtualKey, virtualKey);
-          if (uCompanyId) idAliasMap.set(uCompanyId, virtualKey);
+            employees: []
+          });
         }
+        groupsMap.get(virtualKey).employees.push(u);
       } else if (uCompanyId) {
-        // User has companyId but no company name and not in dbCompanies
         const virtualKey = `company-id-${uCompanyId}`;
         if (!groupsMap.has(virtualKey)) {
           groupsMap.set(virtualKey, {
             id: virtualKey,
             name: `Company (${uCompanyId.slice(-6)})`,
+            ownerName: '',
             city: '',
             category: '',
             logo: '',
@@ -2425,7 +2481,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
         }
         groupsMap.get(virtualKey).employees.push(u);
       } else {
-        // Unaffiliated / independent user (e.g. system admins, users without company)
+        // Independent user
         unassignedUsers.push(u);
       }
     });
@@ -2468,6 +2524,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
     if (!term) return companyGroups;
     return companyGroups.filter(g => {
       if (g.name?.toLowerCase().includes(term)) return true;
+      if (g.ownerName?.toLowerCase().includes(term)) return true;
       if (g.city?.toLowerCase().includes(term)) return true;
       if (g.category?.toLowerCase().includes(term)) return true;
       // Also match if any employee inside matches search term
@@ -2590,14 +2647,22 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
                     aria-label={`View employees for ${group.name}`}
                     className="flex items-center gap-4 min-w-0 flex-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-lg p-0.5"
                   >
-                    <div className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60 flex items-center justify-center shrink-0 group-hover:border-teal-400/60 group-hover:bg-teal-100/60 dark:group-hover:bg-primary/20 transition-colors">
-                      <Building2 className="w-6 h-6 text-primary" />
-                    </div>
+                    <SafeCompanyLogo
+                      src={group.logo}
+                      name={group.name}
+                      className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60"
+                      fallbackIcon={<Building2 className="w-6 h-6 text-primary" />}
+                    />
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-bold text-base text-slate-900 dark:text-foreground group-hover:text-primary transition-colors truncate">
                           {group.name}
                         </h3>
+                        {group.ownerName && (
+                          <span className="text-xs px-2 py-0.5 rounded-md bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary font-medium border border-teal-200 dark:border-primary/20">
+                            Owner: {group.ownerName}
+                          </span>
+                        )}
                         {group.status === 'suspended' && (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20">
                             Suspended
@@ -2770,14 +2835,22 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             className="border border-teal-500/70 bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-100/60 dark:hover:bg-teal-950/60 transition-colors p-4 sm:p-5 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer ring-1 ring-teal-500/30"
           >
             <div className="flex items-center gap-4 min-w-0">
-              <div className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60 flex items-center justify-center shrink-0">
-                <Building2 className="w-6 h-6 text-primary" />
-              </div>
+              <SafeCompanyLogo
+                src={selectedCompany.logo}
+                name={selectedCompany.name}
+                className="w-12 h-12 rounded-xl bg-teal-50/80 dark:bg-teal-950/50 border border-teal-200/80 dark:border-teal-800/60"
+                fallbackIcon={<Building2 className="w-6 h-6 text-primary" />}
+              />
               <div className="min-w-0">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-foreground truncate">
                     {selectedCompany.name}
                   </h2>
+                  {selectedCompany.ownerName && (
+                    <span className="text-xs px-2.5 py-1 rounded-md bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary font-semibold border border-teal-200 dark:border-primary/20">
+                      Owner: {selectedCompany.ownerName}
+                    </span>
+                  )}
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-teal-50 dark:bg-primary/10 text-teal-800 dark:text-primary border border-teal-200 dark:border-primary/20 shrink-0">
                     <Users className="w-3.5 h-3.5 text-teal-600 dark:text-primary" />
                     {selectedCompany.employees.length} {selectedCompany.employees.length === 1 ? 'employee' : 'employees'}
@@ -2832,7 +2905,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
                 <TableBody>
                   {filteredEmployees.map((user) => {
                     const userCompanyName = user.company || dbCompanies.find(c => String(c._id || c.id) === String(user.companyId?._id || user.companyId))?.name || (selectedCompany?.isUnassigned ? '' : selectedCompany?.name);
-                    const displayName = user.role === 'owner' && userCompanyName ? userCompanyName : (user.name || user.username);
+                    const displayName = user.name || user.username || 'User';
 
                     return (
                       <TableRow 
@@ -4917,57 +4990,80 @@ function TabProfile({ data, setData }) {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Reload profile from DB
+  // Reload profile from DB (SuperAdmin isolated sector)
   const reloadProfile = async () => {
-    if (!data.userId) return;
     try {
-      const resp = await authFetch(`/api/users/${data.userId}`);
+      let resp = await authFetch('/api/superadmin/profile');
+      if (!resp.ok && data.userId) {
+        resp = await authFetch(`/api/users/${data.userId}`);
+      }
       if (resp.ok) {
         const u = await resp.json();
-        if (u.role === 'param') {
-          setData({
-            userId: u.userId,
-            name: u.name || u.username || '',
-            username: u.username || '',
-            email: u.email || '',
-            phone: u.phone || '',
-            designation: u.designation || '',
-            department: u.department || '',
-            avatar: u.avatar || '',
-            role: u.role,
-          });
-        }
+        setData(prev => ({
+          ...prev,
+          userId: u.userId,
+          name: u.name || u.username || '',
+          username: u.username || '',
+          email: u.email || '',
+          phone: u.phone || '',
+          designation: u.designation || '',
+          department: u.department || '',
+          avatar: u.avatar || prev.avatar || '',
+          role: u.role || 'param',
+        }));
       }
     } catch (e) {
       console.error('Failed to reload profile', e);
     }
   };
 
-  // Save profile to DB
+  // Save profile to DB (SuperAdmin isolated sector)
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    if (!data.userId) return;
     setSaving(true);
     try {
-      const resp = await authFetch(`/api/users/${data.userId}`, {
+      let resp = await authFetch('/api/superadmin/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: data.userId,
           name: data.name,
           email: data.email,
           phone: data.phone,
           designation: data.designation,
           department: data.department,
+          avatar: data.avatar,
         })
       });
+      if (!resp.ok && data.userId) {
+        resp = await authFetch(`/api/users/${data.userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: data.userId,
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            designation: data.designation,
+            department: data.department,
+            avatar: data.avatar,
+          })
+        });
+      }
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.message || 'Failed to update profile');
       }
       const updated = await resp.json();
-      setData(prev => ({ ...prev, name: updated.name, email: updated.email, phone: updated.phone, designation: updated.designation, department: updated.department }));
-      toast.success('Profile updated in database');
+      setData(prev => ({
+        ...prev,
+        name: updated.name,
+        email: updated.email,
+        phone: updated.phone,
+        designation: updated.designation,
+        department: updated.department,
+        avatar: updated.avatar || prev.avatar
+      }));
+      toast.success('Super Admin profile updated in isolated database sector');
     } catch (err) {
       toast.error(err.message || 'Failed to update profile');
     } finally {
@@ -5007,7 +5103,7 @@ function TabProfile({ data, setData }) {
     }
   };
 
-  // Avatar upload via API
+  // Avatar upload via API (SuperAdmin isolated sector)
   const handleAvatarUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -5016,22 +5112,27 @@ function TabProfile({ data, setData }) {
       e.target.value = '';
       return;
     }
-    if (!data.userId) return;
     setUploadingAvatar(true);
     try {
       const formData = new FormData();
       formData.append('avatar', file);
-      const resp = await authFetch(`/api/users/${data.userId}/avatar`, {
+      let resp = await authFetch('/api/superadmin/avatar', {
         method: 'POST',
         body: formData
       });
+      if (!resp.ok && data.userId) {
+        resp = await authFetch(`/api/users/${data.userId}/avatar`, {
+          method: 'POST',
+          body: formData
+        });
+      }
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.message || 'Upload failed');
       }
       const result = await resp.json();
       setData(prev => ({ ...prev, avatar: result.avatar || '' }));
-      toast.success('Profile picture updated');
+      toast.success('Super Admin photo updated in isolated sector');
     } catch (err) {
       toast.error(err.message || 'Failed to upload avatar');
     } finally {

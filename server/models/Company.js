@@ -21,6 +21,7 @@ const companySchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
   }],
   ownerId: { type: String, required: true }, // Links to the user who created it (Owner)
+  ownerName: { type: String, trim: true }, // Full personal name of company owner
   status: { type: String, enum: ['active', 'blocked'], default: 'active' },
 }, { timestamps: true });
 

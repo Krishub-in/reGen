@@ -137,6 +137,9 @@ export default function App() {
   const isSuperAdminPath = typeof window !== 'undefined' ? window.location.pathname.startsWith('/superadmin') : false;
 
   if (isSuperAdminPath) {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('portal_view');
+    }
     return (
       <Suspense fallback={<PageLoader message="Loading SuperAdmin..." />}>
         <SuperAdminDashboard />
@@ -204,7 +207,19 @@ export default function App() {
   }
 
   if (showDashboard) {
-    if (userProfile?.role === 'param' && !window.location.search.includes('view=ems')) {
+    if (typeof window !== 'undefined') {
+      if (window.location.search.includes('view=ems')) {
+        sessionStorage.setItem('portal_view', 'ems');
+      } else if (window.location.pathname.startsWith('/superadmin')) {
+        sessionStorage.removeItem('portal_view');
+      }
+    }
+    const isEmsMode = typeof window !== 'undefined' && (
+      window.location.search.includes('view=ems') || 
+      sessionStorage.getItem('portal_view') === 'ems'
+    );
+
+    if (userProfile?.role === 'param' && !isEmsMode) {
       return (
         <Suspense fallback={<PageLoader message="Loading SuperAdmin..." />}>
           <SuperAdminDashboard />

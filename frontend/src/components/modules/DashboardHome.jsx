@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { 
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip 
 } from 'recharts';
+import { SafeAvatar } from '../SafeAvatar';
 
 export const toLocalDateStr = (d) => {
   if (!d) return '';
@@ -667,7 +668,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card border border-border p-5 sm:p-6 rounded-2xl shadow-xs">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Welcome back, {userProfile?.name ? userProfile.name.split(' ')[0] : 'Vishwa'}!
+            Welcome back, {userProfile?.ownerName || userProfile?.name || 'User'}!
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {isCompanyLogin
@@ -1076,6 +1077,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
             </div>
 
             <div 
+              ref={empPagination.containerRef}
               className="overflow-x-auto max-h-[440px] overflow-y-auto"
               onScroll={empPagination.onScroll}
             >
@@ -1117,9 +1119,13 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       return (
                         <tr key={emp._id || emp.id || idx} className="hover:bg-teal-500/[0.04] dark:hover:bg-teal-400/[0.06] transition-colors">
                           <td className="py-3 px-5 flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border shrink-0">
-                              <img src={avatar} alt="" className="w-full h-full object-cover" />
-                            </div>
+                            <SafeAvatar
+                              src={emp.avatar}
+                              name={name}
+                              username={emp.username}
+                              gender={emp.gender}
+                              className="w-8 h-8 rounded-full border border-border"
+                            />
                             <span className="font-semibold text-foreground text-xs">{name}</span>
                           </td>
                           <td className="py-3 px-4 text-foreground/90">{dept}</td>
@@ -1175,11 +1181,17 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
               </table>
               {empPagination.hasMore && (
                 <div 
-                  onClick={empPagination.loadMore}
-                  className="py-2.5 px-4 text-center border-t border-border bg-secondary/30 text-[11px] text-muted-foreground flex items-center justify-center gap-1.5 cursor-pointer hover:bg-secondary/50 transition-colors"
+                  ref={empPagination.sentinelRef}
+                  className="py-2.5 px-4 text-center border-t border-border bg-secondary/30 text-[11px] text-muted-foreground flex items-center justify-between gap-1.5"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  <span>Showing {displayedEmployees.length} of {empPagination.totalCount} employees — Scroll down for next 6</span>
+                  <span>Showing {displayedEmployees.length} of {empPagination.totalCount} employees</span>
+                  <button
+                    type="button"
+                    onClick={empPagination.loadMore}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors cursor-pointer"
+                  >
+                    Load next ({empPagination.totalCount - displayedEmployees.length} remaining)
+                  </button>
                 </div>
               )}
             </div>

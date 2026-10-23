@@ -263,6 +263,13 @@ export const calculateEmployeeMonthlyPayroll = ({
       item.isPresent = true;
       totalPresentDays++;
 
+      item.breakMinutes = Number(att.breakMinutes) || 0;
+      item.breakDelayMinutes = Number(att.breakDelayMinutes) || 0;
+      item.casualBreakMinutes = Number(att.casualBreakMinutes) || 0;
+      item.casualBreakDelayMinutes = Number(att.casualBreakDelayMinutes) || 0;
+      item.totalBreakDelayMinutes = Number(att.totalBreakDelayMinutes) || (item.breakDelayMinutes + item.casualBreakDelayMinutes);
+      item.breakDeduction = Number(att.breakDeduction) || 0;
+
       const workedHours = calculateWorkedHours(att.checkIn, att.checkOut, att.status, workingHoursPerDay);
       item.actualHours = workedHours;
       totalActualHours = round2(totalActualHours + workedHours);
@@ -329,7 +336,15 @@ export const calculateEmployeeMonthlyPayroll = ({
   const unapprovedLeaveDeduction = round2(totalUnapprovedLeaveDays * dailySalaryBasis * (unapprovedLeaveDeductionPct / 100));
   const otherAdjustments = 0;
 
-  const totalDeductions = round2(hourlyShortfallDeduction + approvedLeaveDeduction + unapprovedLeaveDeduction + manualDeduction);
+  const totalBreakDeduction = round2(
+    dailyBreakdown.reduce((sum, item) => sum + (Number(item.breakDeduction) || 0), 0)
+  );
+  const totalBreakDelayMinutes = dailyBreakdown.reduce(
+    (sum, item) => sum + (Number(item.totalBreakDelayMinutes) || 0), 
+    0
+  );
+
+  const totalDeductions = round2(hourlyShortfallDeduction + approvedLeaveDeduction + unapprovedLeaveDeduction + manualDeduction + totalBreakDeduction);
   const totalAdditions = round2(hourlyOvertimeAddition + bonus + otherAdjustments);
   const grossPayable = round2(monthlySalary + totalAdditions);
   const totalAmount = Math.max(0, round2(grossPayable - totalDeductions));
@@ -363,6 +378,8 @@ export const calculateEmployeeMonthlyPayroll = ({
     unapprovedLeaveDeduction,
     bonus,
     manualDeduction,
+    totalBreakDelayMinutes,
+    totalBreakDeduction,
     otherAdjustments,
     grossPayable,
     totalDeductions,

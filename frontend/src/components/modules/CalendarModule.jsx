@@ -32,12 +32,15 @@ import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { safeRandomUUID, cn, hasUserRole } from '@/lib/utils';
 
-export default function CalendarModule({ userProfile = {}, portalType }) {
+export default function CalendarModule({ userProfile = {}, portalType, initialUsers = [] }) {
   const { identity } = useCustomAuth();
   const { data: holidays = [], isLoading: holidaysLoading } = useGetAllHolidays();
   const { data: leaveRequests = [], isLoading: leavesLoading } = useGetAllLeaveRequests();
   const { data: myLeaves = [] } = useGetUserLeaveRequests((userProfile?.userId || userProfile?.id) || null);
-  const { data: users = [] } = useGetAllUsers();
+  const { data: usersQuery = [] } = useGetAllUsers();
+  const users = useMemo(() => {
+    return (usersQuery && usersQuery.length > 0) ? usersQuery : (initialUsers || []);
+  }, [usersQuery, initialUsers]);
   const addHoliday = useAddHoliday();
   const updateHoliday = useUpdateHoliday();
   const deleteHoliday = useDeleteHoliday();
@@ -53,19 +56,26 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
   const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
   const [monthDate, setMonthDate] = useState(new Date());
   const [agendaFilter, setAgendaFilter] = useState('all');
+  const [agendaPage, setAgendaPage] = useState(1);
+  const [leavePage, setLeavePage] = useState(1);
+  const [myLeavePage, setMyLeavePage] = useState(1);
+  const AGENDA_PAGE_SIZE = 4;
+  const LEAVE_PAGE_SIZE = 4;
   const isMobile = useIsMobile();
   const touchStartX = useRef(null);
 
   // Portal & Role Permissions
-  const isSuperAdmin = hasUserRole(userProfile, 'param') || portalType === 'superadmin';
-  const isOwner = hasUserRole(userProfile, 'owner');
+  const isSuperAdminPortal = portalType === 'superadmin';
+  const isSuperAdminUser = hasUserRole(userProfile, 'param');
+  const isSuperAdmin = isSuperAdminPortal;
+  const isOwner = hasUserRole(userProfile, 'owner') || isSuperAdminUser;
   const isCompanyAdmin = hasUserRole(userProfile, 'admin');
   const isCompanyPortal = isOwner || isCompanyAdmin;
   const isEmployee = !isCompanyPortal && !isSuperAdmin;
 
   // Administrative powers (holiday management & employee leave review/approval)
-  const canManageHolidays = isCompanyPortal || isSuperAdmin;
-  const canReviewLeaves = isCompanyPortal || isSuperAdmin;
+  const canManageHolidays = isCompanyPortal || isSuperAdmin || isSuperAdminUser;
+  const canReviewLeaves = isCompanyPortal || isSuperAdmin || isSuperAdminUser;
 
   // Strict Role Requirement: "Apply Leave" is ONLY for employees in User Portal.
   // Company Portal (Owner/Admin) and Super Admin must NEVER see or be able to apply for leave here.
@@ -425,6 +435,29 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
     return upcomingEvents.filter(e => e.type === agendaFilter);
   }, [upcomingEvents, agendaFilter]);
 
+  // Reset pagination on filter or month change
+  useEffect(() => {
+    setAgendaPage(1);
+  }, [agendaFilter, monthDate]);
+
+  const totalAgendaPages = Math.max(1, Math.ceil(filteredUpcomingEvents.length / AGENDA_PAGE_SIZE));
+  const paginatedUpcomingEvents = useMemo(() => {
+    const start = (agendaPage - 1) * AGENDA_PAGE_SIZE;
+    return filteredUpcomingEvents.slice(start, start + AGENDA_PAGE_SIZE);
+  }, [filteredUpcomingEvents, agendaPage]);
+
+  const totalLeavePages = Math.max(1, Math.ceil(leaveRequests.length / LEAVE_PAGE_SIZE));
+  const paginatedLeaveRequests = useMemo(() => {
+    const start = (leavePage - 1) * LEAVE_PAGE_SIZE;
+    return leaveRequests.slice(start, start + LEAVE_PAGE_SIZE);
+  }, [leaveRequests, leavePage]);
+
+  const totalMyLeavePages = Math.max(1, Math.ceil(myLeaves.length / LEAVE_PAGE_SIZE));
+  const paginatedMyLeaves = useMemo(() => {
+    const start = (myLeavePage - 1) * LEAVE_PAGE_SIZE;
+    return myLeaves.slice(start, start + LEAVE_PAGE_SIZE);
+  }, [myLeaves, myLeavePage]);
+
   // Auto-adjust leave dates to skip holidays and approved leaves
   useEffect(() => {
     if (!leaveForm.startDate || !leaveForm.endDate) return;
@@ -639,8 +672,8 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
   return (
     <div className="space-y-4 sm:space-y-5">
       {/* 1. Page Header with Controls */}
-      <div className={cn("flex flex-col sm:flex-row sm:items-center gap-4 pb-3 border-b border-[#D5E5D7] dark:border-[#2A3D48]", portalType === 'superadmin' ? "justify-end" : "justify-between")}>
-        {portalType !== 'superadmin' && (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#D5E5D7] dark:border-[#2A3D48]">
+        {portalType !== 'superadmin' ? (
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-[#15966A]/10 text-[#15966A] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
               <CalendarDays className="h-5 w-5" />
@@ -654,41 +687,68 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
               </p>
             </div>
           </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 shadow-2xs">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground leading-snug">
+                Master Organization Calendar
+              </h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 font-normal">
+                Organization-wide holidays, tenant staff leaves, and celebrations across all companies.
+              </p>
+            </div>
+          </div>
         )}
 
-        {/* Global Navigation Controls */}
-        <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMonthDate(new Date())}
-            className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
-            title="Jump to current date"
-          >
-            Today
-          </Button>
-          <div className="h-4 w-px bg-[#DFE8EC] dark:bg-[#2A3D48]" />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
-            onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-            title="Previous Month"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
-          <span className="text-xs sm:text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4] px-1.5 min-w-[120px] sm:min-w-[130px] text-center">
-            {format(monthDate, 'MMMM yyyy')}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
-            onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-            title="Next Month"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {canManageHolidays && (
+            <Button
+              size="sm"
+              onClick={() => handleOpenHolidayDialog()}
+              className="h-8 px-3 text-xs font-semibold bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Add Holiday
+            </Button>
+          )}
+
+          {/* Global Navigation Controls */}
+          <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMonthDate(new Date())}
+              className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
+              title="Jump to current date"
+            >
+              Today
+            </Button>
+            <div className="h-4 w-px bg-[#DFE8EC] dark:bg-[#2A3D48]" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+              onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+              title="Previous Month"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="text-xs sm:text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4] px-1.5 min-w-[120px] sm:min-w-[130px] text-center">
+              {format(monthDate, 'MMMM yyyy')}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+              onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+              title="Next Month"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -964,15 +1024,15 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
               ))}
             </div>
 
-            {/* Event List */}
-            <div className="space-y-2 max-h-[260px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
+            {/* Event List with 4-Item Pagination & Scroll */}
+            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
               {filteredUpcomingEvents.length === 0 ? (
-                <div className="h-full min-h-[140px] flex flex-col items-center justify-center py-6 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
+                <div className="h-full min-h-[120px] flex flex-col items-center justify-center py-6 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
                   <p className="font-semibold text-foreground">No events found</p>
                   <p>No celebrations or leaves match this filter in {format(monthDate, 'MMMM')}.</p>
                 </div>
               ) : (
-                filteredUpcomingEvents.map((evt) => (
+                paginatedUpcomingEvents.map((evt) => (
                   <div
                     key={evt.id}
                     onClick={() => {
@@ -999,6 +1059,40 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                 ))
               )}
             </div>
+
+            {/* Monthly Agenda Pagination Controls */}
+            {filteredUpcomingEvents.length > 0 && (
+              <div className="flex items-center justify-between pt-2 mt-auto border-t border-[#DFE8EC] dark:border-[#2A3D48] text-xs text-[#64748B] dark:text-[#A6B5C0] shrink-0">
+                <span className="text-[11px]">
+                  {Math.min((agendaPage - 1) * AGENDA_PAGE_SIZE + 1, filteredUpcomingEvents.length)} - {Math.min(agendaPage * AGENDA_PAGE_SIZE, filteredUpcomingEvents.length)} of {filteredUpcomingEvents.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAgendaPage(p => Math.max(1, p - 1))}
+                    disabled={agendaPage <= 1}
+                    className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </Button>
+                  <span className="text-[11px] px-1 font-medium text-foreground">
+                    {agendaPage}/{totalAgendaPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAgendaPage(p => Math.min(totalAgendaPages, p + 1))}
+                    disabled={agendaPage >= totalAgendaPages}
+                    className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                    title="Next page"
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* Right Bottom: Leave Requests / Management Card */}
@@ -1177,8 +1271,9 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
-                      {leaveRequests.map((leave) => {
+                    <>
+                      <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                      {paginatedLeaveRequests.map((leave) => {
                         const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                         const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
                         const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
@@ -1186,7 +1281,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                         return (
                           <div 
                             key={leave.id} 
-                            className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                            className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3 shadow-xs transition-all space-y-2"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-1.5">
                               <div className="flex flex-wrap items-center gap-1.5">
@@ -1266,8 +1361,43 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                         );
                       })}
                     </div>
-                  )}
-                </TabsContent>
+
+                    {/* Admin Leave Requests Pagination Controls */}
+                    {leaveRequests.length > 0 && (
+                      <div className="flex items-center justify-between pt-2 mt-auto border-t border-[#DFE8EC] dark:border-[#2A3D48] text-xs text-[#64748B] dark:text-[#A6B5C0] shrink-0">
+                        <span className="text-[11px]">
+                          {Math.min((leavePage - 1) * LEAVE_PAGE_SIZE + 1, leaveRequests.length)} - {Math.min(leavePage * LEAVE_PAGE_SIZE, leaveRequests.length)} of {leaveRequests.length}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLeavePage(p => Math.max(1, p - 1))}
+                            disabled={leavePage <= 1}
+                            className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                            title="Previous page"
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                          </Button>
+                          <span className="text-[11px] px-1 font-medium text-foreground">
+                            {leavePage}/{totalLeavePages}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setLeavePage(p => Math.min(totalLeavePages, p + 1))}
+                            disabled={leavePage >= totalLeavePages}
+                            className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                            title="Next page"
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
 
                 <TabsContent value="holidays" className="lg:flex-1 lg:min-h-0 flex flex-col mt-2.5 data-[state=inactive]:hidden">
                   <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
@@ -1338,8 +1468,9 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
-                    {myLeaves.map((leave) => {
+                  <>
+                    <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                    {paginatedMyLeaves.map((leave) => {
                       const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                       const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
                       const daysCount = daysBetweenInclusive(leave.startDate, leave.endDate);
@@ -1347,7 +1478,7 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                       return (
                         <div 
                           key={leave.id} 
-                          className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3.5 shadow-xs transition-all space-y-2.5"
+                          className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-xl p-3 shadow-xs transition-all space-y-2"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -1403,8 +1534,43 @@ export default function CalendarModule({ userProfile = {}, portalType }) {
                       );
                     })}
                   </div>
-                )}
-              </div>
+
+                  {/* Staff Leaves Pagination Controls */}
+                  {myLeaves.length > 0 && (
+                    <div className="flex items-center justify-between pt-2 mt-auto border-t border-[#DFE8EC] dark:border-[#2A3D48] text-xs text-[#64748B] dark:text-[#A6B5C0] shrink-0">
+                      <span className="text-[11px]">
+                        {Math.min((myLeavePage - 1) * LEAVE_PAGE_SIZE + 1, myLeaves.length)} - {Math.min(myLeavePage * LEAVE_PAGE_SIZE, myLeaves.length)} of {myLeaves.length}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setMyLeavePage(p => Math.max(1, p - 1))}
+                          disabled={myLeavePage <= 1}
+                          className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                          title="Previous page"
+                        >
+                          <ChevronLeft className="h-3 w-3" />
+                        </Button>
+                        <span className="text-[11px] px-1 font-medium text-foreground">
+                          {myLeavePage}/{totalMyLeavePages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setMyLeavePage(p => Math.min(totalMyLeavePages, p + 1))}
+                          disabled={myLeavePage >= totalMyLeavePages}
+                          className="h-6 w-6 p-0 rounded border-[#DFE8EC] dark:border-[#2A3D48]"
+                          title="Next page"
+                        >
+                          <ChevronRight className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             )}
           </Card>
         </div>

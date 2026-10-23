@@ -133,7 +133,9 @@ export const createMessage = async (req, res) => {
 
 export const getAllMessages = async (req, res) => {
   try {
-    const filter = req.companyId ? { companyId: req.companyId } : {};
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin';
+    const filter = (isSuperAdmin && !isEmsView) ? {} : (req.companyId ? { companyId: req.companyId } : {});
     const msgs = await Message.find(filter).sort({ createdAt: 1 });
     res.status(200).json(msgs);
   } catch (error) {

@@ -772,10 +772,15 @@ export default function PrivateChatModule({ userProfile }) {
 
   // Contact list — company users excluding self
   const contactList = useMemo(() => {
+    const myCompanyId = String(userProfile?.companyId?._id || userProfile?.companyId || '');
     return users
       .filter(u => {
         const uid = toIdText(u.userId || u.id);
         if (uid === myId) return false;
+        if (myCompanyId) {
+          const uCoId = String(u.companyId?._id || u.companyId || '');
+          if (uCoId && uCoId !== myCompanyId) return false;
+        }
         if (contactSearch) {
           const term = contactSearch.toLowerCase();
           return (u.name || '').toLowerCase().includes(term) ||
@@ -784,7 +789,7 @@ export default function PrivateChatModule({ userProfile }) {
         return true;
       })
       .sort((a, b) => (a.name || a.username || '').localeCompare(b.name || b.username || ''));
-  }, [users, myId, contactSearch, toIdText]);
+  }, [users, myId, contactSearch, toIdText, userProfile]);
 
   // Conversation list with peer info
   const convoList = useMemo(() => {
