@@ -703,7 +703,7 @@ export default function PaymentsModule({ userProfile }) {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
         <Card className="border border-border bg-card rounded-2xl p-4 shadow-xs">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Total Staff</span>
@@ -857,7 +857,7 @@ export default function PaymentsModule({ userProfile }) {
 
             {departments.length > 0 && activeTab !== 'transactions' && (
               <Select value={deptFilter} onValueChange={setDeptFilter}>
-                <SelectTrigger className="w-[140px] h-9 text-xs rounded-xl">
+                <SelectTrigger className="w-full sm:w-[140px] h-9 text-xs rounded-xl">
                   <SelectValue placeholder="Department" />
                 </SelectTrigger>
                 <SelectContent>

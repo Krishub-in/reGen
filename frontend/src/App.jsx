@@ -220,6 +220,9 @@ export default function App() {
     );
 
     if (userProfile?.role === 'param' && !isEmsMode) {
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/superadmin')) {
+        window.history.replaceState(null, '', '/superadmin');
+      }
       return (
         <Suspense fallback={<PageLoader message="Loading SuperAdmin..." />}>
           <SuperAdminDashboard />

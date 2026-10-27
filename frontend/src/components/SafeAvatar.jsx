@@ -71,39 +71,62 @@ export function SafeAvatar({
   );
 }
 
+export function getCompanyInitials(name) {
+  if (!name || typeof name !== 'string') return 'KR';
+  const clean = name.replace(/[^a-zA-Z0-9\s]/g, '').trim();
+  if (!clean) return 'KR';
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length >= 1) {
+    if (words[0].length >= 2) {
+      return words[0].slice(0, 2).toUpperCase();
+    }
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+  }
+  return clean.slice(0, 2).toUpperCase();
+}
+
 export function SafeCompanyLogo({
   src,
   alt = 'Company Logo',
   name = '',
-  className = 'w-8 h-8 rounded-lg',
+  className = 'w-7 h-7 rounded-lg',
   imgClassName = 'w-full h-full object-contain',
   fallbackIcon = null
 }) {
-  const isBroken = src ? brokenImageUrls.has(src) : true;
+  const cleanSrc = typeof src === 'string' ? src.trim() : '';
+  const isBroken = cleanSrc ? brokenImageUrls.has(cleanSrc) : true;
   const [hasError, setHasError] = useState(isBroken);
 
   useEffect(() => {
-    if (src && !brokenImageUrls.has(src)) {
+    if (cleanSrc && cleanSrc !== 'null' && cleanSrc !== 'undefined' && !brokenImageUrls.has(cleanSrc)) {
       setHasError(false);
     } else {
       setHasError(true);
     }
-  }, [src]);
+  }, [cleanSrc]);
 
-  const initials = (name || 'Co').trim().slice(0, 2).toUpperCase();
+  const initials = getCompanyInitials(name);
 
   const handleError = () => {
-    if (src) brokenImageUrls.add(src);
+    if (cleanSrc) brokenImageUrls.add(cleanSrc);
     setHasError(true);
   };
 
-  const validSrc = src && !hasError && !brokenImageUrls.has(src);
+  const validSrc = Boolean(cleanSrc && cleanSrc !== 'null' && cleanSrc !== 'undefined' && !hasError && !brokenImageUrls.has(cleanSrc));
 
   return (
-    <div className={`overflow-hidden shrink-0 flex items-center justify-center bg-muted/40 border border-border/40 ${className}`}>
+    <div
+      className={`overflow-hidden shrink-0 flex items-center justify-center font-bold tracking-wider select-none ${
+        validSrc 
+          ? "bg-muted/40 border border-border/40" 
+          : "bg-teal-500/15 text-teal-600 dark:text-teal-400 border border-teal-500/30 shadow-2xs"
+      } ${className}`}
+    >
       {validSrc ? (
         <img
-          src={src}
+          src={cleanSrc}
           alt={alt}
           className={imgClassName}
           onError={handleError}
@@ -112,7 +135,7 @@ export function SafeCompanyLogo({
       ) : fallbackIcon ? (
         fallbackIcon
       ) : (
-        <span className="text-[11px] font-bold text-muted-foreground uppercase">{initials}</span>
+        <span className="text-[10px] sm:text-[11px] font-extrabold uppercase leading-none">{initials}</span>
       )}
     </div>
   );

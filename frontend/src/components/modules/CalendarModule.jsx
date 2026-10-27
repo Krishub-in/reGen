@@ -52,15 +52,16 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
   const [isCellDialogOpen, setIsCellDialogOpen] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
   const [editingHoliday, setEditingHoliday] = useState(null);
+  const [leaveCardTab, setLeaveCardTab] = useState('leaves'); // 'leaves' | 'holidays'
   const [holidayForm, setHolidayForm] = useState({ name: '', date: '' });
-  const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '' });
+  const [leaveForm, setLeaveForm] = useState({ type: 'casual', startDate: '', endDate: '', reason: '', targetUserId: '' });
   const [monthDate, setMonthDate] = useState(new Date());
   const [agendaFilter, setAgendaFilter] = useState('all');
   const [agendaPage, setAgendaPage] = useState(1);
   const [leavePage, setLeavePage] = useState(1);
   const [myLeavePage, setMyLeavePage] = useState(1);
-  const AGENDA_PAGE_SIZE = 4;
-  const LEAVE_PAGE_SIZE = 4;
+  const AGENDA_PAGE_SIZE = 5;
+  const LEAVE_PAGE_SIZE = 5;
   const isMobile = useIsMobile();
   const touchStartX = useRef(null);
 
@@ -77,9 +78,8 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
   const canManageHolidays = isCompanyPortal || isSuperAdmin || isSuperAdminUser;
   const canReviewLeaves = isCompanyPortal || isSuperAdmin || isSuperAdminUser;
 
-  // Strict Role Requirement: "Apply Leave" is ONLY for employees in User Portal.
-  // Company Portal (Owner/Admin) and Super Admin must NEVER see or be able to apply for leave here.
-  const canApplyLeave = isEmployee && !isCompanyPortal && !isSuperAdmin;
+  // Enable leave application across all portal users (employees, admins, owners)
+  const canApplyLeave = true;
   const isAdmin = canReviewLeaves;
   const visibleHolidays = useMemo(() => holidays, [holidays]);
   const toIdText = (val) => (typeof val === 'string' ? val : (val?.toText ? val.toText() : String(val)));
@@ -575,11 +575,6 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
   const handleLeaveSubmit = async (e) => {
     e.preventDefault();
 
-    if (!canApplyLeave) {
-      toast.error('Leave applications are only available for employees in the User Portal');
-      return;
-    }
-
     try {
       // Validate dates
       if (!leaveForm.startDate || !leaveForm.endDate) {
@@ -613,6 +608,8 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
         toast.error('User identification failed. Please log in again.');
         return;
       }
+
+      const finalUserId = (isAdmin && leaveForm.targetUserId) ? leaveForm.targetUserId : uid;
 
       // Build set of unavailable dates (holidays + approved leaves)
       const unavailableDates = new Set();
@@ -649,20 +646,22 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
         toast.warning(`Note: Your leave request includes holidays or already approved leave dates: ${unavailableDatesInRange.join(', ')}`);
       }
 
+      const autoApprove = (isAdmin && !isEmployee && (!leaveForm.targetUserId || leaveForm.targetUserId === uid));
+
       await applyLeave.mutateAsync({
         id: safeRandomUUID(),
-        userId: uid,
-        displayId: uid,
+        userId: finalUserId,
+        displayId: finalUserId,
         type: leaveForm.type,
         startDate: leaveForm.startDate,
         endDate: leaveForm.endDate,
         reason: leaveForm.reason,
-        status: 'pending',
+        status: autoApprove ? 'approved' : 'pending',
         createdAt: new Date().toISOString()
       });
-      toast.success('Leave request submitted successfully');
+      toast.success(autoApprove ? 'Leave added and approved successfully' : 'Leave request submitted successfully');
       setIsLeaveDialogOpen(false);
-      setLeaveForm({ type: 'casual', startDate: '', endDate: '', reason: '' });
+      setLeaveForm({ type: 'casual', startDate: '', endDate: '', reason: '', targetUserId: '' });
     } catch (error) {
       toast.error('Failed to submit leave request');
       console.error(error);
@@ -671,7 +670,7 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* 1. Page Header with Controls */}
+      {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#D5E5D7] dark:border-[#2A3D48]">
         {portalType !== 'superadmin' ? (
           <div className="flex items-center gap-3">
@@ -702,54 +701,6 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
             </div>
           </div>
         )}
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {canManageHolidays && (
-            <Button
-              size="sm"
-              onClick={() => handleOpenHolidayDialog()}
-              className="h-8 px-3 text-xs font-semibold bg-[#0D9488] hover:bg-[#0F766E] text-white rounded-lg shadow-xs"
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />
-              Add Holiday
-            </Button>
-          )}
-
-          {/* Global Navigation Controls */}
-          <div className="flex items-center justify-between sm:justify-start gap-1.5 w-full sm:w-auto bg-white dark:bg-[#15232D] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMonthDate(new Date())}
-              className="h-7 sm:h-8 px-2 sm:px-2.5 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg shadow-xs"
-              title="Jump to current date"
-            >
-              Today
-            </Button>
-            <div className="h-4 w-px bg-[#DFE8EC] dark:bg-[#2A3D48]" />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
-              onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
-              title="Previous Month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            <span className="text-xs sm:text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4] px-1.5 min-w-[120px] sm:min-w-[130px] text-center">
-              {format(monthDate, 'MMMM yyyy')}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 sm:h-8 px-1.5 sm:px-2 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
-              onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
-              title="Next Month"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
       </div>
 
       {/* 2. Compact Event Summary Cards (Real Month Data) */}
@@ -800,11 +751,48 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
         {/* Left: Centerpiece Monthly Calendar Card (~69% width) */}
         <div className="w-full flex flex-col h-full">
           <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm overflow-hidden w-full flex-1 flex flex-col">
-          {/* Calendar Header with Legend */}
+          {/* Calendar Header with Navigation and Legend */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 sm:p-4 border-b border-[#DFE8EC] dark:border-[#2A3D48] bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 shrink-0">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
-              <span className="text-sm font-medium text-[#172B3A] dark:text-[#E8F0F4]">Monthly Schedule</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
+                <span className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Schedule</span>
+              </div>
+
+              {/* Month Navigation Controls */}
+              <div className="flex items-center gap-1 bg-white dark:bg-[#15232D] p-0.5 sm:p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] shadow-xs">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMonthDate(new Date())}
+                  className="h-7 px-2 text-xs font-semibold border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] rounded-lg"
+                  title="Jump to current date"
+                >
+                  Today
+                </Button>
+                <div className="h-3.5 w-px bg-[#DFE8EC] dark:bg-[#2A3D48]" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+                  onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                  title="Previous Month"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </Button>
+                <span className="text-xs sm:text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4] px-1 min-w-[110px] sm:min-w-[125px] text-center">
+                  {format(monthDate, 'MMMM yyyy')}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 rounded-lg text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] dark:hover:text-[#14B8A6] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B]"
+                  onClick={() => setMonthDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                  title="Next Month"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
 
             {/* Event Legend */}
@@ -857,7 +845,7 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
                   : undefined
               }
             >
-              <div className="min-w-[320px] flex-1 flex flex-col justify-between space-y-2">
+              <div className="w-full min-w-0 sm:min-w-[320px] flex-1 flex flex-col justify-between space-y-2">
                 {/* Weekday Header - Subtle Weekend Distinction */}
                 <div className="grid grid-cols-7 gap-1 sm:gap-1.5 md:gap-2 text-[11px] sm:text-xs font-semibold text-[#64748B] dark:text-[#A6B5C0] w-full py-0.5 text-center shrink-0">
                   <div className="text-rose-600/80 dark:text-rose-400/80 font-bold">Sun</div>
@@ -999,24 +987,24 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
             <div className="flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#DFE8EC] dark:border-[#2A3D48] shrink-0">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6]" />
-                <h3 className="text-sm sm:text-base font-medium text-[#172B3A] dark:text-[#E8F0F4]">Monthly Agenda</h3>
+                <h3 className="text-sm sm:text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4]">Monthly Agenda</h3>
               </div>
-              <Badge variant="outline" className="text-[10px] sm:text-[11px] px-2 font-medium">
+              <Badge variant="outline" className="text-[10px] sm:text-[11px] px-2 font-medium bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48]">
                 {filteredUpcomingEvents.length} event{filteredUpcomingEvents.length === 1 ? '' : 's'}
               </Badge>
             </div>
 
             {/* Quick Type Filter Pills */}
-            <div className="flex items-center gap-1.5 pb-2.5 overflow-x-auto shrink-0">
+            <div className="flex items-center gap-1.5 pb-2.5 overflow-x-auto shrink-0 custom-scrollbar">
               {['all', 'holiday', 'birthday', 'leave'].map((type) => (
                 <button
                   key={type}
-                  onClick={() => setAgendaFilter(type)}
+                  onClick={() => { setAgendaFilter(type); setAgendaPage(1); }}
                   className={cn(
-                    "px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[11px] font-medium transition-all capitalize shrink-0",
+                    "px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all capitalize shrink-0",
                     agendaFilter === type 
                       ? "bg-[#0D9488] text-white shadow-xs" 
-                      : "bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] hover:text-foreground"
+                      : "bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-[#E8F0F4] hover:bg-[#E8F1F4] dark:hover:bg-[#253945]"
                   )}
                 >
                   {type === 'all' ? 'All' : type === 'holiday' ? 'Holidays' : type === 'birthday' ? 'Birthdays' : 'Leaves'}
@@ -1024,10 +1012,10 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
               ))}
             </div>
 
-            {/* Event List with 4-Item Pagination & Scroll */}
-            <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+            {/* Event List with Pagination & Professional Sleek Scroll */}
+            <div className="space-y-2 max-h-[250px] sm:max-h-[280px] lg:max-h-[300px] overflow-y-auto custom-scrollbar pr-1.5">
               {filteredUpcomingEvents.length === 0 ? (
-                <div className="h-full min-h-[120px] flex flex-col items-center justify-center py-6 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
+                <div className="h-full min-h-[140px] flex flex-col items-center justify-center py-6 text-center text-xs text-[#64748B] dark:text-[#A6B5C0] space-y-1">
                   <p className="font-semibold text-foreground">No events found</p>
                   <p>No celebrations or leaves match this filter in {format(monthDate, 'MMMM')}.</p>
                 </div>
@@ -1039,7 +1027,7 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
                       const matchingCell = monthMatrix.flat().find(c => c.iso === evt.iso);
                       if (matchingCell) handleCellClick(matchingCell);
                     }}
-                    className="p-2 sm:p-2.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/60 transition-all cursor-pointer flex items-center justify-between gap-2.5 group"
+                    className="p-2.5 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/50 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/60 hover:bg-white dark:hover:bg-[#1A2C38] transition-all cursor-pointer flex items-center justify-between gap-2.5 group shadow-2xs"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm shrink-0">{evt.icon}</span>
@@ -1097,159 +1085,61 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
 
           {/* Right Bottom: Leave Requests / Management Card */}
           <Card className="border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] text-foreground rounded-2xl shadow-sm p-3.5 sm:p-4 flex flex-col lg:flex-1 lg:min-h-0 overflow-hidden">
-            {/* Header: Title, Description, and Actions */}
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#DFE8EC] dark:border-[#2A3D48] shrink-0">
+            {/* Header: Title, Description, and Dynamic Action Button */}
+            <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-[#DFE8EC] dark:border-[#2A3D48] shrink-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <Palmtree className="w-4 h-4 text-[#0D9488] dark:text-[#14B8A6] shrink-0" />
-                  <h3 className="text-base font-medium text-[#172B3A] dark:text-[#E8F0F4] truncate">
-                    Leave Requests
+                  <h3 className="text-sm sm:text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4] truncate">
+                    {isAdmin ? (leaveCardTab === 'holidays' ? 'Company Holidays' : 'Leave Requests') : 'Leave Requests'}
                   </h3>
                 </div>
                 <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] mt-0.5 line-clamp-1">
-                  {canApplyLeave 
-                    ? "Review your submitted applications or submit a new leave request." 
-                    : "Review and manage team leave applications and official company holidays."}
+                  {isAdmin
+                    ? (leaveCardTab === 'holidays' ? 'Manage official company holiday dates.' : 'Review employee leaves or record approved time off.')
+                    : 'Track your leave status or submit a new leave request.'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
-                {canManageHolidays && (
-                  <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenHolidayDialog()}
-                        className="border-[#DFE8EC] dark:border-[#2A3D48] text-xs h-8 px-2.5 font-medium rounded-xl hover:text-[#0D9488] dark:hover:text-[#14B8A6]"
-                      >
-                        <Plus className="mr-1 h-3 w-3" />
-                        Holiday
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
-                      <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
-                          {editingHoliday ? 'Edit Holiday' : 'Add Holiday'}
-                        </DialogTitle>
-                      </DialogHeader>
-                      <form onSubmit={handleHolidaySubmit} className="space-y-4 pt-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="name" className="text-xs font-semibold">Holiday Name *</Label>
-                          <Input
-                            id="name"
-                            value={holidayForm.name}
-                            onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
-                            placeholder="e.g., New Year's Day"
-                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="date" className="text-xs font-semibold">Date *</Label>
-                          <Input
-                            id="date"
-                            type="date"
-                            value={holidayForm.date}
-                            onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
-                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                            required
-                          />
-                        </div>
-                        <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={addHoliday.isPending || updateHoliday.isPending}>
-                          {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
-                        </Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
-                )}
-
-                {canApplyLeave && (
-                  <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        size="sm"
-                        className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-2.5 font-medium shadow-xs rounded-xl flex items-center gap-1"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>Apply Leave</span>
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
-                      <DialogHeader>
-                        <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">Apply for Leave</DialogTitle>
-                      </DialogHeader>
-                      <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
-                          <select
-                            id="type"
-                            className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
-                            value={leaveForm.type}
-                            onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
-                          >
-                            <option value="casual">Casual Leave</option>
-                            <option value="sick">Sick Leave</option>
-                            <option value="earned">Earned Leave</option>
-                            <option value="unpaid">Unpaid Leave</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
-                          <Input
-                            id="startDate"
-                            type="date"
-                            value={leaveForm.startDate}
-                            onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
-                          <Input
-                            id="endDate"
-                            type="date"
-                            value={leaveForm.endDate}
-                            onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
-                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
-                          <Textarea
-                            id="reason"
-                            value={leaveForm.reason}
-                            onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
-                            placeholder="Reason for leave request..."
-                            className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
-                            rows={3}
-                          />
-                        </div>
-                        <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
-                          {applyLeave.isPending ? 'Submitting...' : 'Submit Request'}
-                        </Button>
-                      </form>
-                    </DialogContent>
-                  </Dialog>
+              {/* Dynamic Action Button: Shows 'Add Leave' when leaves tab is active, or 'Add Holiday' when holidays tab is active */}
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isAdmin && leaveCardTab === 'holidays' ? (
+                  canManageHolidays && (
+                    <Button 
+                      size="sm"
+                      onClick={() => handleOpenHolidayDialog()}
+                      className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-3 font-semibold shadow-xs rounded-xl flex items-center gap-1.5"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Holiday</span>
+                    </Button>
+                  )
+                ) : (
+                  <Button 
+                    size="sm"
+                    onClick={() => setIsLeaveDialogOpen(true)}
+                    className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-3 font-semibold shadow-xs rounded-xl flex items-center gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Leave</span>
+                  </Button>
                 )}
               </div>
             </div>
 
             {/* Content: Admin Tabs vs Staff Direct View */}
             {isAdmin ? (
-              <Tabs defaultValue="leaves" className="w-full lg:flex-1 lg:min-h-0 flex flex-col space-y-2.5">
+              <Tabs value={leaveCardTab} onValueChange={(val) => { setLeaveCardTab(val); setLeavePage(1); }} className="w-full lg:flex-1 lg:min-h-0 flex flex-col space-y-2.5">
                 <TabsList className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] p-1 rounded-xl h-auto flex w-full shrink-0">
                   <TabsTrigger 
                     value="leaves" 
-                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                    className="flex-1 text-xs font-semibold px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs transition-all"
                   >
                     Leaves ({leaveRequests.length})
                   </TabsTrigger>
                   <TabsTrigger 
                     value="holidays" 
-                    className="flex-1 text-xs font-medium px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs"
+                    className="flex-1 text-xs font-semibold px-2 py-1.5 rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-[#15232D] data-[state=active]:text-[#0D9488] dark:data-[state=active]:text-[#14B8A6] data-[state=active]:shadow-xs transition-all"
                   >
                     Holidays ({holidayList.length})
                   </TabsTrigger>
@@ -1272,7 +1162,7 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
                     </div>
                   ) : (
                     <>
-                      <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                      <div className="space-y-2.5 max-h-[260px] sm:max-h-[280px] lg:max-h-[300px] overflow-y-auto custom-scrollbar pr-1.5">
                       {paginatedLeaveRequests.map((leave) => {
                         const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                         const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
@@ -1400,13 +1290,13 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
               </TabsContent>
 
                 <TabsContent value="holidays" className="lg:flex-1 lg:min-h-0 flex flex-col mt-2.5 data-[state=inactive]:hidden">
-                  <div className="space-y-2.5 max-h-[300px] lg:max-h-none lg:flex-1 lg:min-h-0 overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-[260px] sm:max-h-[280px] lg:max-h-[300px] overflow-y-auto custom-scrollbar pr-1.5">
                     {holidaysLoading ? (
                       <div className="flex-1 flex items-center justify-center py-6 text-muted-foreground text-xs">Loading holidays...</div>
                     ) : holidayList.length === 0 ? (
                       <div className="flex-1 min-h-[140px] flex flex-col items-center justify-center bg-[#F4F8FA]/60 dark:bg-[#1D303B]/50 border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 text-center space-y-2">
                         <p className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No holidays registered</p>
-                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Holiday" above to add official company holidays.</p>
+                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">Click "Add Holiday" above to add official company holidays.</p>
                       </div>
                     ) : (
                       holidayList.map((holiday) => (
@@ -1463,13 +1353,13 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
                     <div className="space-y-1">
                       <h4 className="text-sm font-semibold text-[#172B3A] dark:text-[#E8F0F4]">No leave requests submitted</h4>
                       <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed">
-                        You have not submitted any leave requests yet. Click "Apply Leave" above to request time off.
+                        You have not submitted any leave requests yet. Click "Add Leave" above to request time off.
                       </p>
                     </div>
                   </div>
                 ) : (
                   <>
-                    <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-[260px] sm:max-h-[280px] lg:max-h-[300px] overflow-y-auto custom-scrollbar pr-1.5">
                     {paginatedMyLeaves.map((leave) => {
                       const staff = users.find(u => toIdText(u.userId || u.id) === toIdText(leave.userId));
                       const requesterName = formatUserLabel(staff) || (leave.displayId || leave.userId);
@@ -1573,6 +1463,131 @@ export default function CalendarModule({ userProfile = {}, portalType, initialUs
             </div>
             )}
           </Card>
+
+          {/* Holiday Dialog */}
+          <Dialog open={isHolidayDialogOpen} onOpenChange={setIsHolidayDialogOpen}>
+            <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                  {editingHoliday ? 'Edit Holiday' : 'Add Holiday'}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleHolidaySubmit} className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-xs font-semibold">Holiday Name *</Label>
+                  <Input
+                    id="name"
+                    value={holidayForm.name}
+                    onChange={(e) => setHolidayForm({ ...holidayForm, name: e.target.value })}
+                    placeholder="e.g., New Year's Day"
+                    className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date" className="text-xs font-semibold">Date *</Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={holidayForm.date}
+                    onChange={(e) => setHolidayForm({ ...holidayForm, date: e.target.value })}
+                    className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                    required
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={addHoliday.isPending || updateHoliday.isPending}>
+                  {(addHoliday.isPending || updateHoliday.isPending) ? 'Saving...' : 'Save Holiday'}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          {/* Leave Application Dialog */}
+          <Dialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+            <DialogContent className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D]">
+              <DialogHeader>
+                <DialogTitle className="text-lg font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                  {isAdmin ? 'Record / Add Leave' : 'Apply for Leave'}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleLeaveSubmit} className="space-y-4 pt-2">
+                {isAdmin && users.length > 0 && (
+                  <div className="space-y-2">
+                    <Label htmlFor="targetUser" className="text-xs font-semibold">Team Member</Label>
+                    <select
+                      id="targetUser"
+                      className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
+                      value={leaveForm.targetUserId}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, targetUserId: e.target.value })}
+                    >
+                      <option value="">Myself ({userProfile?.displayName || userProfile?.username || 'Current User'})</option>
+                      {users.map((u) => {
+                        const uId = toIdText(u.userId || u.id);
+                        const label = formatUserLabel(u) || u.username || uId;
+                        return (
+                          <option key={uId} value={uId}>
+                            {label} {u.department ? `(${u.department})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="type" className="text-xs font-semibold">Leave Type *</Label>
+                  <select
+                    id="type"
+                    className="h-10 w-full border border-[#DFE8EC] dark:border-[#2A3D48] rounded-lg bg-[#F4F8FA] dark:bg-[#1D303B] px-3 text-xs sm:text-sm text-[#172B3A] dark:text-[#E8F0F4]"
+                    value={leaveForm.type}
+                    onChange={(e) => setLeaveForm({ ...leaveForm, type: e.target.value })}
+                  >
+                    <option value="casual">Casual Leave</option>
+                    <option value="sick">Sick Leave</option>
+                    <option value="earned">Earned Leave</option>
+                    <option value="unpaid">Unpaid Leave</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="startDate" className="text-xs font-semibold">Start Date *</Label>
+                    <Input
+                      id="startDate"
+                      type="date"
+                      value={leaveForm.startDate}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
+                      className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate" className="text-xs font-semibold">End Date *</Label>
+                    <Input
+                      id="endDate"
+                      type="date"
+                      value={leaveForm.endDate}
+                      onChange={(e) => setLeaveForm({ ...leaveForm, endDate: e.target.value })}
+                      className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reason" className="text-xs font-semibold">Reason</Label>
+                  <Textarea
+                    id="reason"
+                    value={leaveForm.reason}
+                    onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                    placeholder="Reason for leave request..."
+                    className="bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48] text-xs sm:text-sm"
+                    rows={3}
+                  />
+                </div>
+                <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={applyLeave.isPending}>
+                  {applyLeave.isPending ? 'Submitting...' : (isAdmin ? 'Submit / Record Leave' : 'Submit Request')}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 

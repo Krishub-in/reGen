@@ -83,6 +83,7 @@ export default function Dashboard({ userProfile }) {
 
   const currentYear = new Date().getFullYear();
   const { data: companyInfo } = useGetCompanyInfo();
+  const companyDisplayName = companyInfo?.name || userProfile?.companyName || userProfile?.tenantName || 'krish Tech Computer';
 
   const isCompanyLogin = Boolean(
     userProfile?.role === 'owner' ||
@@ -394,6 +395,33 @@ export default function Dashboard({ userProfile }) {
     queryClient.clear();
   };
 
+  const isSuperAdminUser = Boolean(
+    userProfile?.role === 'param' ||
+    (typeof window !== 'undefined' && !!localStorage.getItem('sa_auth_token')) ||
+    userProfile?.username?.toLowerCase() === 'vyshwa' ||
+    userProfile?.userId?.toLowerCase() === 'vyshwa'
+  );
+
+  const handleSwitchToSuperAdmin = async () => {
+    try {
+      const resp = await authFetch('/api/auth/switch-to-superadmin', { method: 'POST' });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.token) {
+          localStorage.setItem('sa_auth_token', data.token);
+          localStorage.setItem('auth_token', data.token);
+          localStorage.setItem('active_sa_id', data.userId);
+        }
+      }
+    } catch (e) {
+      console.error('Switch to Super Admin error', e);
+    }
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('portal_view');
+      window.location.replace('/superadmin');
+    }
+  };
+
   const menuItems = [
     { id: 'home', label: 'Dashboard', icon: Home, show: true },
     { id: 'users', label: isOwner ? 'Staff / Employees' : 'Users', icon: Users, show: isAdmin || isOwner },
@@ -406,6 +434,7 @@ export default function Dashboard({ userProfile }) {
     { id: 'reports', label: 'Report', icon: FileBarChart, show: isAdmin || isOwner },
     { id: 'company', label: 'Company', icon: Building2, show: isAdmin || isOwner },
     { id: 'profile', label: 'Settings', icon: Settings, show: true },
+    { id: 'superadmin_console', label: 'Super Admin Console', icon: ShieldCheck, show: isSuperAdminUser, onClick: handleSwitchToSuperAdmin },
   ];
 
   const renderModule = () => {
@@ -443,108 +472,76 @@ export default function Dashboard({ userProfile }) {
   return (
     <div className="bg-background text-foreground flex min-h-svh w-full">
       {/* Desktop Left Sidebar (Matching Reference Image) */}
-      <aside className="hidden md:flex w-64 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
+      <aside className="hidden md:flex w-64 lg:w-72 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
         {/* Brand Logo */}
-        <div className="h-16 flex items-center gap-2.5 px-6 border-b border-border">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateToModule('home')}>
-            {companyInfo?.logo ? (
-              <SafeCompanyLogo src={companyInfo.logo} name={companyInfo?.name || 'ReGen'} className="w-7 h-7 rounded-lg" />
-            ) : null}
-            <span className="text-xl font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
-            <span className="w-2 h-2 rounded-full bg-primary" />
+        <div className="h-16 lg:h-18 flex items-center px-4 lg:px-6 border-b border-border">
+          <div className="flex items-center gap-2.5 cursor-pointer min-w-0" onClick={() => navigateToModule('home')}>
+            <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-8 h-8 rounded-xl shrink-0" />
+            <span className="text-base lg:text-lg font-bold tracking-tight text-foreground truncate whitespace-nowrap">{companyDisplayName}</span>
+            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
           </div>
         </div>
 
         {/* Sidebar Nav Items */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1.5">
           {menuItems.filter(item => item.show).map((item) => {
             const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
             return (
               <button
                 key={item.id}
-                onClick={() => navigateToModule(item.id)}
+                onClick={() => {
+                  if (item.onClick) {
+                    item.onClick();
+                  } else {
+                    navigateToModule(item.id);
+                  }
+                }}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
+                  "w-full flex items-center gap-3 px-3.5 lg:px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-[15px] transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
                   isActive
                     ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
                     : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
                 )}
               >
-                <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
-                <span>{item.label}</span>
+                <item.icon className={cn("w-4.5 h-4.5 lg:w-5 lg:h-5 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
+                <span className="truncate">{item.label}</span>
               </button>
             );
           })}
         </nav>
-
-        {/* Superadmin button for authorized accounts */}
-        {(userProfile?.role === 'param' || (typeof window !== 'undefined' && !!localStorage.getItem('sa_auth_token')) || userProfile?.username?.toLowerCase() === 'vyshwa' || userProfile?.userId?.toLowerCase() === 'vyshwa') && (
-          <div className="p-3 border-t border-border">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={async () => {
-                try {
-                  const resp = await authFetch('/api/auth/switch-to-superadmin', { method: 'POST' });
-                  if (resp.ok) {
-                    const data = await resp.json();
-                    if (data.token) {
-                      localStorage.setItem('sa_auth_token', data.token);
-                      localStorage.setItem('auth_token', data.token);
-                      localStorage.setItem('active_sa_id', data.userId);
-                    }
-                  }
-                } catch (e) {
-                  console.error('Switch to Super Admin error', e);
-                }
-                if (typeof window !== 'undefined') {
-                  sessionStorage.removeItem('portal_view');
-                  window.location.href = '/superadmin';
-                }
-              }}
-              className="w-full text-xs font-semibold justify-start gap-2 border-primary/30 text-primary hover:bg-primary/10 rounded-xl"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span>Super Admin Console</span>
-            </Button>
-          </div>
-        )}
-
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-x-hidden">
         {/* Topbar Header */}
-        <header className="sticky top-0 z-20 h-16 border-b border-border bg-card/85 backdrop-blur-md px-3 sm:px-4 md:px-8 flex items-center justify-between gap-2 sm:gap-4">
+        <header className="sticky top-0 z-20 h-16 lg:h-18 border-b border-border bg-card/85 backdrop-blur-md px-2.5 sm:px-6 lg:px-8 flex items-center justify-between gap-1.5 sm:gap-4">
           {/* Mobile hamburger + brand */}
-          <div className="flex items-center gap-2 sm:gap-3 md:hidden">
+          <div className="flex items-center gap-1.5 sm:gap-3 md:hidden min-w-0">
             <button
               onClick={() => setMobileNavOpen(true)}
-              className="p-2 rounded-xl border border-border text-foreground hover:bg-secondary transition-colors"
+              className="p-1.5 sm:p-2 rounded-xl border border-border text-foreground hover:bg-secondary transition-colors shrink-0"
               aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveModule('home')}>
-              {companyInfo?.logo ? (
-                <SafeCompanyLogo src={companyInfo.logo} name={companyInfo?.name || 'ReGen'} className="w-6 h-6 rounded-md" />
-              ) : null}
-              <span className="text-lg font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <div className="flex items-center gap-1.5 sm:gap-2 cursor-pointer min-w-0" onClick={() => setActiveModule('home')}>
+              <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-6 h-6 rounded-md shrink-0" />
+              <span className="text-sm sm:text-base md:text-lg font-semibold tracking-tight sm:tracking-normal text-foreground truncate max-w-[140px] xs:max-w-[200px] sm:max-w-none">{companyDisplayName}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 hidden xs:inline-block" />
             </div>
           </div>
 
           {/* Right Action Icons: Year Selector, Notification, Theme Switcher, Profile Badge */}
-          <div className="flex items-center gap-2.5 sm:gap-3.5 ml-auto">
+          <div className="flex items-center gap-1.5 xs:gap-2 sm:gap-3 lg:gap-3.5 ml-auto shrink-0">
             {/* Year Selector Dropdown near Notification Bell */}
-            <div className="flex items-center gap-1.5 bg-secondary/80 hover:bg-secondary border border-border px-2.5 sm:px-3 py-1.5 rounded-xl transition-all shadow-2xs">
-              <Calendar className="w-3.5 h-3.5 text-primary shrink-0" />
-              <span className="text-xs font-semibold text-muted-foreground hidden sm:inline">Year:</span>
+            <div className="flex items-center gap-1 sm:gap-1.5 bg-secondary/80 hover:bg-secondary border border-border px-1.5 sm:px-3 lg:px-3.5 py-1 sm:py-1.5 rounded-lg sm:rounded-xl transition-all shadow-2xs">
+              <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 lg:w-4 lg:h-4 text-primary shrink-0" />
+              <span className="text-xs lg:text-sm font-semibold text-muted-foreground hidden sm:inline">Year:</span>
               <select
                 id="dashboard-year-selector"
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
-                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1"
+                className="bg-transparent text-[11px] sm:text-xs lg:text-sm font-bold text-foreground focus:outline-none cursor-pointer pr-0.5 sm:pr-1"
                 aria-label="Select Year"
               >
                 {availableYears.map((yr) => (
@@ -558,10 +555,10 @@ export default function Dashboard({ userProfile }) {
             <div className="relative">
               <button
                 onClick={() => setShowNotif(v => !v)}
-                className="relative w-9 h-9 rounded-xl border border-border bg-card hover:bg-secondary text-foreground flex items-center justify-center transition-colors shadow-xs"
+                className="relative w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 rounded-lg sm:rounded-xl border border-border bg-card hover:bg-secondary text-foreground flex items-center justify-center transition-colors shadow-xs"
                 aria-label="Notifications"
               >
-                <Bell className="w-4 h-4 text-muted-foreground" />
+                <Bell className="w-4 h-4 lg:w-4.5 lg:h-4.5 text-muted-foreground" />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
                     {unreadCount > 9 ? '9+' : unreadCount}
@@ -572,7 +569,7 @@ export default function Dashboard({ userProfile }) {
               {showNotif && (
                 <div 
                   ref={notifDropdownRef}
-                  className="absolute right-0 top-12 z-50 w-[calc(100vw-2rem)] max-w-sm sm:w-96 border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="fixed top-16 left-2 right-2 sm:left-auto sm:right-0 sm:top-12 z-50 w-auto sm:w-96 max-w-sm sm:max-w-none border border-border bg-card text-foreground rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-secondary/50">
                     <div className="flex items-center gap-2">
@@ -742,36 +739,7 @@ export default function Dashboard({ userProfile }) {
               )}
             </div>
 
-            {/* Super Admin Console Button */}
-            {(userProfile?.role === 'param' || (typeof window !== 'undefined' && !!localStorage.getItem('sa_auth_token')) || userProfile?.username?.toLowerCase() === 'vyshwa' || userProfile?.userId?.toLowerCase() === 'vyshwa') && (
-              <Button 
-                variant="default" 
-                size="sm" 
-                onClick={async () => {
-                  try {
-                    const resp = await authFetch('/api/auth/switch-to-superadmin', { method: 'POST' });
-                    if (resp.ok) {
-                      const data = await resp.json();
-                      if (data.token) {
-                        localStorage.setItem('sa_auth_token', data.token);
-                        localStorage.setItem('auth_token', data.token);
-                        localStorage.setItem('active_sa_id', data.userId);
-                      }
-                    }
-                  } catch (e) {
-                    console.error('Switch to Super Admin error', e);
-                  }
-                  if (typeof window !== 'undefined') {
-                    sessionStorage.removeItem('portal_view');
-                    window.location.href = '/superadmin';
-                  }
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold flex items-center gap-1.5 shadow-xs px-3 h-9 rounded-xl text-xs"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                <span className="hidden sm:inline">Super Admin Console</span>
-              </Button>
-            )}
+
 
             {/* Theme Toggle (Sun/Moon Switcher) */}
             <ModeToggle />
@@ -781,7 +749,7 @@ export default function Dashboard({ userProfile }) {
               <DropdownMenuTrigger asChild>
                 <button 
                   type="button"
-                  className="flex items-center gap-2.5 pl-1.5 sm:pl-2 py-1 pr-1.5 sm:pr-2.5 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all cursor-pointer select-none text-left"
+                  className="flex items-center gap-2 pl-1 sm:pl-2 py-1 pr-1 sm:pr-2.5 lg:pr-3 rounded-xl border border-transparent hover:border-border hover:bg-secondary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 transition-all cursor-pointer select-none text-left shrink-0"
                   title="User Account"
                   aria-label="User account menu"
                 >
@@ -790,11 +758,11 @@ export default function Dashboard({ userProfile }) {
                     name={userProfile?.name}
                     username={userProfile?.username}
                     gender={userProfile?.gender}
-                    className="w-8 h-8 rounded-full border border-border"
+                    className="w-8 h-8 sm:w-9 sm:h-9 lg:w-9.5 lg:h-9.5 rounded-full border border-border shrink-0"
                   />
-                  <div className="hidden sm:block text-left">
-                    <p className="text-xs font-bold text-foreground leading-tight truncate max-w-[120px]">{userProfile?.name || 'User'}</p>
-                    <p className="text-[10px] text-muted-foreground font-medium capitalize">
+                  <div className="hidden sm:block text-left min-w-0">
+                    <p className="text-xs sm:text-sm lg:text-[14px] font-bold text-foreground leading-tight truncate max-w-[85px] md:max-w-[130px] lg:max-w-[160px]">{userProfile?.name || 'User'}</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium capitalize truncate max-w-[85px] md:max-w-[130px] lg:max-w-[160px]">
                       {displayRole}
                     </p>
                   </div>
@@ -804,7 +772,7 @@ export default function Dashboard({ userProfile }) {
               <DropdownMenuContent 
                 align="end" 
                 sideOffset={8}
-                className="w-60 p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
+                className="w-60 max-w-[calc(100vw-1.5rem)] p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
               >
                 {/* Profile Header */}
                 <div 
@@ -858,10 +826,8 @@ export default function Dashboard({ userProfile }) {
           <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r border-border p-0 flex flex-col">
             <SheetHeader className="p-6 border-b border-border">
               <SheetTitle className="flex items-center gap-2">
-                {companyInfo?.logo ? (
-                  <img src={companyInfo.logo} alt="Logo" className="w-6 h-6 rounded-md object-contain border border-border/40" />
-                ) : null}
-                <span className="text-xl font-semibold tracking-normal text-foreground">{companyInfo?.name || 'ReGen'}</span>
+                <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-7 h-7 rounded-lg shrink-0" />
+                <span className="text-xl font-semibold tracking-normal text-foreground">{companyDisplayName}</span>
                 <span className="w-2 h-2 rounded-full bg-primary" />
               </SheetTitle>
             </SheetHeader>
@@ -872,7 +838,11 @@ export default function Dashboard({ userProfile }) {
                   <button
                     key={item.id}
                     onClick={() => {
-                      navigateToModule(item.id);
+                      if (item.onClick) {
+                        item.onClick();
+                      } else {
+                        navigateToModule(item.id);
+                      }
                       setMobileNavOpen(false);
                     }}
                     className={cn(
@@ -892,7 +862,7 @@ export default function Dashboard({ userProfile }) {
         </Sheet>
 
         {/* Main Body */}
-        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 w-full min-w-0">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 w-full min-w-0 max-w-full">
           <ErrorBoundary key={activeModule}>
             <Suspense fallback={
               <div className="flex h-64 w-full flex-col items-center justify-center p-8 bg-card/50 rounded-2xl border border-border/50 animate-pulse">

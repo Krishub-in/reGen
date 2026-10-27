@@ -7,7 +7,9 @@ import {
   useUpdateCompany, 
   useGetAllUsers,
   useGetCompanyPolicyReviews,
-  useAllowEmployeeWorkForward
+  useAllowEmployeeWorkForward,
+  useGetProjects,
+  useGetAllTasks
 } from '../../hooks/useQueries';
 import { cn, hasUserRole, getUserRoleKey, authFetch } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -16,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Badge } from '@/components/ui/badge';
 import {
   Plus,
   LayoutDashboard,
@@ -38,8 +41,19 @@ import {
   ShieldAlert,
   ArrowRight,
   Clock,
+  FolderKanban,
+  Calendar,
+  User,
+  Users,
+  Search,
+  Pause,
+  Play,
+  Briefcase
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { formatDeadline, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, isTaskExpired } from '@/lib/taskUtils';
+import VoiceNoteBadgePlayer, { extractVoiceNote } from '../VoiceNoteBadgePlayer';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import PageHeader from '../PageHeader';
@@ -78,8 +92,14 @@ export default function CompanyModule({ userProfile }) {
   const createCompany = useCreateCompany();
   const updateCompany = useUpdateCompany();
   const { data: users = [] } = useGetAllUsers();
+  const { data: projects = [], isLoading: isProjectsLoading } = useGetProjects();
+  const { data: tasks = [] } = useGetAllTasks();
 
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [projectStatusFilter, setProjectStatusFilter] = useState('all');
+  const [taskStatusFilter, setTaskStatusFilter] = useState('all');
 
   const logoFileInputRef = useRef(null);
 
@@ -390,6 +410,110 @@ export default function CompanyModule({ userProfile }) {
     });
   }, [ownerDepartments]);
 
+  // Company Projects data
+  const companyProjects = useMemo(() => {
+    return projects.filter(p => {
+      if (selectedCompanyId) {
+        const pCo = p.companyId?._id || p.companyId;
+        if (pCo && String(pCo) !== String(selectedCompanyId)) return false;
+      }
+      if (projectStatusFilter !== 'all' && p.status !== projectStatusFilter) {
+        return false;
+      }
+      if (projectSearch.trim()) {
+        const query = projectSearch.toLowerCase();
+        const matchesName = (p.name || '').toLowerCase().includes(query);
+        const matchesDesc = (p.description || '').toLowerCase().includes(query);
+        return matchesName || matchesDesc;
+      }
+      return true;
+    });
+  }, [projects, selectedCompanyId, projectStatusFilter, projectSearch]);
+
+  const activeProject = useMemo(() => {
+    if (!companyProjects.length) return null;
+    if (selectedProjectId) {
+      return companyProjects.find(p => (p._id || p.id) === selectedProjectId) || companyProjects[0];
+    }
+    return companyProjects[0];
+  }, [companyProjects, selectedProjectId]);
+
+  const activeProjectTasks = useMemo(() => {
+    if (!activeProject) return [];
+    const pUuid = String(activeProject.id || '');
+    const pMongoId = String(activeProject._id || '');
+    const pName = String(activeProject.name || '').trim().toLowerCase();
+
+    return tasks.filter(t => {
+      const taskProjId = String(t.projectId?._id || t.projectId?.id || t.projectId || '');
+      const taskProjName = String(t.projectName || '').trim().toLowerCase();
+      if (pUuid && taskProjId && taskProjId === pUuid) return true;
+      if (pMongoId && taskProjId && taskProjId === pMongoId) return true;
+      if (pName && taskProjName && taskProjName === pName) return true;
+      return false;
+    });
+  }, [tasks, activeProject]);
+
+  const projectTeamMembers = useMemo(() => {
+    if (!activeProject) return [];
+    const memberMap = new Map();
+
+    (activeProject.assignedEmployees || []).forEach(emp => {
+      const eId = String(emp.userId?._id || emp.userId || emp._id || emp.id || '');
+      if (eId) {
+        memberMap.set(eId, {
+          userId: eId,
+          name: emp.name || emp.userId?.name || 'Team Member',
+          role: emp.role || emp.userId?.role || 'Staff',
+          email: emp.email || emp.userId?.email || '',
+          avatar: emp.avatar || emp.userId?.avatar || '',
+        });
+      }
+    });
+
+    activeProjectTasks.forEach(task => {
+      const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : task.assignedTo ? [task.assignedTo] : [];
+      assignees.forEach(assignee => {
+        const uId = String(assignee?._id || assignee?.id || assignee || '');
+        if (uId && !memberMap.has(uId)) {
+          const found = users.find(u => String(u._id || u.id) === uId);
+          memberMap.set(uId, {
+            userId: uId,
+            name: found?.name || assignee?.name || 'Team Member',
+            role: found?.role || assignee?.role || 'Staff',
+            email: found?.email || assignee?.email || '',
+            avatar: found?.avatar || assignee?.avatar || '',
+          });
+        }
+      });
+    });
+
+    return Array.from(memberMap.values());
+  }, [activeProject, activeProjectTasks, users]);
+
+  const filteredProjectTasks = useMemo(() => {
+    if (taskStatusFilter === 'all') return activeProjectTasks;
+    if (taskStatusFilter === 'completed') return activeProjectTasks.filter(t => t.status === 'done' || t.status === 'completed');
+    if (taskStatusFilter === 'in_progress') return activeProjectTasks.filter(t => t.status === 'in_progress');
+    if (taskStatusFilter === 'hold') return activeProjectTasks.filter(t => t.status === 'paused');
+    if (taskStatusFilter === 'todo') return activeProjectTasks.filter(t => t.status === 'todo' || t.status === 'not_completed');
+    return activeProjectTasks;
+  }, [activeProjectTasks, taskStatusFilter]);
+
+  const projectMetrics = useMemo(() => {
+    const total = projects.length;
+    const completed = projects.filter(p => p.status === 'completed').length;
+    const inProgress = projects.filter(p => p.status === 'in_progress').length;
+    const totalStaffAssigned = new Set();
+    projects.forEach(p => {
+      (p.assignedEmployees || []).forEach(e => {
+        const id = e.userId?._id || e.userId || e._id;
+        if (id) totalStaffAssigned.add(String(id));
+      });
+    });
+    return { total, completed, inProgress, totalStaffAssigned: totalStaffAssigned.size };
+  }, [projects]);
+
   return (
     <div className="emerald-theme space-y-6 w-full pb-10">
       <PageHeader
@@ -399,8 +523,12 @@ export default function CompanyModule({ userProfile }) {
       />
 
       <Tabs defaultValue="dashboard" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-secondary/60 p-1 rounded-2xl border border-border h-auto min-h-12 gap-1">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 bg-secondary/60 p-1 rounded-2xl border border-border h-auto min-h-12 gap-1">
           <TabsTrigger value="dashboard" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Dashboard</TabsTrigger>
+          <TabsTrigger value="projects" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2 flex items-center justify-center gap-1.5">
+            <FolderKanban className="w-4 h-4" />
+            <span>Projects ({projects.length})</span>
+          </TabsTrigger>
           <TabsTrigger value="profile" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Profile</TabsTrigger>
           <TabsTrigger value="terms" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Terms & Conditions</TabsTrigger>
           <TabsTrigger value="policies" className="rounded-xl font-semibold data-[state=active]:bg-primary data-[state=active]:text-white data-[state=active]:shadow-sm transition-all text-xs sm:text-sm py-2">Policies</TabsTrigger>
@@ -480,6 +608,471 @@ export default function CompanyModule({ userProfile }) {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Company Assigned Projects Tab */}
+          <TabsContent value="projects" className="space-y-6 mt-4">
+            {/* KPI Metric Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
+                <CardContent className="p-4 sm:p-5 flex items-center gap-3.5">
+                  <div className="p-3 rounded-2xl bg-primary/10 text-primary">
+                    <FolderKanban className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Total Projects</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{projectMetrics.total}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
+                <CardContent className="p-4 sm:p-5 flex items-center gap-3.5">
+                  <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Play className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">In Progress</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400 mt-0.5">{projectMetrics.inProgress}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
+                <CardContent className="p-4 sm:p-5 flex items-center gap-3.5">
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Completed</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{projectMetrics.completed}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs">
+                <CardContent className="p-4 sm:p-5 flex items-center gap-3.5">
+                  <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">People Working</p>
+                    <h3 className="text-xl sm:text-2xl font-bold text-foreground mt-0.5">{projectMetrics.totalStaffAssigned}</h3>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filter & Search Bar - No Create Project Button */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-secondary/40 p-3 sm:p-4 rounded-2xl border border-border">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={projectSearch}
+                  onChange={(e) => setProjectSearch(e.target.value)}
+                  placeholder="Search company projects by name or description..."
+                  className="pl-9 h-10 rounded-xl bg-card border-border text-xs sm:text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">Status:</span>
+                  <select
+                    value={projectStatusFilter}
+                    onChange={(e) => setProjectStatusFilter(e.target.value)}
+                    className="h-10 px-3 rounded-xl bg-card border border-border text-xs text-foreground font-medium focus:ring-1 focus:ring-primary outline-hidden"
+                  >
+                    <option value="all">All Projects</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="planning">Planning</option>
+                    <option value="completed">Completed</option>
+                    <option value="on_hold">On Hold</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Master-Detail Projects View */}
+            {companyProjects.length === 0 ? (
+              <Card className="border border-border bg-card rounded-2xl p-12 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-muted/60 text-muted-foreground mx-auto flex items-center justify-center mb-4">
+                  <FolderKanban className="w-7 h-7" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground">No Projects Found</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+                  {projectSearch || projectStatusFilter !== 'all'
+                    ? 'No company projects match your search or status filter.'
+                    : 'There are currently no projects assigned in the company.'}
+                </p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Project Selector List */}
+                <div className="lg:col-span-5 xl:col-span-4 space-y-3">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Company Projects ({companyProjects.length})
+                    </span>
+                    <span className="text-xs text-muted-foreground">Click to view details</span>
+                  </div>
+
+                  <div className="space-y-2.5 max-h-[780px] overflow-y-auto pr-1">
+                    {companyProjects.map((p) => {
+                      const pId = String(p._id || p.id);
+                      const isSelected = activeProject && String(activeProject._id || activeProject.id) === pId;
+                      const pTasks = tasks.filter(t => {
+                        const tProjId = String(t.projectId?._id || t.projectId?.id || t.projectId || '');
+                        const tProjName = String(t.projectName || '').trim().toLowerCase();
+                        const pUuid = String(p.id || '');
+                        const pMongoId = String(p._id || '');
+                        const pName = String(p.name || '').trim().toLowerCase();
+                        return (pUuid && tProjId === pUuid) || (pMongoId && tProjId === pMongoId) || (pName && tProjName === pName);
+                      });
+                      const completedCount = pTasks.filter(t => t.status === 'done' || t.status === 'completed').length;
+                      const progressPct = pTasks.length > 0 ? Math.round((completedCount / pTasks.length) * 100) : (p.status === 'completed' ? 100 : 0);
+                      const memberCount = (p.assignedEmployees || []).length;
+
+                      return (
+                        <button
+                          key={pId}
+                          type="button"
+                          onClick={() => setSelectedProjectId(pId)}
+                          className={`w-full p-3.5 rounded-xl border transition-all cursor-pointer text-left flex items-center justify-between group ${
+                            isSelected
+                              ? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary/20 text-primary font-bold'
+                              : 'bg-card border-border hover:border-primary/40 hover:bg-muted/40 text-foreground'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              isSelected ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+                            }`}>
+                              <FolderKanban className="w-4 h-4" />
+                            </div>
+                            <span className="text-sm font-semibold truncate">
+                              {p.name}
+                            </span>
+                          </div>
+                          <ChevronRight className={`w-4 h-4 shrink-0 transition-transform ${isSelected ? 'text-primary translate-x-0.5' : 'text-muted-foreground'}`} />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Right Column: Detailed Project Workspace & Staff Details */}
+                <div className="lg:col-span-7 xl:col-span-8 space-y-5">
+                  {activeProject ? (
+                    <>
+                      {/* Project Overview Card */}
+                      <Card className="border border-border bg-card rounded-2xl shadow-xs overflow-hidden">
+                        <CardHeader className="p-5 sm:p-6 bg-secondary/20 border-b border-border">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap mb-1">
+                                <Badge className={`capitalize font-semibold text-xs ${
+                                  activeProject.status === 'completed'
+                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                    : activeProject.status === 'in_progress'
+                                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                                    : activeProject.status === 'on_hold'
+                                    ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                    : 'bg-secondary text-muted-foreground'
+                                }`}>
+                                  {activeProject.status === 'in_progress' ? 'In Progress' : activeProject.status === 'on_hold' ? 'On Hold' : activeProject.status || 'Active'}
+                                </Badge>
+                                {activeProject.priority && (
+                                  <Badge variant="outline" className={`capitalize font-medium text-xs ${
+                                    activeProject.priority === 'urgent' || activeProject.priority === 'high'
+                                      ? 'text-red-500 border-red-500/30'
+                                      : 'text-muted-foreground'
+                                  }`}>
+                                    {activeProject.priority} Priority
+                                  </Badge>
+                                )}
+                              </div>
+                              <h3 className="text-xl font-bold text-foreground">{activeProject.name}</h3>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              {activeProject.startDate && (
+                                <span className="inline-flex items-center gap-1 bg-card px-2.5 py-1 rounded-xl border border-border">
+                                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                                  Start: {format(new Date(activeProject.startDate), 'MMM d, yyyy')}
+                                </span>
+                              )}
+                              {activeProject.dueDate && (
+                                <span className="inline-flex items-center gap-1 bg-card px-2.5 py-1 rounded-xl border border-border">
+                                  <Clock className="w-3.5 h-3.5 text-amber-500" />
+                                  Due: {format(new Date(activeProject.dueDate), 'MMM d, yyyy')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {activeProject.description && (
+                            <div className="mt-3 pt-3 border-t border-border/60">
+                              <p className="text-xs sm:text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+                                {extractVoiceNote(activeProject.description).text || activeProject.description}
+                              </p>
+                              {extractVoiceNote(activeProject.description).audioUrl && (
+                                <div className="mt-2">
+                                  <VoiceNoteBadgePlayer audioUrl={extractVoiceNote(activeProject.description).audioUrl} />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </CardHeader>
+                      </Card>
+
+                      {/* People Working On That Project Section */}
+                      <Card className="border border-border bg-card rounded-2xl shadow-xs">
+                        <CardHeader className="p-4 sm:p-5 border-b border-border flex flex-row items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                              <Users className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-sm sm:text-base font-bold text-foreground">
+                                People Working on This Project
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">
+                                {projectTeamMembers.length} team members assigned to project tasks
+                              </p>
+                            </div>
+                          </div>
+                          <Badge className="bg-primary/10 text-primary border-primary/20 font-bold px-3 py-1">
+                            {projectTeamMembers.length} Working
+                          </Badge>
+                        </CardHeader>
+
+                        <CardContent className="p-4 sm:p-5">
+                          {projectTeamMembers.length === 0 ? (
+                            <div className="text-center py-6 text-muted-foreground text-xs">
+                              No team members are assigned to this project yet.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                              {projectTeamMembers.map((member) => {
+                                const mId = String(member.userId);
+                                const memberTasks = activeProjectTasks.filter(t => {
+                                  const assignees = Array.isArray(t.assignedTo) ? t.assignedTo : t.assignedTo ? [t.assignedTo] : [];
+                                  return assignees.some(a => String(a?._id || a?.id || a) === mId);
+                                });
+                                const memberCompleted = memberTasks.filter(t => t.status === 'done' || t.status === 'completed').length;
+
+                                return (
+                                  <div
+                                    key={mId}
+                                    className="p-3 rounded-xl border border-border bg-secondary/20 flex items-center gap-3 hover:border-primary/30 transition-all"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+                                      {member.avatar ? (
+                                        <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        (member.name || 'U').slice(0, 2).toUpperCase()
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h5 className="text-xs font-bold text-foreground truncate">{member.name}</h5>
+                                      <p className="text-[11px] text-muted-foreground truncate capitalize">{member.role || 'Staff'}</p>
+                                      <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-primary">
+                                        <span>{memberTasks.length} Tasks</span>
+                                        <span>•</span>
+                                        <span className="text-emerald-600 dark:text-emerald-400">{memberCompleted} Done</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Assigned Tasks & Execution Status Details */}
+                      <Card className="border border-border bg-card rounded-2xl shadow-xs">
+                        <CardHeader className="p-4 sm:p-5 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                              <Briefcase className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-sm sm:text-base font-bold text-foreground">
+                                Assigned Project Tasks
+                              </CardTitle>
+                              <p className="text-xs text-muted-foreground">
+                                Showing {filteredProjectTasks.length} of {activeProjectTasks.length} tasks
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Task Status Filter Selector */}
+                          <div className="flex items-center gap-1 bg-secondary/50 p-1 rounded-xl border border-border overflow-x-auto">
+                            {[
+                              { key: 'all', label: 'All' },
+                              { key: 'in_progress', label: 'In Progress' },
+                              { key: 'hold', label: 'On Hold' },
+                              { key: 'completed', label: 'Completed' },
+                              { key: 'todo', label: 'To Do' },
+                            ].map((tab) => (
+                              <button
+                                key={tab.key}
+                                onClick={() => setTaskStatusFilter(tab.key)}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                                  taskStatusFilter === tab.key
+                                    ? 'bg-primary text-white shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                              >
+                                {tab.label}
+                              </button>
+                            ))}
+                          </div>
+                        </CardHeader>
+
+                        <CardContent className="p-4 sm:p-5 space-y-3">
+                          {filteredProjectTasks.length === 0 ? (
+                            <div className="text-center py-10 text-muted-foreground text-xs">
+                              No tasks match the selected status filter in this project.
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {filteredProjectTasks.map((task) => {
+                                const isDone = task.status === 'done' || task.status === 'completed';
+                                const isInProgress = task.status === 'in_progress';
+                                const isHold = task.status === 'paused';
+                                const { text: cleanDesc, audioUrl } = extractVoiceNote(task.description || '');
+
+                                // Assignees
+                                const assignees = Array.isArray(task.assignedTo) ? task.assignedTo : task.assignedTo ? [task.assignedTo] : [];
+
+                                return (
+                                  <div
+                                    key={task._id || task.id}
+                                    className={`p-4 rounded-2xl border transition-all ${
+                                      isDone
+                                        ? 'bg-emerald-500/5 border-emerald-500/20'
+                                        : isInProgress
+                                        ? 'bg-blue-500/5 border-blue-500/20'
+                                        : isHold
+                                        ? 'bg-amber-500/5 border-amber-500/20'
+                                        : 'bg-card border-border'
+                                    }`}
+                                  >
+                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 mb-2">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <h5 className="text-sm font-bold text-foreground">{task.title}</h5>
+                                          {task.priority && (
+                                            <Badge variant="outline" className={`text-[10px] uppercase font-semibold ${
+                                              task.priority === 'urgent' || task.priority === 'high'
+                                                ? 'text-red-500 border-red-500/30'
+                                                : 'text-muted-foreground'
+                                            }`}>
+                                              {task.priority}
+                                            </Badge>
+                                          )}
+                                        </div>
+
+                                        {cleanDesc && (
+                                          <p className="text-xs text-muted-foreground whitespace-pre-line leading-relaxed">
+                                            {cleanDesc}
+                                          </p>
+                                        )}
+
+                                        {audioUrl && (
+                                          <div className="pt-1">
+                                            <VoiceNoteBadgePlayer audioUrl={audioUrl} />
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Status Badge */}
+                                      <div className="shrink-0 flex items-center gap-2">
+                                        {isDone ? (
+                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                                            <CheckCircle2 className="w-3.5 h-3.5" />
+                                            Completed
+                                          </span>
+                                        ) : isInProgress ? (
+                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
+                                            <Play className="w-3.5 h-3.5" />
+                                            In Progress
+                                          </span>
+                                        ) : isHold ? (
+                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                                            <Pause className="w-3.5 h-3.5" />
+                                            On Hold
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full border border-border">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            To Do
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Task Assignees & Detailed Completion Time */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 mt-2 border-t border-border/60">
+                                      {/* Assigned People */}
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[11px] font-medium text-muted-foreground">Assigned to:</span>
+                                        {assignees.length === 0 ? (
+                                          <span className="text-[11px] text-muted-foreground italic">Unassigned</span>
+                                        ) : (
+                                          assignees.map((a, idx) => {
+                                            const aName = a?.name || (typeof a === 'string' ? users.find(u => String(u._id || u.id) === a)?.name : 'Member') || 'Member';
+                                            return (
+                                              <span key={idx} className="inline-flex items-center gap-1 text-[11px] font-medium bg-secondary/60 px-2 py-0.5 rounded-lg border border-border">
+                                                <User className="w-3 h-3 text-primary" />
+                                                {aName}
+                                              </span>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+
+                                      {/* Exact Timing & Completion Time */}
+                                      <div className="flex items-center gap-2 text-xs">
+                                        {isDone ? (
+                                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20">
+                                            <Check className="w-3.5 h-3.5" />
+                                            <span>
+                                              Completed on: {format(new Date(task.completedAt || task.updatedAt || Date.now()), 'MMM d, yyyy · h:mm a')}
+                                            </span>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                                            {task.durationValue && (
+                                              <span className="bg-muted/40 px-2 py-0.5 rounded-md border border-border">
+                                                Duration: {task.durationValue} {task.durationUnit || 'hours'}
+                                              </span>
+                                            )}
+                                            {(task.dueDate || task.endDate) && (
+                                              <span className="inline-flex items-center gap-1 text-muted-foreground">
+                                                <Clock className="w-3 h-3" />
+                                                Due: {formatDeadline(task)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            )}
           </TabsContent>
         
         <TabsContent value="profile" className="space-y-6 mt-4">

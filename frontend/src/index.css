@@ -4,8 +4,13 @@
 @tailwind utilities;
 /* stylelint-enable at-rule-no-unknown */
 
-/* Safe-area padding for native app (status bar / notch) */
+/* Responsive, fluid typography scaling that automatically adapts to device & system screen size */
 html {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-x: clip;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left: env(safe-area-inset-left);
@@ -14,6 +19,51 @@ html {
   letter-spacing: normal;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Fluid font size base that automatically scales with viewport */
+  font-size: clamp(14px, 0.45vw + 13.5px, 18.5px);
+}
+
+/* Fluid responsive typography scaling for proportional cross-device UI */
+@media (max-width: 639px) {
+  html {
+    font-size: 14.5px;
+  }
+}
+
+@media (max-width: 380px) {
+  html {
+    font-size: 13.5px;
+  }
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 16.5px;
+  }
+}
+
+@media (min-width: 1280px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 17.5px;
+  }
+}
+
+@media (min-width: 1680px) {
+  html {
+    font-size: 18px;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 18.5px;
+  }
 }
 
 @layer base {
@@ -150,6 +200,7 @@ html {
     *,
     ::before,
     ::after {
+        box-sizing: border-box;
         border-color: oklch(var(--border));
         font-family: inherit;
     }
@@ -158,6 +209,8 @@ html {
     body,
     #root {
         font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        max-width: 100%;
+        overflow-x: clip;
     }
 
     body {
@@ -166,6 +219,17 @@ html {
         letter-spacing: normal;
         background-color: oklch(var(--background));
         color: oklch(var(--foreground));
+        min-height: 100vh;
+        min-height: 100dvh;
+    }
+
+    img, video, canvas, svg {
+        max-width: 100%;
+        height: auto;
+    }
+
+    table {
+        max-width: 100%;
     }
 
     /* Universal font application across all content, components, and containers */
@@ -902,5 +966,131 @@ html {
   background-color: rgba(24, 59, 43, 0.1) !important;
   border-color: rgba(24, 59, 43, 0.18) !important;
   color: #183B2B !important;
+}
+
+/* ==========================================================================
+   15. Global Responsive Layout Utilities Across All Devices
+   ========================================================================== */
+
+/* Prevent horizontal overflow on flex children */
+.min-w-0 {
+  min-width: 0 !important;
+}
+
+/* Touch-optimized horizontal scrolling */
+.touch-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Hide scrollbars for clean tab strips */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Professional sleek custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(13, 148, 136, 0.6);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.25) transparent;
+}
+
+/* Ensure dialog content respects maximum screen dimensions */
+[data-slot="dialog-content"],
+[role="dialog"] {
+  max-width: calc(100vw - 1.5rem) !important;
+}
+
+@media (min-width: 640px) {
+  [data-slot="dialog-content"].sm\:max-w-md {
+    max-width: 28rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-lg {
+    max-width: 32rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-xl {
+    max-width: 36rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-2xl {
+    max-width: 42rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-3xl {
+    max-width: 48rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-4xl {
+    max-width: 56rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-5xl {
+    max-width: 64rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-6xl {
+    max-width: 72rem !important;
+  }
+  [data-slot="dialog-content"].sm\:max-w-7xl {
+    max-width: 80rem !important;
+  }
+}
+
+/* Responsive Table Container Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Full-width button stacking on narrow mobile */
+@media (max-width: 480px) {
+  .btn-stack-mobile {
+    width: 100% !important;
+  }
+}
+
+/* Mobile Proportional Constraints */
+@media (max-width: 639px) {
+  :root {
+    --radius: 0.75rem;
+  }
+
+  /* Compact dialogs with comfortable padding */
+  [data-slot="dialog-content"],
+  [role="dialog"] {
+    padding: 1rem !important;
+    border-radius: 1rem !important;
+  }
+
+  /* Compact table padding on small displays */
+  .table-responsive th,
+  .table-responsive td,
+  [data-slot="table"] th,
+  [data-slot="table"] td {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    padding-top: 0.625rem !important;
+    padding-bottom: 0.625rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  /* Card padding scaling */
+  [data-slot="card"] {
+    border-radius: 1rem !important;
+  }
 }
 

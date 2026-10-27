@@ -71,12 +71,49 @@ export const COMPANY_CATEGORIES = {
   healthcare: 'Healthcare',
 };
 
+export const VALID_SA_TABS = ['dashboard', 'companies', 'users', 'calendar', 'payments', 'analytics', 'system', 'profile'];
+
+export const getInitialSaTab = () => {
+  if (typeof window === 'undefined') return 'dashboard';
+  const params = new URLSearchParams(window.location.search);
+  const tab = (params.get('tab') || '').toLowerCase();
+  return VALID_SA_TABS.includes(tab) ? tab : 'dashboard';
+};
+
 function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
   const [loginForm, setLoginForm] = useState({ id: 'Vyshwa', password: 'admin123' });
   const [showSaPassword, setShowSaPassword] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(getInitialSaTab);
+
+  const navigateToTab = (targetTab, replace = false) => {
+    const tab = VALID_SA_TABS.includes(targetTab) ? targetTab : 'dashboard';
+    setActiveTab(tab);
+
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const currentTab = (params.get('tab') || 'dashboard').toLowerCase();
+      if (currentTab !== tab) {
+        const basePath = window.location.pathname.startsWith('/superadmin') ? '/superadmin' : window.location.pathname;
+        const newUrl = tab === 'dashboard' ? basePath : `${basePath}?tab=${tab}`;
+        if (replace) {
+          window.history.replaceState(null, '', newUrl);
+        } else {
+          window.history.pushState(null, '', newUrl);
+        }
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getInitialSaTab());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const [profileData, setProfileData] = useState({
     userId: '',
     name: '',
@@ -303,12 +340,12 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
         </div>
 
         {/* Right Login Pane */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 relative bg-[#03141a]">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-10 min-h-screen min-h-[100dvh] py-6 sm:py-10 relative bg-[#03141a] overflow-y-auto">
           {/* Ambient Teal Glow */}
-          <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
+          <div className="absolute top-1/4 right-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
 
           {/* Floating Login Card */}
-          <div className="w-full max-w-md bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-3xl p-8 sm:p-10 relative z-10 transition-all">
+          <div className="w-full max-w-md my-auto bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 relative z-10 transition-all">
             <div className="flex flex-col items-center text-center">
               <div className="flex justify-center mb-4">
                 <img
@@ -400,15 +437,15 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
         </div>
 
         <nav className="flex-1 px-4 space-y-1">
-          <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
-          <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
-          <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
-          <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
-          <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
-          <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
-          <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
+          <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => navigateToTab('dashboard')} />
+          <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => navigateToTab('companies')} />
+          <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => navigateToTab('users')} />
+          <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => navigateToTab('calendar')} />
+          <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => navigateToTab('payments')} />
+          <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => navigateToTab('analytics')} />
+          <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => navigateToTab('system')} />
           <div className="pt-3 mt-3 border-t border-border/80 space-y-1">
-            <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
+            <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => navigateToTab('profile')} />
             <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
               try {
                 const resp = await authFetch('/api/auth/switch-to-ems', { method: 'POST' });
@@ -424,7 +461,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
               }
               if (typeof window !== 'undefined') {
                 sessionStorage.setItem('portal_view', 'ems');
-                window.location.href = '/?view=ems';
+                window.location.replace('/?view=ems');
               }
             }} />
           </div>
@@ -433,8 +470,8 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
-        <main className="flex-1 overflow-y-auto bg-background p-3.5 sm:p-6 lg:p-10 pb-0 transition-colors duration-300">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0 max-w-full overflow-x-hidden">
+        <main className="flex-1 overflow-y-auto bg-background p-3 sm:p-6 lg:p-10 pb-0 transition-colors duration-300">
           <header className="flex justify-between items-center mb-6 pb-4 border-b border-border/40 gap-2">
             <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
               <Sheet>
@@ -455,29 +492,29 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                   </div>
                   <nav className="flex-1 px-4 space-y-1 pt-3">
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
+                      <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => navigateToTab('dashboard')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
+                      <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => navigateToTab('companies')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
+                      <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => navigateToTab('users')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
+                      <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => navigateToTab('calendar')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
+                      <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => navigateToTab('payments')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
+                      <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => navigateToTab('analytics')} />
                     </SheetClose>
                     <SheetClose asChild>
-                      <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
+                      <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => navigateToTab('system')} />
                     </SheetClose>
                     <div className="pt-3 mt-3 border-t border-border space-y-1">
                       <SheetClose asChild>
-                        <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
+                        <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => navigateToTab('profile')} />
                       </SheetClose>
                       <SheetClose asChild>
                         <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
@@ -495,7 +532,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                           }
                           if (typeof window !== 'undefined') {
                             sessionStorage.setItem('portal_view', 'ems');
-                            window.location.href = '/?view=ems';
+                            window.location.replace('/?view=ems');
                           }
                         }} />
                       </SheetClose>
@@ -554,7 +591,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                       <TabIcon className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-[#183B2B] dark:text-[#E8F0F4] leading-snug truncate max-w-[170px] xs:max-w-[240px] sm:max-w-none">
+                      <h1 className="text-base sm:text-2xl font-bold tracking-tight text-[#183B2B] dark:text-[#E8F0F4] leading-snug truncate max-w-[120px] xs:max-w-[200px] sm:max-w-none">
                         {config.title}
                       </h1>
                       <p className="text-xs sm:text-sm text-[#687C70] dark:text-[#A6B5C0] mt-0.5 font-normal hidden sm:block">
@@ -565,7 +602,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                 );
               })()}
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setTheme(isDark ? 'light' : 'dark')}
@@ -600,7 +637,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                 <DropdownMenuContent
                   align="end"
                   sideOffset={8}
-                  className="w-60 p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
+                  className="w-60 max-w-[calc(100vw-1.5rem)] p-1.5 rounded-2xl border border-border bg-popover/95 backdrop-blur-md shadow-xl text-popover-foreground z-50 duration-150"
                 >
                   {/* Profile Header */}
                   <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/50 cursor-default transition-colors">
@@ -2159,9 +2196,48 @@ function renderRoleBadge(role) {
 }
 
 function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }) {
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    return new URLSearchParams(window.location.search).get('companyId') || null;
+  });
   const [localSearch, setLocalSearch] = useState(searchTerm || '');
   const [togglingId, setTogglingId] = useState(null);
+
+  const handleSelectCompany = (cid) => {
+    setSelectedCompanyId(cid);
+    setLocalSearch('');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (cid) {
+        url.searchParams.set('companyId', cid);
+        window.history.pushState({ companyDetail: cid }, '', url.toString());
+      } else {
+        url.searchParams.delete('companyId');
+        window.history.pushState(null, '', url.toString());
+      }
+    }
+  };
+
+  const handleCloseCompanyDetail = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('companyId')) {
+        window.history.back();
+        return;
+      }
+    }
+    setSelectedCompanyId(null);
+    setLocalSearch('');
+  };
+
+  useEffect(() => {
+    const handlePop = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSelectedCompanyId(params.get('companyId') || null);
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
 
   const handleQuickToggle = async (targetUser, action) => {
     const targetUserId = targetUser.userId || targetUser._id || targetUser.id;
@@ -2631,15 +2707,11 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
                 >
                   {/* Left: Clickable company info */}
                   <div
-                    onClick={() => {
-                      setSelectedCompanyId(group.id);
-                      setLocalSearch('');
-                    }}
+                    onClick={() => handleSelectCompany(group.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault();
-                        setSelectedCompanyId(group.id);
-                        setLocalSearch('');
+                        handleSelectCompany(group.id);
                       }
                     }}
                     tabIndex={0}
@@ -2796,10 +2868,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             <div className="flex items-center gap-2 text-sm">
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedCompanyId(null);
-                  setLocalSearch('');
-                }}
+                onClick={handleCloseCompanyDetail}
                 className="flex items-center gap-1.5 font-medium text-muted-foreground hover:text-primary transition-colors cursor-pointer"
               >
                 <Building2 className="w-4 h-4 text-primary" />
@@ -2814,10 +2883,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setSelectedCompanyId(null);
-                setLocalSearch('');
-              }}
+              onClick={handleCloseCompanyDetail}
               className="h-8 px-3 rounded-lg text-xs font-semibold border-border/80 bg-card hover:bg-muted text-foreground flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
             >
               <ArrowLeft className="w-3.5 h-3.5 text-primary" />
@@ -2827,10 +2893,7 @@ function TabUsers({ dbUsers = [], dbCompanies = [], searchTerm = '', onRefresh }
 
           {/* Selected Company Header Banner */}
           <div 
-            onClick={() => {
-              setSelectedCompanyId(null);
-              setLocalSearch('');
-            }}
+            onClick={handleCloseCompanyDetail}
             title="Click to collapse and return to company list"
             className="border border-teal-500/70 bg-teal-50/70 dark:bg-teal-950/40 hover:bg-teal-100/60 dark:hover:bg-teal-950/60 transition-colors p-4 sm:p-5 rounded-xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer ring-1 ring-teal-500/30"
           >

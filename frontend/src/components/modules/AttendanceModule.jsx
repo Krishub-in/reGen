@@ -1019,7 +1019,7 @@ export default function AttendanceModule({ userProfile }) {
         {/* Top Metric & Status Cards (Full-Width Responsive 4-Column Grid) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Clock & Date Card */}
-          <Card className="border border-border bg-gradient-to-br from-[#0D9488] to-[#0F766E] text-white rounded-2xl shadow-sm p-5 relative overflow-hidden flex flex-col justify-between">
+          <Card className="border border-border bg-gradient-to-br from-[#0D9488] to-[#0F766E] text-white rounded-2xl shadow-sm p-3.5 sm:p-5 relative overflow-hidden flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-emerald-100 uppercase tracking-wider">{format(currentTime, 'EEEE')}</span>
               <div className="flex items-center gap-1 text-[11px] text-emerald-100 bg-white/10 px-2 py-0.5 rounded-full backdrop-blur-xs">
@@ -1037,7 +1037,7 @@ export default function AttendanceModule({ userProfile }) {
           </Card>
 
           {/* Active Shift / Duration Card */}
-          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-3.5 sm:p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 {isCheckedOut ? "Shift Duration" : "Working Hours"}
@@ -1072,7 +1072,7 @@ export default function AttendanceModule({ userProfile }) {
           </Card>
 
           {/* Last Month Attendance % */}
-          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-3.5 sm:p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{prevMonthName} Attendance</span>
               <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -1080,7 +1080,7 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-2">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground">
                 {prevMonthPercentage > 0 ? `${prevMonthPercentage}%` : 'N/A'}
               </span>
               <p className="text-xs text-muted-foreground mt-1">On-time adherence record</p>
@@ -1089,7 +1089,7 @@ export default function AttendanceModule({ userProfile }) {
           </Card>
 
           {/* Pending Tasks */}
-          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-5 flex flex-col justify-between">
+          <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs p-3.5 sm:p-5 flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Pending Tasks</span>
               <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -1097,7 +1097,7 @@ export default function AttendanceModule({ userProfile }) {
               </div>
             </div>
             <div className="my-2">
-              <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              <span className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground">
                 {myPendingTasks}
               </span>
               <p className="text-xs text-muted-foreground mt-1">Assigned deliverables</p>
@@ -1107,20 +1107,20 @@ export default function AttendanceModule({ userProfile }) {
         </div>
 
         {/* Action Punch Cards (Full-Width Responsive 3-Column Grid) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 sm:gap-4 lg:gap-6">
           {/* Check In Action Card */}
           <div
             onClick={!isCheckedIn && !isCheckedOut && !isCheckingIn ? handleCheckIn : isCheckedOut ? () => toast.info('Shift completed for today. Check-in reopens tomorrow.') : undefined}
             className={cn(
-              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
+              "p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 sm:gap-4",
               isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-emerald-500/50 hover:shadow-md cursor-pointer group"
             )}
           >
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
               <div className={cn(
-                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
+                "h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 transition-all",
                 isCheckedOut
                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                   : isCheckedIn
@@ -1128,15 +1128,15 @@ export default function AttendanceModule({ userProfile }) {
                   : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white"
               )}>
                 {isCheckedOut ? (
-                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
+                  <CheckCircle className="h-5 w-5 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
                 ) : isCheckingIn ? (
-                  <div className="h-5 w-5 sm:h-6 sm:w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <LogIn className="h-6 w-6 sm:h-7 sm:w-7" />
+                  <LogIn className="h-5 w-5 sm:h-7 sm:w-7" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-foreground truncate">
                   {isCheckedOut ? 'Shift Completed' : isCheckingIn ? 'Checking In...' : isCheckedIn ? 'Checked In' : 'Check In'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
@@ -1155,7 +1155,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (!isCheckedIn && !isCheckedOut && !isCheckingIn) handleCheckIn();
               }}
               className={cn(
-                "w-full rounded-xl h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
+                "w-full rounded-xl h-8.5 sm:h-10 font-semibold text-xs sm:text-sm shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : isCheckedIn
@@ -1170,7 +1170,7 @@ export default function AttendanceModule({ userProfile }) {
           {/* Break & Casual Break Action Card */}
           <div
             className={cn(
-              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
+              "p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 sm:gap-4",
               !isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : isOnBreak
@@ -1178,9 +1178,9 @@ export default function AttendanceModule({ userProfile }) {
                 : "bg-card border-border hover:border-amber-500/50 hover:shadow-md group"
             )}
           >
-            <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+            <div className="flex items-start gap-2.5 sm:gap-4 min-w-0">
               <div className={cn(
-                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
+                "h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 transition-all",
                 isCheckedOut
                   ? "bg-muted text-muted-foreground"
                   : !isCheckedIn
@@ -1189,11 +1189,11 @@ export default function AttendanceModule({ userProfile }) {
                   ? (isBreakOverdue ? "bg-red-500 text-white animate-pulse" : "bg-amber-500 text-white animate-pulse")
                   : "bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:bg-amber-500 group-hover:text-white"
               )}>
-                <Coffee className="h-6 w-6 sm:h-7 sm:w-7" />
+                <Coffee className="h-5 w-5 sm:h-7 sm:w-7" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                  <h3 className="text-sm sm:text-base md:text-lg font-bold text-foreground truncate">
                     {isOnBreak 
                       ? `${activeBreakType === 'official' ? 'Official' : 'Casual'} Break`
                       : 'Break Time'}
@@ -1210,7 +1210,7 @@ export default function AttendanceModule({ userProfile }) {
 
                 {isOnBreak ? (
                   <div className="mt-1 space-y-1">
-                    <p className="font-mono text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <p className="font-mono text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-amber-500" />
                       <span>{String(elapsedBreakMinutes).padStart(2, '0')}:{String(elapsedBreakRemainderSeconds).padStart(2, '0')}</span>
                       <span className="text-xs text-muted-foreground font-normal">/ {currentBreakLimit}m limit</span>
@@ -1244,22 +1244,22 @@ export default function AttendanceModule({ userProfile }) {
                   disabled={isUpdatingBreak}
                   onClick={handleEndBreak}
                   className={cn(
-                    "w-full rounded-xl h-11 font-bold text-white shadow-md cursor-pointer transition-all flex items-center justify-center gap-2",
+                    "w-full rounded-xl h-9 sm:h-11 font-bold text-xs sm:text-sm text-white shadow-md cursor-pointer transition-all flex items-center justify-center gap-2",
                     isBreakOverdue 
                       ? "bg-rose-600 hover:bg-rose-700 animate-pulse border border-rose-400" 
                       : "bg-amber-600 hover:bg-amber-700 border border-amber-400"
                   )}
                 >
-                  <Square className="w-4 h-4 fill-current" />
+                  <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                   <span>Stop {activeBreakType === 'official' ? 'Official' : 'Casual'} Break ({String(elapsedBreakMinutes).padStart(2, '0')}:{String(elapsedBreakRemainderSeconds).padStart(2, '0')})</span>
                 </Button>
               ) : (
-                <div className="grid grid-cols-2 gap-2 w-full">
+                <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 w-full">
                   <Button
                     size="sm"
                     disabled={!isCheckedIn || isCheckedOut || isUpdatingBreak}
                     onClick={() => handleStartBreak('official')}
-                    className="rounded-xl h-10 font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    className="rounded-xl h-8.5 sm:h-10 font-semibold bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5 w-full"
                   >
                     <Coffee className="w-3.5 h-3.5 shrink-0" />
                     <span>Break ({workSchedule.breakTime || 60}m)</span>
@@ -1268,7 +1268,7 @@ export default function AttendanceModule({ userProfile }) {
                     size="sm"
                     disabled={!isCheckedIn || isCheckedOut || isUpdatingBreak}
                     onClick={() => handleStartBreak('casual')}
-                    className="rounded-xl h-10 font-semibold bg-teal-500/15 hover:bg-teal-500/25 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5"
+                    className="rounded-xl h-8.5 sm:h-10 font-semibold bg-teal-500/15 hover:bg-teal-500/25 text-teal-700 dark:text-teal-300 border border-teal-500/30 text-xs cursor-pointer flex items-center justify-center gap-1.5 w-full"
                   >
                     <Clock className="w-3.5 h-3.5 shrink-0" />
                     <span>Casual ({workSchedule.casualBreakTime || 15}m)</span>
@@ -1282,15 +1282,15 @@ export default function AttendanceModule({ userProfile }) {
           <div
             onClick={isCheckedIn && !isCheckedOut && !isCheckingOut ? handleCheckOut : isCheckedOut ? () => toast.info('Shift already completed. Reopens tomorrow.') : undefined}
             className={cn(
-              "p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-4",
+              "p-3.5 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-3 sm:gap-4",
               !isCheckedIn || isCheckedOut
                 ? "bg-secondary/40 border-border opacity-80 cursor-default"
                 : "bg-card border-border hover:border-red-500/50 hover:shadow-md cursor-pointer group"
             )}
           >
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
               <div className={cn(
-                "h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all",
+                "h-10 w-10 sm:h-14 sm:w-14 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 transition-all",
                 isCheckedOut
                   ? "bg-purple-500/10 text-purple-600 dark:text-purple-400"
                   : !isCheckedIn
@@ -1298,15 +1298,15 @@ export default function AttendanceModule({ userProfile }) {
                   : "bg-red-500/10 text-red-600 dark:text-red-400 group-hover:bg-red-500 group-hover:text-white"
               )}>
                 {isCheckedOut ? (
-                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
+                  <CheckCircle className="h-5 w-5 sm:h-7 sm:w-7 text-purple-600 dark:text-purple-400" />
                 ) : isCheckingOut ? (
-                  <div className="h-5 w-5 sm:h-6 sm:w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
+                  <div className="h-4 w-4 sm:h-6 sm:w-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <LogOut className="h-6 w-6 sm:h-7 sm:w-7" />
+                  <LogOut className="h-5 w-5 sm:h-7 sm:w-7" />
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="text-base sm:text-lg font-bold text-foreground truncate">
+                <h3 className="text-sm sm:text-base md:text-lg font-bold text-foreground truncate">
                   {isCheckedOut ? 'Shift Completed' : isCheckingOut ? 'Checking Out...' : 'Check Out'}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
@@ -1325,7 +1325,7 @@ export default function AttendanceModule({ userProfile }) {
                 if (isCheckedIn && !isCheckedOut && !isCheckingOut) handleCheckOut();
               }}
               className={cn(
-                "w-full rounded-xl h-10 font-semibold shadow-xs transition-transform active:scale-95 shrink-0",
+                "w-full rounded-xl h-8.5 sm:h-10 font-semibold text-xs sm:text-sm shadow-xs transition-transform active:scale-95 shrink-0",
                 isCheckedOut
                   ? "bg-purple-600/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 cursor-default"
                   : !isCheckedIn

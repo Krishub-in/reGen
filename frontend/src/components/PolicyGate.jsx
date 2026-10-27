@@ -78,7 +78,7 @@ export default function PolicyGate({ userProfile }) {
   if (hasBlocked && currentBlocked) {
     return (
       <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 sm:p-6 overflow-y-auto">
-        <div className="w-full max-w-xl bg-white dark:bg-[#15232D] border border-amber-500/40 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200">
+        <div className="w-full max-w-xl bg-white dark:bg-[#15232D] border border-amber-500/40 rounded-3xl shadow-2xl overflow-hidden p-5 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200 my-auto">
           <div className="flex items-center gap-3.5 pb-4 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
               <Lock className="w-6 h-6" />

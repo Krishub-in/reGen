@@ -670,7 +670,7 @@ export default function CallManager({ userProfile }) {
                   className="w-full h-full object-cover rounded-2xl"
                 />
                 {/* Local PiP Video */}
-                <div className="absolute bottom-4 right-4 w-36 h-48 sm:w-48 sm:h-64 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 bg-black">
+                <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-40 sm:h-52 md:w-48 md:h-64 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 bg-black z-20">
                   <video
                     ref={localVideoRef}
                     autoPlay
@@ -799,8 +799,8 @@ export default function CallManager({ userProfile }) {
           </div>
 
           {/* Meeting Room Grid */}
-          <div className="flex-1 my-4 flex items-center justify-center">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full max-w-5xl">
+          <div className="flex-1 my-4 overflow-y-auto w-full flex items-center justify-center p-1 sm:p-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 w-full max-w-5xl my-auto">
               {/* Local Tile */}
               <div className="relative aspect-video rounded-xl bg-zinc-900 border border-white/10 overflow-hidden flex flex-col items-center justify-center">
                 <Avatar className="h-20 w-20">

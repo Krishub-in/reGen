@@ -629,36 +629,36 @@ export default function MessengerModule({ userProfile }) {
   return (
     <div className="space-y-4">
       {/* 1. Page Header with Mode Selector */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
-            <MessageSquare className="h-5 w-5" />
+      <div className="flex items-center justify-between gap-2 pb-2.5 sm:pb-3 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center shrink-0 shadow-2xs">
+            <MessageSquare className="h-4.5 w-4.5 sm:h-5 sm:w-5" />
           </div>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-2xl font-bold tracking-tight text-[#172B3A] dark:text-[#E8F0F4] leading-snug truncate">
               Messenger
             </h1>
-            <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0] mt-0.5 font-normal">
+            <p className="text-[11px] sm:text-sm text-[#64748B] dark:text-[#A6B5C0] font-normal truncate hidden xs:block">
               Real-time private and team communication, voice notes, and collaboration.
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1 self-start sm:self-auto">
+        <div className="flex items-center gap-1.5 bg-muted/80 p-1 sm:p-1.5 rounded-xl border border-border/60 shrink-0">
           <Button
             variant={chatMode === 'private' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setChatMode('private')}
-            className="h-8 px-3 text-xs gap-1.5"
+            className="h-8 sm:h-9.5 lg:h-10 px-2.5 sm:px-4 text-xs sm:text-sm font-semibold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl shadow-xs"
           >
-            <Lock className="h-3.5 w-3.5" /> Private
+            <Lock className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span>Private</span>
           </Button>
           <Button
             variant={chatMode === 'team' ? 'default' : 'ghost'}
             size="sm"
             onClick={() => setChatMode('team')}
-            className="h-8 px-3 text-xs gap-1.5"
+            className="h-8 sm:h-9.5 lg:h-10 px-2.5 sm:px-4 text-xs sm:text-sm font-semibold gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl shadow-xs"
           >
-            <Users className="h-3.5 w-3.5" /> Team
+            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span>Team</span>
           </Button>
         </div>
       </div>
@@ -668,17 +668,15 @@ export default function MessengerModule({ userProfile }) {
       ) : (
       <>
 
-
-
       {/* Search bar */}
       {searchOpen && (
-        <div className="flex items-center gap-2 rounded-md border p-2 bg-muted/40">
+        <div className="flex items-center gap-2 rounded-xl border p-2 bg-muted/40">
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search messages..."
-            className="h-8"
+            className="h-9 text-xs sm:text-sm"
             autoFocus
           />
           {searchTerm.trim() && (
@@ -699,8 +697,8 @@ export default function MessengerModule({ userProfile }) {
       )}
 
       {selectionMode && (
-        <div className="flex items-center justify-between rounded-md border p-2 bg-muted/40">
-          <span className="text-sm">Selected: {selectedIds.length}</span>
+        <div className="flex items-center justify-between rounded-xl border p-2.5 bg-muted/40">
+          <span className="text-sm font-medium">Selected: {selectedIds.length}</span>
           <div className="flex gap-2">
             <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={deleteMessage.isPending || selectedIds.length === 0}>
               Delete Selected
@@ -710,18 +708,18 @@ export default function MessengerModule({ userProfile }) {
         </div>
       )}
       
-      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[calc(100svh-9.5rem)] sm:h-[calc(100vh-11rem)] min-h-[460px] sm:min-h-[520px] max-h-[calc(100dvh-5rem)] flex flex-col w-full">
-        <CardHeader className="h-16 px-4 md:px-6 border-b border-border bg-card/80 backdrop-blur-xs flex flex-row items-center justify-between gap-3 shrink-0 py-0">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-border">
-              <Users className="h-5 w-5" />
+      <Card className="border border-border bg-card text-foreground rounded-2xl shadow-xs overflow-hidden h-[560px] sm:h-[640px] md:h-[700px] lg:h-[780px] xl:h-[840px] max-h-[calc(100vh-10rem)] min-h-[440px] flex flex-col w-full p-0 py-0 gap-0">
+        <CardHeader className="h-14 sm:h-18 px-3.5 sm:px-6 border-b border-border bg-card/80 backdrop-blur-xs flex flex-row items-center justify-between gap-2.5 sm:gap-3 shrink-0 py-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-lg sm:rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-border shrink-0">
+              <Users className="h-4 w-4 sm:h-5 sm:w-5" />
             </div>
-            <div>
-              <CardTitle className="text-base font-bold text-foreground">Company Team Channel</CardTitle>
-              <p className="text-xs text-muted-foreground">General workspace collaboration</p>
+            <div className="min-w-0">
+              <CardTitle className="text-sm sm:text-base lg:text-lg font-bold text-foreground truncate">Company Team Channel</CardTitle>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">General workspace collaboration</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
@@ -731,18 +729,20 @@ export default function MessengerModule({ userProfile }) {
                 socket?.emit('meeting:start', { meetingId, title: 'Team Meeting', mediaType: 'video' });
                 window.dispatchEvent(new CustomEvent('join-team-meeting', { detail: { meetingId, title: 'Team Meeting', mediaType: 'video' } }));
               }}
-              className="h-8 gap-1.5 text-xs text-amber-600 border-amber-500/30 hover:bg-amber-500/10"
+              className="h-8.5 sm:h-9.5 gap-1.5 text-xs sm:text-sm text-amber-600 border-amber-500/30 hover:bg-amber-500/10 rounded-xl shrink-0"
             >
-              <Video className="h-3.5 w-3.5" /> Start Team Meeting
+              <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+              <span className="hidden sm:inline">Start Team Meeting</span>
+              <span className="sm:hidden">Meeting</span>
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => { setSearchOpen(o => !o); setSearchTerm(''); setCurrentMatchIndex(0); }}>
-              <Search className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-8.5 w-8.5 sm:h-9 sm:w-9 text-muted-foreground hover:text-foreground shrink-0" onClick={() => { setSearchOpen(o => !o); setSearchTerm(''); setCurrentMatchIndex(0); }}>
+              <Search className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
             </Button>
           </div>
         </CardHeader>
 
         <CardContent className="flex-1 flex flex-col min-h-0 p-0 relative bg-background/50">
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 space-y-3 sm:space-y-4">
             {isLoading ? (
               <div className="h-full flex items-center justify-center py-16 text-muted-foreground text-sm">
                 Loading messages...
@@ -777,7 +777,7 @@ export default function MessengerModule({ userProfile }) {
                     onClick={() => selectionMode ? toggleSelect(mid) : null}
                   >
                     <div
-                      className={`max-w-[78%] sm:max-w-[68%] rounded-2xl p-3.5 relative shadow-xs transition-all ${
+                      className={`max-w-[85%] sm:max-w-[75%] md:max-w-[68%] rounded-2xl p-2.5 sm:p-3.5 relative shadow-xs transition-all ${
                         own
                           ? 'bg-[#0D9488] text-white rounded-br-xs'
                           : 'bg-card border border-border text-foreground rounded-bl-xs'
@@ -888,12 +888,12 @@ export default function MessengerModule({ userProfile }) {
             <div ref={bottomRef} />
           </div>
         </CardContent>
-        <CardFooter className="p-3 md:p-4 border-t border-border bg-card/90 backdrop-blur-xs shrink-0">
-          <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
+        <CardFooter className="p-2 sm:p-3 md:p-4 border-t border-border bg-card/90 backdrop-blur-xs shrink-0">
+          <form onSubmit={handleSend} className="flex items-center gap-1.5 sm:gap-2 w-full">
             {!isRecording && (
               <>
-                <Label htmlFor="chat-files" className="h-10 w-10 rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center cursor-pointer shrink-0 transition-colors border border-border">
-                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="chat-files" className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-secondary hover:bg-secondary/80 text-foreground flex items-center justify-center cursor-pointer shrink-0 transition-colors border border-border">
+                  <Paperclip className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
                 </Label>
                 <input
                   id="chat-files"
@@ -923,17 +923,17 @@ export default function MessengerModule({ userProfile }) {
             )}
 
             {isRecording ? (
-              <div className="flex-1 flex items-center justify-between bg-destructive/10 text-destructive px-3.5 py-2 rounded-xl border border-destructive/20 animate-pulse">
+              <div className="flex-1 flex items-center justify-between bg-destructive/10 text-destructive px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl border border-destructive/20 animate-pulse">
                 <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-red-600 animate-ping" />
-                  <span className="text-sm font-semibold">Recording voice message...</span>
-                  <span className="text-xs font-mono ml-2 font-bold">{recordDuration}s</span>
+                  <span className="h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full bg-red-600 animate-ping" />
+                  <span className="text-xs sm:text-sm font-semibold truncate">Recording voice...</span>
+                  <span className="text-xs font-mono ml-1 font-bold">{recordDuration}s</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button type="button" size="sm" variant="ghost" onClick={cancelVoiceRecording} className="h-8 text-xs text-destructive hover:bg-destructive/20 rounded-lg">
-                    <X className="h-4 w-4 mr-1" /> Cancel
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Button type="button" size="sm" variant="ghost" onClick={cancelVoiceRecording} className="h-7 sm:h-8 text-xs text-destructive hover:bg-destructive/20 rounded-lg px-2">
+                    <X className="h-3.5 w-3.5 mr-0.5" /> Cancel
                   </Button>
-                  <Button type="button" size="sm" onClick={stopVoiceRecording} className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg">
+                  <Button type="button" size="sm" onClick={stopVoiceRecording} className="h-7 sm:h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg px-2 sm:px-3">
                     <Square className="h-3 w-3 mr-1 fill-current" /> Send
                   </Button>
                 </div>
@@ -947,7 +947,7 @@ export default function MessengerModule({ userProfile }) {
                   onChange={(e) => setContent(e.target.value)}
                   placeholder={isDictating ? '🎙️ Listening... Speak now to transcribe' : 'Post a message to team...'}
                   disabled={sendMessage.isPending}
-                  className={cn("flex-1 h-10 rounded-xl bg-background border-border text-xs sm:text-sm", isDictating && "border-primary ring-2 ring-primary/40 bg-primary/5")}
+                  className={cn("flex-1 h-8.5 sm:h-10 rounded-lg sm:rounded-xl bg-background border-border text-xs sm:text-sm", isDictating && "border-primary ring-2 ring-primary/40 bg-primary/5")}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); }
                   }}
@@ -960,11 +960,11 @@ export default function MessengerModule({ userProfile }) {
                   onClick={toggleVoiceToText}
                   title={isDictating ? 'Stop Voice Typing' : 'Voice Typing (Speech to Text)'}
                   className={cn(
-                    "h-10 w-10 rounded-xl shrink-0 transition-colors border border-border",
+                    "hidden xs:inline-flex h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl shrink-0 transition-colors border border-border",
                     isDictating ? "text-primary animate-pulse bg-primary/20 hover:bg-primary/30 border-primary" : "text-muted-foreground hover:text-foreground bg-secondary/50"
                   )}
                 >
-                  <Volume2 className="h-4 w-4" />
+                  <Volume2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
                 {/* Voice Note recording button */}
                 <Button
@@ -973,9 +973,9 @@ export default function MessengerModule({ userProfile }) {
                   size="icon"
                   onClick={startVoiceRecording}
                   title="Record Voice Message (Voice Note)"
-                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-red-500 bg-secondary/50 border border-border transition-colors cursor-pointer"
+                  className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl shrink-0 text-muted-foreground hover:text-red-500 bg-secondary/50 border border-border transition-colors cursor-pointer"
                 >
-                  <Mic className="h-4 w-4" />
+                  <Mic className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
                 {/* Video recording button */}
                 <Button
@@ -984,17 +984,17 @@ export default function MessengerModule({ userProfile }) {
                   size="icon"
                   onClick={() => setIsVideoRecordOpen(true)}
                   title="Record Video Message"
-                  className="h-10 w-10 rounded-xl shrink-0 text-muted-foreground hover:text-teal-600 dark:hover:text-teal-400 bg-secondary/50 border border-border transition-colors cursor-pointer"
+                  className="hidden sm:inline-flex h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl shrink-0 text-muted-foreground hover:text-teal-600 dark:hover:text-teal-400 bg-secondary/50 border border-border transition-colors cursor-pointer"
                 >
-                  <Video className="h-4 w-4" />
+                  <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
                 <Button
                   type="submit"
                   size="icon"
-                  className="h-10 w-10 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white shrink-0 shadow-xs cursor-pointer"
+                  className="h-8.5 w-8.5 sm:h-10 sm:w-10 rounded-lg sm:rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white shrink-0 shadow-xs cursor-pointer"
                   disabled={sendMessage.isPending || (!content.trim() && files.length === 0)}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </Button>
               </>
             )}

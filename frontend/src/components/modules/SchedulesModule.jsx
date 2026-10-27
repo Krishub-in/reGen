@@ -51,11 +51,15 @@ import {
   Send,
   ChevronDown,
   ChevronUp,
-  Sparkles
+  Sparkles,
+  ArrowLeft
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { safeRandomUUID, hasUserRole, getUserRoleKey } from '@/lib/utils';
 import { isTaskExpired, getTaskUiStatus, getTaskStatusLabel, getTaskStatusBadgeClass, formatDeadline, getTaskDeadline } from '@/lib/taskUtils';
+import VoiceDescriptionInput from '../VoiceDescriptionInput';
+import VoiceNoteBadgePlayer, { extractVoiceNote } from '../VoiceNoteBadgePlayer';
 
 export default function SchedulesModule({ userProfile }) {
   const { identity } = useCustomAuth();
@@ -373,15 +377,78 @@ export default function SchedulesModule({ userProfile }) {
     };
   }, [holidaySet, approvedLeaveMap]);
 
-  // Auto-adjust End Date when Start/Duration/Assignee changes
+  // Combined helper to compute End Date & End Time automatically
+  const computeEndDateTime = useMemo(() => {
+    return (startIso, durationValue, durationUnit = 'days', assignee) => {
+      if (!startIso) return { endDate: '', dueTime: '' };
+      const durVal = parseFloat(durationValue);
+      if (isNaN(durVal) || durVal <= 0) {
+        return { endDate: startIso, dueTime: '18:00' };
+      }
+
+      const now = new Date();
+      const todayStr = format(now, 'yyyy-MM-dd');
+      const isToday = startIso === todayStr;
+
+      if (durationUnit === 'hours') {
+        if (isToday) {
+          const targetTime = new Date(now.getTime() + durVal * 3600 * 1000);
+          const endDate = format(targetTime, 'yyyy-MM-dd');
+          const dueTime = format(targetTime, 'HH:mm');
+          return { endDate, dueTime };
+        } else {
+          const [y, m, d] = startIso.split('-').map(Number);
+          const baseDate = new Date(y, m - 1, d, 9, 30, 0, 0);
+          const targetTime = new Date(baseDate.getTime() + durVal * 3600 * 1000);
+          const endDate = format(targetTime, 'yyyy-MM-dd');
+          const dueTime = format(targetTime, 'HH:mm');
+          return { endDate, dueTime };
+        }
+      }
+
+      if (durationUnit === 'minutes') {
+        if (isToday) {
+          const targetTime = new Date(now.getTime() + durVal * 60 * 1000);
+          const endDate = format(targetTime, 'yyyy-MM-dd');
+          const dueTime = format(targetTime, 'HH:mm');
+          return { endDate, dueTime };
+        } else {
+          const [y, m, d] = startIso.split('-').map(Number);
+          const baseDate = new Date(y, m - 1, d, 9, 30, 0, 0);
+          const targetTime = new Date(baseDate.getTime() + durVal * 60 * 1000);
+          const endDate = format(targetTime, 'yyyy-MM-dd');
+          const dueTime = format(targetTime, 'HH:mm');
+          return { endDate, dueTime };
+        }
+      }
+
+      // Default 'days'
+      const computedDate = computeEndDate(startIso, durVal, 'days', assignee) || startIso;
+      return { endDate: computedDate, dueTime: '18:00' };
+    };
+  }, [computeEndDate]);
+
+  // Auto-adjust End Date & End Time when Start/Duration/Assignee changes
   useEffect(() => {
     if (formData.startDate && formData.durationValue) {
-      const next = computeEndDate(formData.startDate, formData.durationValue, formData.durationUnit, formData.assignee || formData.assignedTo);
-      if (next && next !== formData.endDate) {
-        setFormData(prev => ({ ...prev, endDate: next }));
-      }
+      const { endDate: nextEndDate, dueTime: nextDueTime } = computeEndDateTime(
+        formData.startDate,
+        formData.durationValue,
+        formData.durationUnit,
+        formData.assignee || formData.assignedTo
+      );
+      setFormData(prev => {
+        const needDateUpdate = nextEndDate && prev.endDate !== nextEndDate;
+        const needTimeUpdate = nextDueTime && prev.dueTime !== nextDueTime;
+        if (!needDateUpdate && !needTimeUpdate) return prev;
+        return {
+          ...prev,
+          ...(needDateUpdate ? { endDate: nextEndDate } : {}),
+          ...(needTimeUpdate ? { dueTime: nextDueTime } : {})
+        };
+      });
     }
-  }, [formData.startDate, formData.durationValue, formData.durationUnit, formData.assignee, formData.assignedTo, computeEndDate]);
+  }, [formData.startDate, formData.durationValue, formData.durationUnit, formData.assignee, formData.assignedTo, computeEndDateTime]);
 
   // Auto-adjust Start Date if Assignee is on leave or holiday or past date
   useEffect(() => {
@@ -737,7 +804,7 @@ export default function SchedulesModule({ userProfile }) {
   const deleteProjectMutation = useDeleteProject();
   const createProjectTaskMutation = useCreateProjectTask();
 
-  const [activeSegment, setActiveSegment] = useState('general'); // 'general' | 'projects'
+  const [activeSegment, setActiveSegment] = useState('projects'); // 'projects' | 'general'
   const [projectSearch, setProjectSearch] = useState('');
   const [projectStatusFilter, setProjectStatusFilter] = useState('all');
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
@@ -768,6 +835,28 @@ export default function SchedulesModule({ userProfile }) {
     endDate: '',
     dueTime: '',
   });
+
+  // Auto-adjust End Date & End Time for Project Task when Start/Duration changes
+  useEffect(() => {
+    if (projectTaskFormData.startDate && projectTaskFormData.durationValue) {
+      const { endDate: nextEndDate, dueTime: nextDueTime } = computeEndDateTime(
+        projectTaskFormData.startDate,
+        projectTaskFormData.durationValue,
+        projectTaskFormData.durationUnit,
+        projectTaskFormData.assignedTo
+      );
+      setProjectTaskFormData(prev => {
+        const needDateUpdate = nextEndDate && prev.endDate !== nextEndDate;
+        const needTimeUpdate = nextDueTime && prev.dueTime !== nextDueTime;
+        if (!needDateUpdate && !needTimeUpdate) return prev;
+        return {
+          ...prev,
+          ...(needDateUpdate ? { endDate: nextEndDate } : {}),
+          ...(needTimeUpdate ? { dueTime: nextDueTime } : {})
+        };
+      });
+    }
+  }, [projectTaskFormData.startDate, projectTaskFormData.durationValue, projectTaskFormData.durationUnit, projectTaskFormData.assignedTo, computeEndDateTime]);
 
   // Expanded project accordion state
   const [expandedProjects, setExpandedProjects] = useState(new Set());
@@ -968,6 +1057,97 @@ export default function SchedulesModule({ userProfile }) {
     return { total, active, completed, totalProjectTasks };
   }, [visibleProjects]);
 
+  // Selected Project and Employee Filtering state in Schedules
+  const [selectedScheduleProjectId, setSelectedScheduleProjectId] = useState(null);
+  const [selectedProjectEmployeeFilter, setSelectedProjectEmployeeFilter] = useState('all');
+  const [selectedProjectTaskStatusFilter, setSelectedProjectTaskStatusFilter] = useState('all');
+
+  const activeSelectedProject = useMemo(() => {
+    if (!visibleProjects.length) return null;
+    if (selectedScheduleProjectId) {
+      return visibleProjects.find(p => p.id === selectedScheduleProjectId) || null;
+    }
+    return null;
+  }, [visibleProjects, selectedScheduleProjectId]);
+
+  const activeSelectedProjectTasks = useMemo(() => {
+    if (!activeSelectedProject) return [];
+    const pUuid = String(activeSelectedProject.id || '');
+    const pMongoId = String(activeSelectedProject._id || '');
+    const pName = String(activeSelectedProject.name || '').trim().toLowerCase();
+
+    return tasks.filter(t => {
+      const tProjId = String(t.projectId?._id || t.projectId?.id || t.projectId || '');
+      const tProjName = String(t.projectName || '').trim().toLowerCase();
+      if (pUuid && tProjId && tProjId === pUuid) return true;
+      if (pMongoId && tProjId && tProjId === pMongoId) return true;
+      if (pName && tProjName && tProjName === pName) return true;
+      return false;
+    });
+  }, [tasks, activeSelectedProject]);
+
+  const activeSelectedProjectEmployees = useMemo(() => {
+    if (!activeSelectedProject) return [];
+    const memberMap = new Map();
+
+    (activeSelectedProject.assignedEmployees || []).forEach(emp => {
+      const uid = toIdText(emp.userId);
+      if (uid) {
+        memberMap.set(uid, {
+          userId: uid,
+          name: emp.name || emp.username || 'Staff',
+          role: emp.role || 'Staff',
+          email: emp.email || '',
+          avatar: emp.avatar || '',
+        });
+      }
+    });
+
+    activeSelectedProjectTasks.forEach(task => {
+      const uids = Array.isArray(task.assignedTo)
+        ? task.assignedTo.map(toIdText)
+        : task.assignee
+        ? [toIdText(task.assignee)]
+        : [];
+      uids.forEach(uid => {
+        if (uid && !memberMap.has(uid)) {
+          const found = users.find(u => toIdText(u.id) === uid);
+          memberMap.set(uid, {
+            userId: uid,
+            name: found?.name || found?.username || 'Staff',
+            role: found?.role || 'Staff',
+            email: found?.email || '',
+            avatar: found?.avatar || '',
+          });
+        }
+      });
+    });
+
+    return Array.from(memberMap.values());
+  }, [activeSelectedProject, activeSelectedProjectTasks, users]);
+
+  const displayedSelectedProjectTasks = useMemo(() => {
+    return activeSelectedProjectTasks.filter(task => {
+      if (selectedProjectEmployeeFilter !== 'all') {
+        const tAssignee = toIdText(task.assignee);
+        const tAssignedTo = Array.isArray(task.assignedTo) ? task.assignedTo.map(toIdText) : [];
+        if (tAssignee !== selectedProjectEmployeeFilter && !tAssignedTo.includes(selectedProjectEmployeeFilter)) {
+          return false;
+        }
+      }
+
+      if (selectedProjectTaskStatusFilter !== 'all') {
+        const ui = toUiStatus(task.status, task);
+        if (selectedProjectTaskStatusFilter === 'completed' && ui !== 'completed') return false;
+        if (selectedProjectTaskStatusFilter === 'inProgress' && ui !== 'inProgress') return false;
+        if (selectedProjectTaskStatusFilter === 'paused' && task.status !== 'paused') return false;
+        if (selectedProjectTaskStatusFilter === 'todo' && ui !== 'todo' && ui !== 'not_completed') return false;
+      }
+
+      return true;
+    });
+  }, [activeSelectedProjectTasks, selectedProjectEmployeeFilter, selectedProjectTaskStatusFilter]);
+
   return (
     <div className="space-y-6">
       {/* 1. Page Header */}
@@ -1014,15 +1194,14 @@ export default function SchedulesModule({ userProfile }) {
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea
-                        id="description"
-                        value={formData.description}
-                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        rows={3}
-                      />
-                    </div>
+                    <VoiceDescriptionInput
+                      id="task-description"
+                      label="Task Description"
+                      value={formData.description}
+                      onChange={(val) => setFormData({ ...formData, description: val })}
+                      placeholder="Add task instructions, voice-to-text dictation, or record a voice note..."
+                      rows={3}
+                    />
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2 min-w-0">
                         <Label htmlFor="assignee">Assignee *</Label>
@@ -1060,10 +1239,30 @@ export default function SchedulesModule({ userProfile }) {
                             type="number"
                             min="0"
                             value={formData.durationValue}
-                            onChange={(e) => setFormData({ ...formData, durationValue: e.target.value })}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const { endDate, dueTime } = computeEndDateTime(formData.startDate, val, formData.durationUnit, formData.assignee);
+                              setFormData(prev => ({
+                                ...prev,
+                                durationValue: val,
+                                ...(endDate ? { endDate } : {}),
+                                ...(dueTime ? { dueTime } : {})
+                              }));
+                            }}
                             placeholder="e.g., 8"
                           />
-                          <Select value={formData.durationUnit} onValueChange={(value) => setFormData({ ...formData, durationUnit: value })}>
+                          <Select 
+                            value={formData.durationUnit} 
+                            onValueChange={(val) => {
+                              const { endDate, dueTime } = computeEndDateTime(formData.startDate, formData.durationValue, val, formData.assignee);
+                              setFormData(prev => ({
+                                ...prev,
+                                durationUnit: val,
+                                ...(endDate ? { endDate } : {}),
+                                ...(dueTime ? { dueTime } : {})
+                              }));
+                            }}
+                          >
                             <SelectTrigger className="w-28">
                               <SelectValue />
                             </SelectTrigger>
@@ -1073,7 +1272,9 @@ export default function SchedulesModule({ userProfile }) {
                             </SelectContent>
                           </Select>
                         </div>
-                        <p className="text-xs text-muted-foreground">End Date auto-calculates</p>
+                        <p className="text-xs text-[#0D9488] font-medium flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> End Date & End Time auto-fill automatically
+                        </p>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1083,7 +1284,16 @@ export default function SchedulesModule({ userProfile }) {
                           id="startDate"
                           type="date"
                           value={formData.startDate}
-                          onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const { endDate, dueTime } = computeEndDateTime(val, formData.durationValue, formData.durationUnit, formData.assignee);
+                            setFormData(prev => ({
+                              ...prev,
+                              startDate: val,
+                              ...(endDate ? { endDate } : {}),
+                              ...(dueTime ? { dueTime } : {})
+                            }));
+                          }}
                           required
                         />
                       </div>
@@ -1096,6 +1306,7 @@ export default function SchedulesModule({ userProfile }) {
                           onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                           required
                         />
+                        <p className="text-[11px] text-muted-foreground">Auto-calculated from Start & Duration</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="dueTime">End Time / Deadline</Label>
@@ -1105,7 +1316,7 @@ export default function SchedulesModule({ userProfile }) {
                           value={formData.dueTime}
                           onChange={(e) => setFormData({ ...formData, dueTime: e.target.value })}
                         />
-                        <p className="text-[11px] text-muted-foreground">Optional cutoff time</p>
+                        <p className="text-[11px] text-muted-foreground">Auto-calculated cutoff time</p>
                       </div>
                     </div>
                     <Button type="submit" className="w-full bg-[#0D9488] hover:bg-[#0F766E] text-white" disabled={createTask.isPending || updateTask.isPending}>
@@ -1114,44 +1325,18 @@ export default function SchedulesModule({ userProfile }) {
                   </form>
                 </DialogContent>
               </Dialog>
-            ) : (
-              <Button
-                onClick={() => handleOpenCreateProject()}
-                className="bg-[#0D9488] hover:bg-[#0F766E] text-white shadow-sm font-medium transition-all px-4 py-2 h-10 rounded-lg flex items-center justify-center gap-2 w-full sm:w-auto shrink-0"
-              >
-                <Plus className="h-4 w-4" />
-                <span>Create Project</span>
-              </Button>
-            )}
+            ) : null}
           </div>
         )}
       </div>
 
-      {/* Segment Switcher Tabs */}
+      {/* Segment Switcher Tabs: Projects first, then General Tasks */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DFE8EC] dark:border-[#2A3D48] pb-3">
         <div className="flex items-center gap-1.5 p-1 bg-[#F4F8FA] dark:bg-[#15232D] rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48]">
           <button
             type="button"
-            onClick={() => setActiveSegment('general')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
-              activeSegment === 'general'
-                ? 'bg-white dark:bg-[#1D303B] text-[#0D9488] dark:text-[#14B8A6] shadow-xs'
-                : 'text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-white'
-            }`}
-          >
-            <ClipboardList className="w-4 h-4" />
-            <span>General Tasks</span>
-            <Badge variant="outline" className={`ml-1 text-[10px] h-4.5 px-1.5 ${
-              activeSegment === 'general' ? 'border-[#0D9488]/30 bg-[#0D9488]/10 text-[#0D9488]' : 'text-muted-foreground'
-            }`}>
-              {taskMetrics.total}
-            </Badge>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setActiveSegment('projects')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all ${
               activeSegment === 'projects'
                 ? 'bg-white dark:bg-[#1D303B] text-[#0D9488] dark:text-[#14B8A6] shadow-xs'
                 : 'text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-white'
@@ -1165,13 +1350,31 @@ export default function SchedulesModule({ userProfile }) {
               {projects.length}
             </Badge>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSegment('general')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all ${
+              activeSegment === 'general'
+                ? 'bg-white dark:bg-[#1D303B] text-[#0D9488] dark:text-[#14B8A6] shadow-xs'
+                : 'text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-white'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            <span>General Tasks</span>
+            <Badge variant="outline" className={`ml-1 text-[10px] h-4.5 px-1.5 ${
+              activeSegment === 'general' ? 'border-[#0D9488]/30 bg-[#0D9488]/10 text-[#0D9488]' : 'text-muted-foreground'
+            }`}>
+              {taskMetrics.total}
+            </Badge>
+          </button>
         </div>
 
         <div className="text-xs text-[#64748B] dark:text-[#A6B5C0] hidden sm:block">
-          {activeSegment === 'general' ? (
-            <span>Standalone general tasks not bound to a project</span>
-          ) : (
+          {activeSegment === 'projects' ? (
             <span>Collaborative projects with multi-employee task assignment</span>
+          ) : (
+            <span>Standalone general tasks not bound to a project</span>
           )}
         </div>
       </div>
@@ -1226,7 +1429,7 @@ export default function SchedulesModule({ userProfile }) {
       <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 md:p-4 shadow-sm space-y-3">
         <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
           {/* Search Input */}
-          <div className="relative flex-1 min-w-[200px] max-w-lg">
+          <div className="relative flex-1 min-w-0 sm:min-w-[200px] max-w-lg w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748B] dark:text-[#A6B5C0]" />
             <Input
               type="text"
@@ -1689,7 +1892,7 @@ export default function SchedulesModule({ userProfile }) {
           {/* Projects Toolbar */}
           <div className="bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-3.5 md:p-4 shadow-sm space-y-3">
             <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
-              <div className="relative flex-1 min-w-[200px] max-w-lg">
+              <div className="relative flex-1 min-w-0 sm:min-w-[200px] max-w-lg w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#64748B] dark:text-[#A6B5C0]" />
                 <Input
                   type="text"
@@ -1735,359 +1938,470 @@ export default function SchedulesModule({ userProfile }) {
                     <span>Reset</span>
                   </Button>
                 )}
-
-                {canManage && (
-                  <Button
-                    onClick={() => handleOpenCreateProject()}
-                    className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-9 px-3 gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>New Project</span>
-                  </Button>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Projects Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {isProjectsLoading ? (
-              [1, 2].map((i) => (
-                <Card key={i} className="animate-pulse bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-5 space-y-4">
-                  <div className="h-5 bg-muted/60 rounded w-1/3"></div>
-                  <div className="h-6 bg-muted/60 rounded w-3/4"></div>
-                  <div className="h-16 bg-muted/40 rounded w-full"></div>
-                </Card>
-              ))
-            ) : visibleProjects.length === 0 ? (
-              <div className="col-span-full bg-white dark:bg-[#15232D] border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-2xl p-10 text-center space-y-4">
-                <div className="w-14 h-14 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
-                  <FolderKanban className="w-7 h-7" />
-                </div>
-                <div className="space-y-1 max-w-md mx-auto">
-                  <h3 className="text-lg font-semibold text-[#172B3A] dark:text-[#E8F0F4]">
-                    {projectSearch || projectStatusFilter !== 'all' ? 'No matching projects found' : 'No projects created yet'}
+          {/* Projects View */}
+          {visibleProjects.length === 0 ? (
+            <div className="bg-white dark:bg-[#15232D] border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] rounded-2xl p-10 text-center space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-full bg-[#0D9488]/10 text-[#0D9488] dark:text-[#14B8A6] flex items-center justify-center">
+                <FolderKanban className="w-7 h-7" />
+              </div>
+              <div className="space-y-1 max-w-md mx-auto">
+                <h3 className="text-lg font-semibold text-[#172B3A] dark:text-[#E8F0F4]">
+                  {projectSearch || projectStatusFilter !== 'all' ? 'No matching projects found' : 'No projects assigned to company'}
+                </h3>
+                <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0]">
+                  {projectSearch || projectStatusFilter !== 'all'
+                    ? 'Try adjusting your search query or status filter.'
+                    : 'Company projects and collaborative assignments will appear here.'}
+                </p>
+              </div>
+            </div>
+          ) : !activeSelectedProject ? (
+            /* ONLY LIST OF PROJECTS SHOWS INITIALLY */
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <div>
+                  <h3 className="text-base font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                    Company Projects ({visibleProjects.length})
                   </h3>
-                  <p className="text-xs sm:text-sm text-[#64748B] dark:text-[#A6B5C0]">
-                    {canManage 
-                      ? 'Create projects to group collaborative work, assign multiple employees, and delegate tasks separately or team-wide.' 
-                      : 'You are not assigned to any projects at the moment.'}
+                  <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                    Click any project below to view the employees working on it and their assigned task details
                   </p>
                 </div>
-                {canManage && (
-                  <Button
-                    onClick={() => handleOpenCreateProject()}
-                    className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-9"
-                  >
-                    <Plus className="w-3.5 h-3.5 mr-1.5" />
-                    <span>Create First Project</span>
-                  </Button>
-                )}
               </div>
-            ) : (
-              visibleProjects.map((project) => {
-                const projectTasks = tasks.filter(t => t.projectId === project.id);
-                const isExpanded = expandedProjects.has(project.id);
-                const totalT = projectTasks.length;
-                const completedT = projectTasks.filter(t => toUiStatus(t.status, t) === 'completed').length;
-                const progressPct = totalT > 0 ? Math.round((completedT / totalT) * 100) : 0;
 
-                return (
-                  <Card
-                    key={project.id}
-                    className="group bg-white dark:bg-[#15232D] border border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40 dark:hover:border-[#14B8A6]/40 rounded-2xl p-5 shadow-xs hover:shadow-md transition-all flex flex-col justify-between"
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                {visibleProjects.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedScheduleProjectId(p.id);
+                      setSelectedProjectEmployeeFilter('all');
+                    }}
+                    className="p-4 rounded-2xl border border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] hover:border-[#0D9488] hover:shadow-sm transition-all text-left flex items-center justify-between group shadow-2xs cursor-pointer"
                   >
-                    <div className="space-y-4">
-                      {/* Top Row: Badges & Management Actions */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <Badge className={`text-[11px] font-medium px-2 py-0.5 rounded-md border ${
-                            project.status === 'completed'
-                              ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25'
-                              : project.status === 'on-hold'
-                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
-                              : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
-                          }`}>
-                            {project.status === 'on-hold' ? 'On Hold' : project.status ? (project.status.charAt(0).toUpperCase() + project.status.slice(1)) : 'Active'}
-                          </Badge>
-
-                          <Badge className={`text-[11px] font-medium px-2 py-0.5 rounded-md border ${
-                            project.priority === 'high'
-                              ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20'
-                              : project.priority === 'low'
-                              ? 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20'
-                              : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20'
-                          }`}>
-                            {project.priority ? (project.priority.charAt(0).toUpperCase() + project.priority.slice(1)) : 'Medium'} Priority
-                          </Badge>
-                        </div>
-
-                        {canManage && (
-                          <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-[#64748B] hover:text-[#0D9488] rounded-md"
-                              onClick={() => handleOpenCreateProject(project)}
-                              title="Edit Project"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-[#64748B] hover:text-rose-600 rounded-md"
-                              onClick={() => handleDeleteProject(project.id)}
-                              title="Delete Project"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#0D9488]/10 text-[#0D9488] flex items-center justify-center shrink-0 group-hover:bg-[#0D9488] group-hover:text-white transition-colors">
+                        <FolderKanban className="w-4 h-4" />
                       </div>
+                      <span className="text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4] group-hover:text-[#0D9488] transition-colors truncate">
+                        {p.name}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#64748B] group-hover:text-[#0D9488] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* CLICKED PROJECT VIEW: BACK BUTTON + EMPLOYEES + TASK DETAILS */
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedScheduleProjectId(null)}
+                  className="rounded-xl text-xs h-9 gap-2 border-[#DFE8EC] dark:border-[#2A3D48] text-[#172B3A] dark:text-[#E8F0F4] hover:bg-[#F4F8FA] dark:hover:bg-[#1D303B] shadow-2xs font-semibold"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Back to Projects List</span>
+                </Button>
 
-                      {/* Project Title & Description */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <FolderKanban className="w-5 h-5 text-[#0D9488] dark:text-[#14B8A6] flex-shrink-0" />
-                          <h3 className="text-base font-semibold text-[#172B3A] dark:text-[#E8F0F4] leading-snug">
-                            {project.name}
-                          </h3>
-                        </div>
-                        {project.description && (
-                          <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] leading-relaxed line-clamp-2">
-                            {project.description}
-                          </p>
-                        )}
-                      </div>
+                <span className="text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                  Project: <strong className="text-[#172B3A] dark:text-[#E8F0F4]">{activeSelectedProject.name}</strong>
+                </span>
+              </div>
 
-                      {/* Project Timeline & Dates */}
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748B] dark:text-[#A6B5C0] bg-[#F4F8FA] dark:bg-[#1D303B] p-2.5 rounded-lg border border-[#DFE8EC] dark:border-[#2A3D48]">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-[#0D9488]" />
-                          <span>Start: <strong className="text-foreground">{formatDisplayDate(project.startDate)}</strong></span>
-                        </div>
-                        {project.dueDate && (
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-amber-500" />
-                            <span>Due: <strong className="text-foreground">{formatDisplayDate(project.dueDate)}</strong></span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-[#64748B] dark:text-[#A6B5C0] font-medium">Task Progress</span>
-                          <span className="font-semibold text-foreground">{completedT} / {totalT} ({progressPct}%)</span>
-                        </div>
-                        <div className="h-2 w-full bg-[#E2E8F0] dark:bg-[#2A3D48] rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-[#0D9488] to-emerald-500 rounded-full transition-all duration-300"
-                            style={{ width: `${progressPct}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Assigned Employees */}
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-xs text-[#64748B] dark:text-[#A6B5C0] font-medium">
-                          Assigned Team Members ({project.assignedEmployees?.length || 0})
-                        </span>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {(project.assignedEmployees || []).map((emp) => (
-                            <div 
-                              key={emp.userId} 
-                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] text-xs font-medium text-foreground"
-                            >
-                              <div className="w-4 h-4 rounded-full bg-[#0D9488]/20 text-[#0D9488] flex items-center justify-center text-[9px] font-bold">
-                                {(emp.name || emp.username || 'S').slice(0, 1).toUpperCase()}
-                              </div>
-                              <span className="truncate max-w-[120px]">{emp.name || emp.username || emp.userId}</span>
+              {/* Project Header Banner */}
+              <Card className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] shadow-xs overflow-hidden">
+                <CardHeader className="p-5 sm:p-6 bg-[#F4F8FA]/60 dark:bg-[#1D303B]/40 border-b border-[#DFE8EC] dark:border-[#2A3D48]">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                              <Badge className={`capitalize font-semibold text-xs ${
+                                activeSelectedProject.status === 'completed'
+                                  ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30'
+                                  : activeSelectedProject.status === 'on-hold'
+                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                  : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                              }`}>
+                                {activeSelectedProject.status === 'on-hold' ? 'On Hold' : activeSelectedProject.status || 'Active'}
+                              </Badge>
+                              {activeSelectedProject.priority && (
+                                <Badge variant="outline" className={`capitalize font-medium text-xs ${
+                                  activeSelectedProject.priority === 'urgent' || activeSelectedProject.priority === 'high'
+                                    ? 'text-red-600 border-red-500/40 bg-red-500/5'
+                                    : 'text-muted-foreground'
+                                }`}>
+                                  {activeSelectedProject.priority} Priority
+                                </Badge>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                            <h3 className="text-xl font-bold text-[#172B3A] dark:text-[#E8F0F4]">{activeSelectedProject.name}</h3>
+                          </div>
 
-                    {/* Bottom Actions & Tasks Toggle */}
-                    <div className="pt-4 mt-4 border-t border-[#DFE8EC] dark:border-[#2A3D48] flex flex-wrap items-center justify-between gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => toggleProjectExpanded(project.id)}
-                        className="text-xs h-8 px-2.5 border-[#DFE8EC] dark:border-[#2A3D48] flex items-center gap-1.5"
-                      >
-                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                        <span>{isExpanded ? 'Hide Tasks' : `View Tasks (${projectTasks.length})`}</span>
-                      </Button>
-
-                      {canManage && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => handleOpenAddProjectTask(project)}
-                          className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-8 px-3 flex items-center gap-1.5 shadow-2xs"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Add Project Task</span>
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Expandable Project Tasks View */}
-                    {isExpanded && (
-                      <div className="mt-4 pt-4 border-t border-[#DFE8EC] dark:border-[#2A3D48] space-y-3">
-                        <div className="flex items-center justify-between text-xs font-semibold text-[#172B3A] dark:text-[#E8F0F4]">
-                          <span>Tasks in this Project ({projectTasks.length})</span>
-                          {canManage && (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAddProjectTask(project)}
-                              className="text-[#0D9488] hover:underline text-xs flex items-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>Add Task</span>
-                            </button>
-                          )}
-                        </div>
-
-                        {projectTasks.length === 0 ? (
-                          <div className="text-center py-6 bg-[#F4F8FA] dark:bg-[#1D303B] rounded-xl border border-dashed border-[#DFE8EC] dark:border-[#2A3D48] p-4 text-xs text-[#64748B] dark:text-[#A6B5C0]">
-                            <p>No tasks created for this project yet.</p>
+                          <div className="flex items-center gap-2">
                             {canManage && (
                               <Button
                                 size="sm"
-                                onClick={() => handleOpenAddProjectTask(project)}
-                                className="mt-2.5 bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-7"
+                                onClick={() => handleOpenAddProjectTask(activeSelectedProject)}
+                                className="bg-[#0D9488] hover:bg-[#0F766E] text-white text-xs h-9 px-3.5 rounded-xl shadow-xs gap-1.5"
                               >
-                                <Plus className="w-3 h-3 mr-1" />
-                                Add First Task
+                                <Plus className="w-4 h-4" />
+                                <span>Add Project Task</span>
                               </Button>
                             )}
                           </div>
+                        </div>
+
+                        {/* Dates info */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748B] dark:text-[#A6B5C0] mt-3">
+                          {activeSelectedProject.startDate && (
+                            <span className="inline-flex items-center gap-1 bg-card px-2.5 py-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48]">
+                              <Calendar className="w-3.5 h-3.5 text-[#0D9488]" />
+                              Start: {formatDisplayDate(activeSelectedProject.startDate)}
+                            </span>
+                          )}
+                          {activeSelectedProject.dueDate && (
+                            <span className="inline-flex items-center gap-1 bg-card px-2.5 py-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48]">
+                              <Clock className="w-3.5 h-3.5 text-amber-500" />
+                              Due: {formatDisplayDate(activeSelectedProject.dueDate)}
+                            </span>
+                          )}
+                        </div>
+
+                        {activeSelectedProject.description && (
+                          <div className="mt-3 pt-3 border-t border-[#DFE8EC]/80 dark:border-[#2A3D48]/80">
+                            <p className="text-xs sm:text-sm text-[#172B3A]/80 dark:text-[#E8F0F4]/80 leading-relaxed whitespace-pre-line">
+                              {extractVoiceNote(activeSelectedProject.description).text || activeSelectedProject.description}
+                            </p>
+                            {extractVoiceNote(activeSelectedProject.description).audioUrl && (
+                              <div className="mt-2">
+                                <VoiceNoteBadgePlayer audioUrl={extractVoiceNote(activeSelectedProject.description).audioUrl} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardHeader>
+                    </Card>
+
+                    {/* Section 1: Employees Working on That Project */}
+                    <Card className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] shadow-xs">
+                      <CardHeader className="p-4 sm:p-5 border-b border-[#DFE8EC] dark:border-[#2A3D48] flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-[#0D9488]/10 text-[#0D9488]">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm sm:text-base font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                              Employees Working on This Project
+                            </CardTitle>
+                            <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                              {activeSelectedProjectEmployees.length} personnel assigned to project execution
+                            </p>
+                          </div>
+                        </div>
+                        <Badge className="bg-[#0D9488]/10 text-[#0D9488] border-[#0D9488]/20 font-bold px-3 py-1">
+                          {activeSelectedProjectEmployees.length} Working
+                        </Badge>
+                      </CardHeader>
+
+                      <CardContent className="p-4 sm:p-5">
+                        {activeSelectedProjectEmployees.length === 0 ? (
+                          <div className="text-center py-6 text-muted-foreground text-xs">
+                            No team members are assigned to this project yet.
+                          </div>
                         ) : (
-                          <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
-                            {projectTasks.map((ptask) => {
-                              const pUiStatus = toUiStatus(ptask.status, ptask);
-                              const pIsCompleted = pUiStatus === 'completed';
-                              const pIsExpired = isTaskExpired(ptask);
-                              const pIsInProgress = pUiStatus === 'inProgress';
-                              const pAssigneeUser = users.find(x => toIdText(x.id) === toIdText(ptask.assignee));
-                              const pAssigneeName = pAssigneeUser ? (pAssigneeUser.name || pAssigneeUser.username || 'Staff') : (toIdText(ptask.assignee) || 'Staff');
-                              const myTask = isAssignedToMe(ptask);
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                              <button
+                                onClick={() => setSelectedProjectEmployeeFilter('all')}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                                  selectedProjectEmployeeFilter === 'all'
+                                    ? 'bg-[#0D9488] text-white border-[#0D9488] shadow-xs'
+                                    : 'bg-[#F4F8FA] dark:bg-[#1D303B] text-[#64748B] dark:text-[#A6B5C0] border-[#DFE8EC] dark:border-[#2A3D48]'
+                                }`}
+                              >
+                                All Team Members ({activeSelectedProjectEmployees.length})
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                              {activeSelectedProjectEmployees.map((emp) => {
+                                const eId = String(emp.userId);
+                                const isEmpActive = selectedProjectEmployeeFilter === eId;
+                                const empTasks = activeSelectedProjectTasks.filter((t) => {
+                                  const tAssignee = toIdText(t.assignee);
+                                  const tAssignedTo = Array.isArray(t.assignedTo) ? t.assignedTo.map(toIdText) : [];
+                                  return tAssignee === eId || tAssignedTo.includes(eId);
+                                });
+                                const empCompleted = empTasks.filter((t) => toUiStatus(t.status, t) === 'completed').length;
+
+                                return (
+                                  <div
+                                    key={eId}
+                                    onClick={() => setSelectedProjectEmployeeFilter(isEmpActive ? 'all' : eId)}
+                                    className={`p-3 rounded-xl border flex items-center gap-3 transition-all cursor-pointer ${
+                                      isEmpActive
+                                        ? 'bg-[#0D9488]/15 border-[#0D9488] ring-1 ring-[#0D9488]/30'
+                                        : 'bg-[#F4F8FA]/60 dark:bg-[#1D303B]/40 border-[#DFE8EC] dark:border-[#2A3D48] hover:border-[#0D9488]/40'
+                                    }`}
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-[#0D9488]/15 text-[#0D9488] flex items-center justify-center font-bold text-sm shrink-0 overflow-hidden">
+                                      {emp.avatar ? (
+                                        <img src={emp.avatar} alt={emp.name} className="w-full h-full object-cover" />
+                                      ) : (
+                                        (emp.name || 'S').slice(0, 2).toUpperCase()
+                                      )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <h5 className="text-xs font-bold text-[#172B3A] dark:text-[#E8F0F4] truncate">{emp.name}</h5>
+                                      <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] truncate capitalize">
+                                        {emp.role || 'Staff'}
+                                      </p>
+                                      <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-[#0D9488]">
+                                        <span>{empTasks.length} Tasks</span>
+                                        <span>•</span>
+                                        <span className="text-emerald-600 dark:text-emerald-400">{empCompleted} Done</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Section 2: Their Tasks & All Details */}
+                    <Card className="rounded-2xl border-[#DFE8EC] dark:border-[#2A3D48] bg-white dark:bg-[#15232D] shadow-xs">
+                      <CardHeader className="p-4 sm:p-5 border-b border-[#DFE8EC] dark:border-[#2A3D48] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-xl bg-[#0D9488]/10 text-[#0D9488]">
+                            <Briefcase className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm sm:text-base font-bold text-[#172B3A] dark:text-[#E8F0F4]">
+                              {selectedProjectEmployeeFilter !== 'all'
+                                ? `Tasks Assigned to ${activeSelectedProjectEmployees.find(e => String(e.userId) === selectedProjectEmployeeFilter)?.name || 'Employee'}`
+                                : 'All Project Tasks'}
+                            </CardTitle>
+                            <p className="text-xs text-[#64748B] dark:text-[#A6B5C0]">
+                              Showing {displayedSelectedProjectTasks.length} of {activeSelectedProjectTasks.length} tasks
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Task Status Filters */}
+                        <div className="flex items-center gap-1 bg-[#F4F8FA] dark:bg-[#1D303B] p-1 rounded-xl border border-[#DFE8EC] dark:border-[#2A3D48] overflow-x-auto">
+                          {[
+                            { key: 'all', label: 'All' },
+                            { key: 'inProgress', label: 'In Progress' },
+                            { key: 'paused', label: 'On Hold' },
+                            { key: 'completed', label: 'Completed' },
+                            { key: 'todo', label: 'To Do' },
+                          ].map((tab) => (
+                            <button
+                              key={tab.key}
+                              onClick={() => setSelectedProjectTaskStatusFilter(tab.key)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                                selectedProjectTaskStatusFilter === tab.key
+                                  ? 'bg-[#0D9488] text-white shadow-xs'
+                                  : 'text-[#64748B] dark:text-[#A6B5C0] hover:text-[#172B3A] dark:hover:text-[#E8F0F4]'
+                              }`}
+                            >
+                              {tab.label}
+                            </button>
+                          ))}
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="p-4 sm:p-5 space-y-3">
+                        {displayedSelectedProjectTasks.length === 0 ? (
+                          <div className="text-center py-10 text-muted-foreground text-xs">
+                            No tasks found matching your filter selection for this project.
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {displayedSelectedProjectTasks.map((task) => {
+                              const uiStatus = toUiStatus(task.status, task);
+                              const isCompleted = uiStatus === 'completed';
+                              const isHold = task.status === 'paused';
+                              const isInProgress = uiStatus === 'inProgress' && !isHold;
+                              const { text: cleanDesc, audioUrl } = extractVoiceNote(task.description || '');
+
+                              const assigneeUser = users.find((x) => toIdText(x.id) === toIdText(task.assignee));
+                              const assigneeName = assigneeUser ? (assigneeUser.name || assigneeUser.username || 'Staff') : 'Staff';
+                              const myTask = isAssignedToMe(task);
 
                               return (
                                 <div
-                                  key={ptask.id}
-                                  className={`p-3 rounded-xl border text-xs transition-all ${
-                                    pIsCompleted
-                                      ? 'bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-500/25'
-                                      : pIsExpired
-                                      ? 'bg-rose-50/20 dark:bg-rose-950/10 border-rose-500/30'
-                                      : 'bg-[#F4F8FA] dark:bg-[#1D303B] border-[#DFE8EC] dark:border-[#2A3D48]'
+                                  key={task.id}
+                                  className={`p-4 rounded-2xl border transition-all ${
+                                    isCompleted
+                                      ? 'bg-emerald-500/5 border-emerald-500/20'
+                                      : isInProgress
+                                      ? 'bg-blue-500/5 border-blue-500/20'
+                                      : isHold
+                                      ? 'bg-amber-500/5 border-amber-500/20'
+                                      : 'bg-white dark:bg-[#15232D] border-[#DFE8EC] dark:border-[#2A3D48]'
                                   }`}
                                 >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="space-y-1 flex-1 min-w-0">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <Badge className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                          pIsCompleted
-                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'
-                                            : pIsExpired
-                                            ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25'
-                                            : pIsInProgress
-                                            ? 'bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/25'
-                                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
-                                        }`}>
-                                          {formatStatusLabel(pUiStatus, ptask)}
-                                        </Badge>
-
-                                        <span 
-                                          onClick={() => setSelectedTask(ptask)}
-                                          className="font-medium text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] cursor-pointer truncate"
+                                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 mb-2">
+                                    <div className="space-y-1 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h5 
+                                          onClick={() => setSelectedTask(task)}
+                                          className="text-sm font-bold text-[#172B3A] dark:text-[#E8F0F4] hover:text-[#0D9488] cursor-pointer"
                                         >
-                                          {ptask.title}
-                                        </span>
+                                          {task.title}
+                                        </h5>
+                                        {task.priority && (
+                                          <Badge variant="outline" className={`text-[10px] uppercase font-semibold ${
+                                            task.priority === 'urgent' || task.priority === 'high'
+                                              ? 'text-red-600 border-red-500/30'
+                                              : 'text-muted-foreground'
+                                          }`}>
+                                            {task.priority}
+                                          </Badge>
+                                        )}
                                       </div>
 
-                                      {ptask.description && (
-                                        <p className="text-[11px] text-[#64748B] dark:text-[#A6B5C0] line-clamp-1">
-                                          {ptask.description}
+                                      {cleanDesc && (
+                                        <p className="text-xs text-[#64748B] dark:text-[#A6B5C0] whitespace-pre-line leading-relaxed">
+                                          {cleanDesc}
                                         </p>
                                       )}
 
-                                      <div className="flex items-center gap-3 text-[11px] text-[#64748B] dark:text-[#A6B5C0] pt-1">
-                                        <span className="flex items-center gap-1">
-                                          <User className="w-3 h-3 text-[#0D9488]" />
-                                          <strong>{pAssigneeName}</strong>
-                                        </span>
-                                        <span>Due: {formatDisplayDate(ptask.rawEndDate || ptask.endDate)}</span>
-                                      </div>
+                                      {audioUrl && (
+                                        <div className="pt-1">
+                                          <VoiceNoteBadgePlayer audioUrl={audioUrl} />
+                                        </div>
+                                      )}
                                     </div>
 
-                                    {/* Action buttons if assigned to me */}
-                                    {myTask && !pIsCompleted && !pIsExpired && (
-                                      <div className="flex items-center gap-1 shrink-0">
-                                        {pIsInProgress ? (
-                                          <>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => handlePauseTask(ptask)}
-                                              className="h-7 px-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] gap-1"
-                                            >
-                                              <Pause className="w-3 h-3" />
-                                              <span>Pause</span>
-                                            </Button>
-                                            <Button
-                                              size="sm"
-                                              onClick={() => handleMarkCompleted(ptask)}
-                                              className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1"
-                                            >
-                                              <Check className="w-3 h-3" />
-                                              <span>Done</span>
-                                            </Button>
-                                          </>
-                                        ) : (
-                                          <Button
-                                            size="sm"
-                                            onClick={() => handleStartTask(ptask)}
-                                            className="h-7 px-2.5 bg-[#0D9488] hover:bg-[#0F766E] text-white text-[11px] gap-1"
-                                          >
-                                            <Play className="w-3 h-3" />
-                                            <span>Start</span>
-                                          </Button>
-                                        )}
-                                      </div>
-                                    )}
+                                    {/* Status Badge */}
+                                    <div className="shrink-0 flex items-center gap-2">
+                                      {isCompleted ? (
+                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                                          <CheckCircle2 className="w-3.5 h-3.5" />
+                                          Completed
+                                        </span>
+                                      ) : isInProgress ? (
+                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">
+                                          <Play className="w-3.5 h-3.5" />
+                                          In Progress
+                                        </span>
+                                      ) : isHold ? (
+                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
+                                          <Pause className="w-3.5 h-3.5" />
+                                          On Hold
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground bg-muted/60 px-2.5 py-1 rounded-full border border-border">
+                                          <Clock className="w-3.5 h-3.5" />
+                                          To Do
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
 
-                                    {canManage && (
+                                  {/* Task Assigned Employees & Time Completion Details */}
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-3 mt-2 border-t border-[#DFE8EC]/80 dark:border-[#2A3D48]/80">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-[11px] font-medium text-[#64748B] dark:text-[#A6B5C0]">Assigned to:</span>
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#F4F8FA] dark:bg-[#1D303B] px-2 py-0.5 rounded-lg border border-[#DFE8EC] dark:border-[#2A3D48]">
+                                        <User className="w-3 h-3 text-[#0D9488]" />
+                                        {assigneeName}
+                                      </span>
+                                    </div>
+
+                                    {/* Timing Details & Actions */}
+                                    <div className="flex items-center gap-2 text-xs flex-wrap">
+                                      {isCompleted ? (
+                                        <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-xl border border-emerald-500/20">
+                                          <Check className="w-3.5 h-3.5" />
+                                          <span>
+                                            Completed on: {format(new Date(task.completedAt || task.updatedAt || Date.now()), 'MMM d, yyyy · h:mm a')}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-2 text-[11px] text-[#64748B] dark:text-[#A6B5C0]">
+                                          {task.durationValue && (
+                                            <span className="bg-muted/40 px-2 py-0.5 rounded-md border border-border">
+                                              Duration: {task.durationValue} {task.durationUnit || 'hours'}
+                                            </span>
+                                          )}
+                                          {(task.dueDate || task.endDate) && (
+                                            <span className="inline-flex items-center gap-1 text-muted-foreground">
+                                              <Clock className="w-3 h-3" />
+                                              Due: {formatDeadline(task)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Quick status button if assigned to me */}
+                                      {myTask && !isCompleted && (
+                                        <div className="flex items-center gap-1 pl-2 border-l border-border/60">
+                                          {isInProgress ? (
+                                            <>
+                                              <Button
+                                                size="sm"
+                                                onClick={() => handlePauseTask(task)}
+                                                className="h-7 px-2 bg-amber-500 hover:bg-amber-600 text-white text-[11px] gap-1"
+                                              >
+                                                <Pause className="w-3 h-3" />
+                                                <span>Pause</span>
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                onClick={() => handleMarkCompleted(task)}
+                                                className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1"
+                                              >
+                                                <Check className="w-3 h-3" />
+                                                <span>Done</span>
+                                              </Button>
+                                            </>
+                                          ) : (
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleStartTask(task)}
+                                              className="h-7 px-2.5 bg-[#0D9488] hover:bg-[#0F766E] text-white text-[11px] gap-1"
+                                            >
+                                              <Play className="w-3 h-3" />
+                                              <span>Start</span>
+                                            </Button>
+                                          )}
+                                        </div>
+                                      )}
+
                                       <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 text-muted-foreground hover:text-rose-600 shrink-0"
-                                        onClick={() => handleDelete(ptask.id)}
-                                        title="Delete Task"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setSelectedTask(task)}
+                                        className="h-7 px-2.5 text-[11px] border-[#DFE8EC] dark:border-[#2A3D48]"
                                       >
-                                        <Trash2 className="w-3 h-3" />
+                                        Details
                                       </Button>
-                                    )}
+                                    </div>
                                   </div>
                                 </div>
                               );
                             })}
                           </div>
                         )}
-                      </div>
-                    )}
-                  </Card>
-                );
-              })
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
-        </div>
-      )}
 
       {/* Create / Edit Project Dialog */}
       <Dialog open={isCreateProjectOpen} onOpenChange={setIsCreateProjectOpen}>
@@ -2111,16 +2425,14 @@ export default function SchedulesModule({ userProfile }) {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="proj-desc">Project Description</Label>
-              <Textarea
-                id="proj-desc"
-                value={projectFormData.description}
-                onChange={(e) => setProjectFormData({ ...projectFormData, description: e.target.value })}
-                placeholder="Outline objectives, deliverables, and scope for this project..."
-                rows={3}
-              />
-            </div>
+            <VoiceDescriptionInput
+              id="proj-desc"
+              label="Project Description"
+              value={projectFormData.description}
+              onChange={(val) => setProjectFormData({ ...projectFormData, description: val })}
+              placeholder="Outline objectives, deliverables, and scope for this project (type, voice-to-text, or record voice note)..."
+              rows={3}
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -2299,16 +2611,14 @@ export default function SchedulesModule({ userProfile }) {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="ptask-desc">Description</Label>
-              <Textarea
-                id="ptask-desc"
-                value={projectTaskFormData.description}
-                onChange={(e) => setProjectTaskFormData({ ...projectTaskFormData, description: e.target.value })}
-                rows={3}
-                placeholder="Detailed instructions for the assigned member(s)..."
-              />
-            </div>
+            <VoiceDescriptionInput
+              id="ptask-desc"
+              label="Task Description"
+              value={projectTaskFormData.description}
+              onChange={(val) => setProjectTaskFormData({ ...projectTaskFormData, description: val })}
+              placeholder="Detailed instructions for the assigned member(s) (type, voice-to-text, or record voice note)..."
+              rows={3}
+            />
 
             {/* ASSIGNMENT MODE: ALL EMPLOYEES VS SEPARATE EMPLOYEE */}
             <div className="space-y-2 pt-1">
@@ -2400,11 +2710,28 @@ export default function SchedulesModule({ userProfile }) {
                     min="0"
                     placeholder="e.g. 8"
                     value={projectTaskFormData.durationValue}
-                    onChange={(e) => setProjectTaskFormData({ ...projectTaskFormData, durationValue: e.target.value })}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const { endDate, dueTime } = computeEndDateTime(projectTaskFormData.startDate, val, projectTaskFormData.durationUnit, projectTaskFormData.assignedTo);
+                      setProjectTaskFormData(prev => ({
+                        ...prev,
+                        durationValue: val,
+                        ...(endDate ? { endDate } : {}),
+                        ...(dueTime ? { dueTime } : {})
+                      }));
+                    }}
                   />
                   <Select
                     value={projectTaskFormData.durationUnit}
-                    onValueChange={(val) => setProjectTaskFormData({ ...projectTaskFormData, durationUnit: val })}
+                    onValueChange={(val) => {
+                      const { endDate, dueTime } = computeEndDateTime(projectTaskFormData.startDate, projectTaskFormData.durationValue, val, projectTaskFormData.assignedTo);
+                      setProjectTaskFormData(prev => ({
+                        ...prev,
+                        durationUnit: val,
+                        ...(endDate ? { endDate } : {}),
+                        ...(dueTime ? { dueTime } : {})
+                      }));
+                    }}
                   >
                     <SelectTrigger className="w-24">
                       <SelectValue />
@@ -2415,6 +2742,9 @@ export default function SchedulesModule({ userProfile }) {
                     </SelectContent>
                   </Select>
                 </div>
+                <p className="text-[11px] text-[#0D9488] font-medium flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" /> End Date & Time auto-fill
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -2424,6 +2754,7 @@ export default function SchedulesModule({ userProfile }) {
                   value={projectTaskFormData.dueTime}
                   onChange={(e) => setProjectTaskFormData({ ...projectTaskFormData, dueTime: e.target.value })}
                 />
+                <p className="text-[11px] text-muted-foreground">Auto-calculated cutoff time</p>
               </div>
             </div>
 
@@ -2434,7 +2765,16 @@ export default function SchedulesModule({ userProfile }) {
                   id="ptask-start"
                   type="date"
                   value={projectTaskFormData.startDate}
-                  onChange={(e) => setProjectTaskFormData({ ...projectTaskFormData, startDate: e.target.value })}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const { endDate, dueTime } = computeEndDateTime(val, projectTaskFormData.durationValue, projectTaskFormData.durationUnit, projectTaskFormData.assignedTo);
+                    setProjectTaskFormData(prev => ({
+                      ...prev,
+                      startDate: val,
+                      ...(endDate ? { endDate } : {}),
+                      ...(dueTime ? { dueTime } : {})
+                    }));
+                  }}
                   required
                 />
               </div>
@@ -2448,6 +2788,7 @@ export default function SchedulesModule({ userProfile }) {
                   onChange={(e) => setProjectTaskFormData({ ...projectTaskFormData, endDate: e.target.value })}
                   required
                 />
+                <p className="text-[11px] text-muted-foreground">Auto-calculated from Start & Duration</p>
               </div>
             </div>
 
@@ -2519,11 +2860,16 @@ export default function SchedulesModule({ userProfile }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#F4F8FA] dark:bg-[#1D303B] border border-[#DFE8EC] dark:border-[#2A3D48] rounded-xl p-4 space-y-2">
-                <h4 className="font-medium text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
-                  Description
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium text-xs text-[#64748B] dark:text-[#A6B5C0] uppercase tracking-wider">
+                    Description
+                  </h4>
+                  {extractVoiceNote(selectedTask?.description).voiceNoteUrl && (
+                    <VoiceNoteBadgePlayer src={extractVoiceNote(selectedTask?.description).voiceNoteUrl} />
+                  )}
+                </div>
                 <p className="text-sm text-[#172B3A] dark:text-[#E8F0F4] whitespace-pre-wrap leading-relaxed">
-                  {selectedTask?.description || 'No description provided.'}
+                  {extractVoiceNote(selectedTask?.description).cleanText || 'No description provided.'}
                 </p>
               </div>
 

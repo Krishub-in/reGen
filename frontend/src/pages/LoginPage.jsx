@@ -155,12 +155,12 @@ export default function LoginPage({ resetToken: resetTokenProp }) {
       </div>
 
       {/* Right Login Pane */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-10 min-h-screen py-8 sm:py-10 relative bg-[#03141a]">
+      <div className="flex-1 flex flex-col items-center justify-center p-3.5 sm:p-8 lg:p-10 min-h-screen min-h-[100dvh] py-6 sm:py-10 relative bg-[#03141a] overflow-y-auto">
         {/* Ambient Teal Glow */}
-        <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute top-1/4 right-1/4 w-72 sm:w-96 h-72 sm:h-96 bg-[#10B981]/10 rounded-full blur-[100px] pointer-events-none" />
 
         {/* Floating Login Card */}
-        <div className="w-full max-w-md bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 relative z-10 transition-all">
+        <div className="w-full max-w-md my-auto bg-[#081b21]/90 border border-[#1a3d44] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7)] backdrop-blur-xl rounded-2xl sm:rounded-3xl p-5 sm:p-8 md:p-10 relative z-10 transition-all">
           {/* Header */}
           <div className="flex flex-col items-center text-center">
             {/* Centered ReGen Emblem */}

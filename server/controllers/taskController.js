@@ -286,6 +286,19 @@ export const buildSchedulesReportData = async (companyId, query = {}) => {
     }
     if (period === 'month' && filterMonth) {
       if (sDate.startsWith(filterMonth) || eDate.startsWith(filterMonth) || dDate.startsWith(filterMonth) || cDate.startsWith(filterMonth)) return true;
+      try {
+        const [yStr, mStr] = filterMonth.split('-');
+        const y = parseInt(yStr, 10);
+        const m = parseInt(mStr, 10);
+        const lastDay = new Date(y, m, 0).getDate();
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const mStart = `${y}-${pad2(m)}-01`;
+        const mEnd = `${y}-${pad2(m)}-${pad2(lastDay)}`;
+        const effEnd = eDate || dDate;
+        if (sDate && effEnd && sDate <= mEnd && effEnd >= mStart) return true;
+      } catch {
+        // ignore
+      }
       return false;
     }
     if (period === 'year' && filterYear) {
