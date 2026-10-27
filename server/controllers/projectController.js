@@ -9,17 +9,23 @@ import { safeRandomUUID } from '../utils/safeRandomUUID.js';
  */
 export const getProjects = async (req, res) => {
   try {
-    const companyId = req.companyId;
-    if (!companyId) return res.status(400).json({ message: 'Company context required' });
+    const isEmsView = req.headers['x-portal-view'] === 'ems' || req.query.portalView === 'ems';
+    const isSuperAdmin = req.user?.role === 'param' || req.user?.role === 'admin';
+    const companyId = req.query.companyId || req.companyId;
 
-    const projects = await Project.find({ companyId }).sort({ createdAt: -1 }).lean();
+    if (!companyId && (!isSuperAdmin || isEmsView)) {
+      return res.status(400).json({ message: 'Company context required' });
+    }
+
+    const filter = companyId ? { companyId } : {};
+    const projects = await Project.find(filter).sort({ createdAt: -1 }).lean();
 
     // Enrich each project with task counts
     const projectIds = projects.map(p => p.id);
-    const tasks = await Task.find({
-      companyId,
-      projectId: { $in: projectIds }
-    }).lean();
+    const taskFilter = { projectId: { $in: projectIds } };
+    if (companyId) taskFilter.companyId = companyId;
+
+    const tasks = await Task.find(taskFilter).lean();
 
     const taskMap = new Map();
     tasks.forEach(t => {

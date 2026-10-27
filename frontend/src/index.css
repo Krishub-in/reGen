@@ -771,13 +771,18 @@ html {
   color: #183B2B !important;
 }
 
-/* 6. Body Text (#40574A) */
-:root:not(.dark) body,
+/* 6. Body Text (#40574A / #1F2937) */
+:root:not(.dark) body {
+  color: #1F2937 !important;
+}
+
 :root:not(.dark) p,
 :root:not(.dark) li,
 :root:not(.dark) td,
+:root:not(.dark) label,
+:root:not(.dark) [data-slot="label"],
 :root:not(.dark) .body-text {
-  color: #40574A;
+  color: #1F2937;
 }
 
 /* 7. Secondary Text (#687C70) */
@@ -1091,6 +1096,87 @@ html {
   /* Card padding scaling */
   [data-slot="card"] {
     border-radius: 1rem !important;
+  }
+}
+
+/* ==========================================================================
+   16. Global 4px Rounded Scrollbars (Matching ReGen Design System)
+   ========================================================================== */
+
+/* WebKit & Blink Browsers (Chrome, Edge, Safari, Opera) */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+*::-webkit-scrollbar,
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track,
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-thumb {
+  background-color: #D5E5D7;
+  background-color: oklch(var(--border));
+  border-radius: 9999px;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover,
+::-webkit-scrollbar-thumb:hover {
+  background-color: #B4CDB9;
+  background-color: oklch(var(--muted-foreground) / 0.5);
+}
+
+/* Dark mode - applied when .dark is on html, body, or any container/parent */
+html.dark::-webkit-scrollbar-thumb,
+html.dark *::-webkit-scrollbar-thumb,
+html.dark ::-webkit-scrollbar-thumb,
+body.dark::-webkit-scrollbar-thumb,
+body.dark *::-webkit-scrollbar-thumb,
+body.dark ::-webkit-scrollbar-thumb,
+.dark::-webkit-scrollbar-thumb,
+.dark *::-webkit-scrollbar-thumb,
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #2A3D48;
+  background-color: oklch(var(--border));
+}
+
+html.dark::-webkit-scrollbar-thumb:hover,
+html.dark *::-webkit-scrollbar-thumb:hover,
+html.dark ::-webkit-scrollbar-thumb:hover,
+body.dark::-webkit-scrollbar-thumb:hover,
+body.dark *::-webkit-scrollbar-thumb:hover,
+body.dark ::-webkit-scrollbar-thumb:hover,
+.dark::-webkit-scrollbar-thumb:hover,
+.dark *::-webkit-scrollbar-thumb:hover,
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #3D5463;
+  background-color: oklch(var(--muted-foreground) / 0.5);
+}
+
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox Standard (applied only on browsers that don't support ::-webkit-scrollbar to prevent disabling custom 4px width in Chromium) */
+@supports not selector(::-webkit-scrollbar) {
+  *,
+  html,
+  body {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(var(--border)) transparent;
   }
 }
 

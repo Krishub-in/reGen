@@ -1,4 +1,6 @@
 import React, { Component } from 'react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 
 export class ErrorBoundary extends Component {
   state = {
@@ -11,7 +13,7 @@ export class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
   }
 
   render() {
@@ -21,50 +23,36 @@ export class ErrorBoundary extends Component {
       }
 
       return (
-        <div
-          id="server-maintenance-screen"
-          style={{
-            minHeight: '100vh',
-            width: '100vw',
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#111111',
-            color: '#ffffff',
-            textAlign: 'center',
-            padding: '2rem',
-            boxSizing: 'border-box',
-            fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif"
-          }}
-        >
-          <h1
-            style={{
-              color: '#ffffff',
-              fontSize: '2.5rem',
-              fontWeight: '800',
-              letterSpacing: '-0.025em',
-              margin: '0 0 1rem 0'
-            }}
-          >
-            Server Under Maintenance
-          </h1>
-          <p
-            style={{
-              color: '#ffffff',
-              fontSize: '1.125rem',
-              maxWidth: '520px',
-              lineHeight: 1.6,
-              margin: 0,
-              opacity: 0.9
-            }}
-          >
-            Our services are currently undergoing maintenance. Please check back shortly.
+        <div className="min-h-[360px] w-full flex flex-col items-center justify-center p-8 text-center bg-card dark:bg-[#0D2028] text-foreground rounded-2xl border border-border dark:border-[#203A42] m-4 shadow-sm animate-in fade-in-50">
+          <div className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mb-3">
+            <AlertTriangle className="w-6 h-6 text-rose-500" />
+          </div>
+          <h3 className="font-bold text-lg mb-1 text-foreground dark:text-[#E8F0F4]">Something went wrong in this section</h3>
+          <p className="text-xs text-muted-foreground dark:text-[#A8BAC3] mb-4 max-w-md">
+            {this.state.error?.message || 'An unexpected error occurred while rendering this component.'}
           </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+              }}
+              className="cursor-pointer rounded-xl border-[#D5E5D7] dark:border-[#203A42]"
+            >
+              Try Again
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                window.location.reload();
+              }}
+              className="cursor-pointer rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+              Reload Page
+            </Button>
+          </div>
         </div>
       );
     }
@@ -72,3 +60,4 @@ export class ErrorBoundary extends Component {
     return this.props.children;
   }
 }
+

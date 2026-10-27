@@ -47,8 +47,9 @@ export default function App() {
         } else {
           if (active) setIsMaintenance(false);
         }
-      } catch {
-        if (active) setIsMaintenance(true);
+      } catch (err) {
+        // Do not falsely trigger maintenance on momentary client fetch errors
+        console.warn('Maintenance check query failed:', err);
       }
     };
     window.addEventListener('server-maintenance', onMaintenanceEvent);

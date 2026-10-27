@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button';
 import { 
   Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, 
   LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search,
-  Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck, FileBarChart
+  Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck, FileBarChart,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import DashboardHome from '../components/modules/DashboardHome';
 import { useIsMobile } from '../hooks/use-mobile';
 import { cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
@@ -79,6 +81,9 @@ export default function Dashboard({ userProfile }) {
   const isMobile = useIsMobile();
   const [showNotif, setShowNotif] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const isSidebarExpanded = sidebarHovered || sidebarPinned;
   const notifDropdownRef = useRef(null);
 
   const currentYear = new Date().getFullYear();
@@ -471,24 +476,81 @@ export default function Dashboard({ userProfile }) {
 
   return (
     <div className="bg-background text-foreground flex min-h-svh w-full">
-      {/* Desktop Left Sidebar (Matching Reference Image) */}
-      <aside className="hidden md:flex w-64 lg:w-72 flex-col border-r border-border bg-card shrink-0 sticky top-0 h-screen overflow-y-auto">
-        {/* Brand Logo */}
-        <div className="h-16 lg:h-18 flex items-center px-4 lg:px-6 border-b border-border">
-          <div className="flex items-center gap-2.5 cursor-pointer min-w-0" onClick={() => navigateToModule('home')}>
-            <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-8 h-8 rounded-xl shrink-0" />
-            <span className="text-base lg:text-lg font-bold tracking-tight text-foreground truncate whitespace-nowrap">{companyDisplayName}</span>
-            <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+      {/* Desktop Left Sidebar (Muted Teal Enterprise SaaS Design) */}
+      <aside
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+        className={cn(
+          "hidden md:flex flex-col sticky top-0 h-screen shrink-0 z-20 border-r",
+          "transition-[width] duration-300 ease-in-out overflow-x-hidden",
+          "bg-[#FFFFFF] dark:bg-[#0D2028] border-[#D5E5D7] dark:border-[#203A42]",
+          isSidebarExpanded
+            ? "w-[260px] shadow-sm"
+            : "w-20"
+        )}
+        aria-label="Sidebar navigation"
+      >
+        {/* Brand Logo & Header */}
+        <div className={cn(
+          "h-16 flex items-center border-b border-[#D5E5D7] dark:border-[#203A42] bg-[#F8FAF9] dark:bg-[#10252D] transition-all duration-300 px-3",
+          isSidebarExpanded ? "justify-between" : "justify-center"
+        )}>
+          <div
+            className={cn(
+              "flex items-center gap-2.5 cursor-pointer overflow-hidden transition-all duration-300",
+              isSidebarExpanded ? "px-1" : "justify-center"
+            )}
+            onClick={() => navigateToModule('home')}
+            title="ReGen Dashboard"
+          >
+            {companyInfo?.logo ? (
+              <SafeCompanyLogo
+                src={companyInfo.logo}
+                name={companyDisplayName}
+                className="w-8 h-8 rounded-xl shrink-0 object-contain shadow-xs border border-border/40"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-xl bg-teal-500/10 dark:bg-[#142E35] text-teal-600 dark:text-[#45CFC0] flex items-center justify-center font-bold text-sm shrink-0 border border-teal-500/30 dark:border-[#203A42]">
+                R
+              </div>
+            )}
+            <div className={cn(
+              "flex items-center gap-1.5 transition-all duration-300 overflow-hidden whitespace-nowrap",
+              isSidebarExpanded ? "opacity-100 max-w-[150px]" : "opacity-0 max-w-0 pointer-events-none hidden"
+            )}>
+              <span className="text-lg font-bold tracking-tight text-foreground dark:text-white truncate">
+                {companyDisplayName}
+              </span>
+              <span className="w-2 h-2 rounded-full bg-primary dark:bg-[#36BEB0] shrink-0" />
+            </div>
           </div>
+
+          {/* Pin / Collapse Toggle button for touch/tablet & desktop convenience */}
+          {isSidebarExpanded && (
+            <button
+              type="button"
+              onClick={() => setSidebarPinned(prev => !prev)}
+              className={cn(
+                "p-1.5 rounded-lg text-muted-foreground hover:text-foreground dark:text-[#A8BAC3] dark:hover:text-[#45CFC0] hover:bg-secondary/80 dark:hover:bg-[#142E35] transition-colors cursor-pointer",
+                sidebarPinned && "text-teal-600 dark:text-[#45CFC0] bg-teal-500/10 dark:bg-[#123A3C]"
+              )}
+              title={sidebarPinned ? "Unpin sidebar (collapse on mouse leave)" : "Pin sidebar expanded"}
+              aria-label={sidebarPinned ? "Unpin sidebar" : "Pin sidebar expanded"}
+              aria-pressed={sidebarPinned}
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Sidebar Nav Items */}
-        <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1.5">
+        <nav className="flex-1 px-2.5 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
           {menuItems.filter(item => item.show).map((item) => {
             const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
-            return (
+            const navButton = (
               <button
                 key={item.id}
+                type="button"
                 onClick={() => {
                   if (item.onClick) {
                     item.onClick();
@@ -497,18 +559,78 @@ export default function Dashboard({ userProfile }) {
                   }
                 }}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3.5 lg:px-4 py-2.5 lg:py-3 rounded-xl text-sm lg:text-[15px] transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
+                  "w-full h-11 flex items-center rounded-xl text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer border relative group",
+                  isSidebarExpanded ? "px-3.5 gap-3.5" : "justify-center px-0",
                   isActive
-                    ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
-                    : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
+                    ? "bg-[#DDF1E2] dark:bg-[#123A3C] text-[#087A57] dark:text-[#45CFC0] font-semibold border-[rgba(8,122,87,0.35)] dark:border-[#176B68]"
+                    : "text-[#40574A] dark:text-[#B6C4CC] border-transparent hover:bg-[#E3F1E5] dark:hover:bg-[#142E35] hover:text-[#087A57] dark:hover:text-[#45CFC0]"
                 )}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <item.icon className={cn("w-4.5 h-4.5 lg:w-5 lg:h-5 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
-                <span className="truncate">{item.label}</span>
+                {/* Narrow Vertical Active Indicator */}
+                {isActive && (
+                  <span className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-[#087A57] dark:bg-[#36BEB0]" />
+                )}
+
+                {/* Navigation Icon */}
+                <item.icon
+                  className={cn(
+                    "w-5 h-5 shrink-0 transition-colors duration-150",
+                    isActive
+                      ? "text-[#087A57] dark:text-[#45CFC0]"
+                      : "text-[#40574A] dark:text-[#A8BAC3] group-hover:text-[#087A57] dark:group-hover:text-[#45CFC0]"
+                  )}
+                />
+
+                {/* Navigation Label */}
+                <span
+                  className={cn(
+                    "truncate whitespace-nowrap transition-all duration-300",
+                    isSidebarExpanded
+                      ? "opacity-100 max-w-[170px]"
+                      : "opacity-0 max-w-0 pointer-events-none hidden"
+                  )}
+                >
+                  {item.label}
+                </span>
               </button>
             );
+
+            if (!isSidebarExpanded) {
+              return (
+                <Tooltip key={item.id} delayDuration={50}>
+                  <TooltipTrigger asChild>
+                    {navButton}
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="right"
+                    sideOffset={14}
+                    className="bg-[#0D2028] dark:bg-[#0D2028] text-[#B6C4CC] border border-[#203A42] shadow-md text-xs font-medium px-2.5 py-1 rounded-md z-50"
+                  >
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+
+            return navButton;
           })}
         </nav>
+
+        {/* Collapsed bottom expand toggle for touch/tablet */}
+        {!isSidebarExpanded && (
+          <div className="p-2.5 border-t border-[#D5E5D7] dark:border-[#203A42] flex justify-center">
+            <button
+              type="button"
+              onClick={() => setSidebarPinned(true)}
+              className="w-10 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground dark:text-[#A8BAC3] dark:hover:text-[#45CFC0] hover:bg-secondary/80 dark:hover:bg-[#142E35] transition-colors cursor-pointer"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main Content Area */}
@@ -823,20 +945,21 @@ export default function Dashboard({ userProfile }) {
 
         {/* Mobile Navigation Drawer Sheet */}
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-          <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r border-border p-0 flex flex-col">
-            <SheetHeader className="p-6 border-b border-border">
-              <SheetTitle className="flex items-center gap-2">
-                <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-7 h-7 rounded-lg shrink-0" />
-                <span className="text-xl font-semibold tracking-normal text-foreground">{companyDisplayName}</span>
-                <span className="w-2 h-2 rounded-full bg-primary" />
+          <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card dark:bg-[#0D2028] border-r border-border dark:border-[#203A42] p-0 flex flex-col">
+            <SheetHeader className="p-5 border-b border-border dark:border-[#203A42] bg-card dark:bg-[#10252D]">
+              <SheetTitle className="flex items-center gap-2.5">
+                <SafeCompanyLogo src={companyInfo?.logo} name={companyDisplayName} className="w-7 h-7 rounded-lg shrink-0 border border-border/40" />
+                <span className="text-xl font-bold tracking-tight text-foreground dark:text-white">{companyDisplayName}</span>
+                <span className="w-2 h-2 rounded-full bg-primary dark:bg-[#36BEB0]" />
               </SheetTitle>
             </SheetHeader>
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+            <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-1.5">
               {menuItems.filter(item => item.show).map((item) => {
                 const isActive = activeModule === item.id || (item.id === 'profile' && activeModule === 'settings');
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => {
                       if (item.onClick) {
                         item.onClick();
@@ -846,14 +969,18 @@ export default function Dashboard({ userProfile }) {
                       setMobileNavOpen(false);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all text-left outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer",
+                      "w-full h-11 flex items-center gap-3.5 px-3.5 rounded-xl text-sm font-medium transition-colors duration-150 outline-none select-none cursor-pointer border relative",
                       isActive
-                        ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs"
-                        : "text-muted-foreground hover:bg-secondary/70 hover:text-foreground font-medium"
+                        ? "bg-[#DDF1E2] dark:bg-[#123A3C] text-[#087A57] dark:text-[#45CFC0] font-semibold border-[rgba(8,122,87,0.35)] dark:border-[#176B68]"
+                        : "text-[#40574A] dark:text-[#B6C4CC] border-transparent hover:bg-[#E3F1E5] dark:hover:bg-[#142E35] hover:text-[#087A57] dark:hover:text-[#45CFC0]"
                     )}
+                    aria-current={isActive ? 'page' : undefined}
                   >
-                    <item.icon className={cn("w-4 h-4 shrink-0 transition-colors", isActive ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground")} />
-                    <span>{item.label}</span>
+                    {isActive && (
+                      <span className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-[#087A57] dark:bg-[#36BEB0]" />
+                    )}
+                    <item.icon className={cn("w-5 h-5 shrink-0 transition-colors", isActive ? "text-[#087A57] dark:text-[#45CFC0]" : "text-[#40574A] dark:text-[#A8BAC3]")} />
+                    <span className="truncate">{item.label}</span>
                   </button>
                 );
               })}
