@@ -7,6 +7,63 @@ import { resolveCompanyId } from '../utils/resolveCompanyId.js';
 import { emitToCompany, emitToUser, getIO } from '../socket.js';
 import { calculateWorkedHours, round2 } from '../utils/payrollCalculator.js';
 import { sendReportEmail } from '../utils/mailer.js';
+import { calculateHaversineDistance, GEOFENCE_RADIUS_METRES } from '../utils/geofence.js';
+
+export const verifyGeofenceOrThrow = async (companyId, coords) => {
+  if (!companyId) {
+    const err = new Error('Company context required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const company = await Company.findById(companyId).select('officeLocation name').lean();
+  if (!company) {
+    const err = new Error('Company record not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const office = company.officeLocation;
+  if (!office || typeof office.latitude !== 'number' || typeof office.longitude !== 'number') {
+    const err = new Error('Company office location has not been configured. Please ask your company administrator to configure it in Company Settings.');
+    err.statusCode = 400;
+    err.code = 'OFFICE_LOCATION_NOT_SET';
+    throw err;
+  }
+
+  const lat = Number(coords?.latitude ?? coords?.lat);
+  const lon = Number(coords?.longitude ?? coords?.lon ?? coords?.lng);
+
+  if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lon) || lon < -180 || lon > 180) {
+    const err = new Error('Valid location coordinates (latitude and longitude) are required for attendance actions.');
+    err.statusCode = 400;
+    err.code = 'INVALID_COORDINATES';
+    throw err;
+  }
+
+  const rawDistance = calculateHaversineDistance(lat, lon, office.latitude, office.longitude);
+  const distance = Math.round(rawDistance * 10) / 10;
+
+  if (distance > GEOFENCE_RADIUS_METRES) {
+    const err = new Error('You must be within 5 metres of your registered office to perform this action.');
+    err.statusCode = 403;
+    err.code = 'OUTSIDE_GEOFENCE';
+    err.distance = distance;
+    err.maxAllowedDistance = GEOFENCE_RADIUS_METRES;
+    throw err;
+  }
+
+  return {
+    ok: true,
+    distance,
+    coords: {
+      latitude: lat,
+      longitude: lon,
+      accuracy: coords?.accuracy ? Number(coords.accuracy) : undefined,
+      distanceFromOffice: distance,
+    }
+  };
+};
 
 export const calculateBreakDelayDeduction = async (companyId, userId, delayMinutes) => {
   if (!delayMinutes || delayMinutes <= 0) return 0;
@@ -51,6 +108,15 @@ export const recordAttendance = async (req, res) => {
       body.status = 'present';
     }
     body.companyId = await resolveCompanyId(req, body);
+
+    // Geofence verification for check-in action
+    const geo = await verifyGeofenceOrThrow(body.companyId, {
+      latitude: body.latitude ?? body.coords?.latitude ?? body.locationCoordinates?.latitude,
+      longitude: body.longitude ?? body.coords?.longitude ?? body.locationCoordinates?.longitude,
+      accuracy: body.accuracy ?? body.coords?.accuracy ?? body.locationCoordinates?.accuracy,
+    });
+    body.locationCoords = geo.coords;
+
     const attendance = new Attendance(body);
     await attendance.save();
 
@@ -66,7 +132,12 @@ export const recordAttendance = async (req, res) => {
 
     res.status(201).json(attendance);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error.statusCode || 400).json({ 
+      message: error.message, 
+      code: error.code, 
+      distance: error.distance, 
+      maxAllowedDistance: error.maxAllowedDistance 
+    });
   }
 };
 
@@ -115,6 +186,37 @@ export const updateAttendance = async (req, res) => {
     const companyId = existing.companyId || req.companyId;
     const userId = existing.userId || updateData.userId;
     const settings = companyId ? await PayrollSetting.findOne({ companyId }).lean() : null;
+
+    // Detect restricted attendance actions requiring 15-metre geofence validation:
+    // 1) Check-out, 2) Start normal break, 3) End normal break, 4) Start casual break, 5) End casual break
+    const isCheckOut = Boolean(updateData.checkOut && updateData.checkOut !== existing.checkOut);
+    const isStartOfficial = Boolean(
+      (updateData.activeBreakType === 'official' && updateData.breakStart && !existing.breakStart) ||
+      (updateData.breakStart && updateData.breakStart !== existing.breakStart && !updateData.breakEnd)
+    );
+    const isEndOfficial = Boolean(
+      (updateData.breakEnd && updateData.breakEnd !== existing.breakEnd) ||
+      (existing.activeBreakType === 'official' && updateData.activeBreakType === 'none')
+    );
+    const isStartCasual = Boolean(
+      (updateData.activeBreakType === 'casual' && updateData.casualBreakStart && !existing.casualBreakStart) ||
+      (updateData.casualBreakStart && updateData.casualBreakStart !== existing.casualBreakStart && !updateData.casualBreakEnd)
+    );
+    const isEndCasual = Boolean(
+      (updateData.casualBreakEnd && updateData.casualBreakEnd !== existing.casualBreakEnd) ||
+      (existing.activeBreakType === 'casual' && updateData.activeBreakType === 'none')
+    );
+
+    const isRestrictedAction = isCheckOut || isStartOfficial || isEndOfficial || isStartCasual || isEndCasual;
+
+    if (isRestrictedAction) {
+      const geo = await verifyGeofenceOrThrow(companyId, {
+        latitude: updateData.latitude ?? req.body.latitude ?? req.body.coords?.latitude,
+        longitude: updateData.longitude ?? req.body.longitude ?? req.body.coords?.longitude,
+        accuracy: updateData.accuracy ?? req.body.accuracy ?? req.body.coords?.accuracy,
+      });
+      updateData.locationCoords = geo.coords;
+    }
 
     // If starting official break, clear stale breakEnd
     if (updateData.activeBreakType === 'official' && updateData.breakStart && !updateData.breakEnd) {
@@ -171,7 +273,12 @@ export const updateAttendance = async (req, res) => {
 
     res.status(200).json(attendance);
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(error.statusCode || 400).json({ 
+      message: error.message, 
+      code: error.code, 
+      distance: error.distance, 
+      maxAllowedDistance: error.maxAllowedDistance 
+    });
   }
 };
 

@@ -324,3 +324,61 @@ export const runBirthdayReminders = async (_req, res) => {
   }
 };
 
+export const clearAllNotifications = async (req, res) => {
+  try {
+    const targetUserId = req.params.userId || req.user?.userId;
+    const authUserId = req.user?.userId;
+    const authId = req.user?.id;
+    const authStaffId = req.user?.StaffId;
+
+    const userIds = new Set([String(targetUserId)]);
+    if (authUserId) userIds.add(String(authUserId));
+    if (authId) userIds.add(String(authId));
+    if (authStaffId) userIds.add(String(authStaffId));
+
+    try {
+      const isOid = mongoose.isValidObjectId(targetUserId);
+      const u = await User.findOne({
+        $or: [
+          { userId: targetUserId },
+          { StaffId: targetUserId },
+          { username: targetUserId },
+          ...(isOid ? [{ _id: targetUserId }] : [])
+        ]
+      }).select('userId StaffId username _id').lean();
+
+      if (u) {
+        if (u.userId) userIds.add(String(u.userId));
+        if (u.StaffId) userIds.add(String(u.StaffId));
+        if (u.username) userIds.add(String(u.username));
+        if (u._id) userIds.add(String(u._id));
+      }
+    } catch (_) {}
+
+    // Security check: non-param users can only clear their own notifications
+    if (req.user?.role !== 'param') {
+      const isSelf = userIds.has(String(authUserId)) || 
+                     (authId && userIds.has(String(authId))) || 
+                     (authStaffId && userIds.has(String(authStaffId))) ||
+                     (req.user?.username && userIds.has(String(req.user.username)));
+      if (!isSelf) {
+        return res.status(403).json({ message: 'You can only clear your own notifications' });
+      }
+    }
+
+    const filter = { userId: { $in: Array.from(userIds) } };
+    if (req.companyId) filter.companyId = req.companyId;
+
+    const result = await Notification.deleteMany(filter);
+
+    userIds.forEach(uid => {
+      emitToUser(uid, 'notification:clear_all', { userId: uid });
+    });
+
+    res.status(200).json({ message: 'All notifications cleared successfully', deletedCount: result.deletedCount });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+

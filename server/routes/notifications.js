@@ -6,7 +6,8 @@ import {
   runBirthdayReminders,
   markNotificationRead,
   markAllNotificationsRead,
-  updateNotificationAction
+  updateNotificationAction,
+  clearAllNotifications
 } from '../controllers/notificationController.js';
 
 const router = express.Router();
@@ -17,6 +18,8 @@ router.get('/user/:userId', getUserNotifications);
 router.put('/:id/read', markNotificationRead);
 router.put('/user/:userId/read-all', markAllNotificationsRead);
 router.put('/:id/action', updateNotificationAction);
+router.delete('/user/:userId/clear-all', clearAllNotifications);
+router.delete('/clear-all', clearAllNotifications);
 router.delete('/:id', deleteNotification);
 
 export default router;

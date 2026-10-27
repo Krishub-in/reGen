@@ -6,7 +6,7 @@ import {
   Users, Calendar, ClipboardList, MessageSquare, FileText, DollarSign, Building2, 
   LogOut, Home, Clock, Settings, Bell, Menu, ShieldCheck, User, Search,
   Phone, PhoneCall, PhoneOff, Video, Mic, Check, CheckCheck, FileBarChart,
-  PanelLeftClose, PanelLeftOpen
+  PanelLeftClose, PanelLeftOpen, Trash2
 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import DashboardHome from '../components/modules/DashboardHome';
@@ -25,6 +25,7 @@ import {
   useGetUserNotifications, 
   useMarkNotificationRead, 
   useMarkAllNotificationsRead, 
+  useClearAllNotifications,
   useUpdateNotificationAction,
   useGetCompanyInfo
 } from '../hooks/useQueries';
@@ -141,6 +142,7 @@ export default function Dashboard({ userProfile }) {
   const { data: myNotifications = [] } = useGetUserNotifications(myUserId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const clearAllNotifs = useClearAllNotifications();
   const updateNotifAction = useUpdateNotificationAction();
   const [seenNotifications, setSeenNotifications] = useState({});
 
@@ -702,15 +704,33 @@ export default function Dashboard({ userProfile }) {
                         </span>
                       )}
                     </div>
-                    {unreadCount > 0 && (
-                      <button
-                        onClick={() => markAllRead.mutate(myUserId)}
-                        className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold transition-colors cursor-pointer"
-                      >
-                        <CheckCheck className="h-3.5 w-3.5" />
-                        Mark all read
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2.5">
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={() => markAllRead.mutate(myUserId)}
+                          disabled={markAllRead.isPending}
+                          className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+                        >
+                          <CheckCheck className="h-3.5 w-3.5" />
+                          Mark all read
+                        </button>
+                      )}
+                      {myNotifications.length > 0 && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Are you sure you want to clear all notifications?')) {
+                              clearAllNotifs.mutate(myUserId);
+                            }
+                          }}
+                          disabled={clearAllNotifs.isPending}
+                          className="text-xs text-muted-foreground hover:text-destructive hover:underline flex items-center gap-1 font-semibold transition-colors cursor-pointer"
+                          title="Clear all notifications"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Clear All
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="max-h-80 overflow-y-auto divide-y divide-border/60">

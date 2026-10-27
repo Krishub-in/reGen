@@ -24,6 +24,12 @@ const attendanceSchema = new mongoose.Schema({
   activeBreakType: { type: String, enum: ['none', 'official', 'casual'], default: 'none' },
   totalBreakDelayMinutes: { type: Number, default: 0 },
   breakDeduction: { type: Number, default: 0 },
+  locationCoords: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    accuracy: { type: Number },
+    distance: { type: Number },
+  },
   notes: { type: String }
 }, { timestamps: true });
 

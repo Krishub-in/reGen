@@ -23,6 +23,13 @@ const companySchema = new mongoose.Schema({
   ownerId: { type: String, required: true }, // Links to the user who created it (Owner)
   ownerName: { type: String, trim: true }, // Full personal name of company owner
   status: { type: String, enum: ['active', 'blocked'], default: 'active' },
+  officeLocation: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    address: { type: String },
+    radius: { type: Number, default: 5 },
+    updatedAt: { type: Date },
+  },
 }, { timestamps: true });
 
 export default mongoose.model('Company', companySchema);

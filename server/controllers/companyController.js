@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Company from '../models/Company.js';
 import User from '../models/User.js';
 import Task from '../models/Task.js';
@@ -163,6 +164,29 @@ export const updateCompany = async (req, res) => {
     }
     if (updates.logo !== undefined && (!updates.logo || updates.logo === 'null')) {
       delete updates.logo;
+    }
+
+    if (updates.officeLocation) {
+      const lat = Number(updates.officeLocation.latitude);
+      const lon = Number(updates.officeLocation.longitude);
+      if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lon) || lon < -180 || lon > 180) {
+        return res.status(400).json({ message: 'Valid latitude (-90 to 90) and longitude (-180 to 180) are required' });
+      }
+      const officeLocation = {
+        latitude: lat,
+        longitude: lon,
+        address: updates.officeLocation.address ? String(updates.officeLocation.address).trim() : '',
+        radius: 5,
+        updatedAt: new Date(),
+      };
+      updates.officeLocation = officeLocation;
+      try {
+        const isOid = mongoose.isValidObjectId(id);
+        const filter = isOid ? { $or: [{ _id: new mongoose.Types.ObjectId(id) }, { ownerId: id }] } : { ownerId: id };
+        await Company.collection.updateOne(filter, { $set: { officeLocation } });
+      } catch (e) {
+        console.warn('Direct collection officeLocation update warning:', e.message);
+      }
     }
 
     const company = await Company.findByIdAndUpdate(id, updates, { new: true });
@@ -644,3 +668,64 @@ export const getAllCompanies = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+export const updateOfficeLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userRole = req.user?.role;
+    const userCompanyId = req.companyId ? req.companyId.toString() : null;
+
+    if (userRole === 'param') {
+      // Super Admin allowed
+    } else if (userRole === 'owner' || userRole === 'admin') {
+      if (!userCompanyId || userCompanyId !== id) {
+        return res.status(403).json({ message: 'You can only edit your own company office location' });
+      }
+    } else {
+      return res.status(403).json({ message: 'Only owners and admins can update office location' });
+    }
+
+    const { latitude, longitude, address } = req.body;
+    const lat = Number(latitude);
+    const lon = Number(longitude);
+
+    if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lon) || lon < -180 || lon > 180) {
+      return res.status(400).json({ message: 'Valid latitude (-90 to 90) and longitude (-180 to 180) are required' });
+    }
+
+    const officeLocation = {
+      latitude: lat,
+      longitude: lon,
+      address: address ? String(address).trim() : '',
+      radius: 5,
+      updatedAt: new Date(),
+    };
+
+    const isOid = mongoose.isValidObjectId(id);
+    const filter = isOid ? { $or: [{ _id: new mongoose.Types.ObjectId(id) }, { ownerId: id }] } : { ownerId: id };
+
+    await Company.collection.updateOne(filter, { $set: { officeLocation } }).catch(() => {});
+    const company = await Company.findOne(filter);
+    if (!company) return res.status(404).json({ message: 'Company not found' });
+
+    res.status(200).json({
+      message: 'Office location and 5-metre attendance geofence saved successfully',
+      officeLocation,
+      company
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+};
+
+export const getOfficeLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const company = await Company.findById(id).select('officeLocation name').lean();
+    if (!company) return res.status(404).json({ message: 'Company not found' });
+    res.status(200).json({ officeLocation: company.officeLocation || null });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

@@ -767,6 +767,52 @@ export default function AttendanceModule({ userProfile }) {
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
 
+  const getVerifiedEmployeeLocation = () => {
+    return new Promise((resolve, reject) => {
+      if (typeof window !== 'undefined' && window.isSecureContext === false && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return reject(new Error('Geolocation requires a secure connection (HTTPS or localhost).'));
+      }
+
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        return reject(new Error('Geolocation is not supported by your browser.'));
+      }
+
+      const onPos = (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+        resolve({
+          latitude,
+          longitude,
+          accuracy,
+          locationStr: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+        });
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        onPos,
+        (error) => {
+          if (error.code === 1) {
+            return reject(new Error('Location permission denied. Please allow location access in your browser/device settings and try again.'));
+          }
+          // Fallback to standard network accuracy if high-accuracy timed out or unavailable
+          navigator.geolocation.getCurrentPosition(
+            onPos,
+            (fallbackErr) => {
+              let msg = 'Unable to determine your physical location.';
+              if (fallbackErr.code === 2) {
+                msg = 'Physical location is currently unavailable. Please turn on your device GPS / Location services and try again.';
+              } else if (fallbackErr.code === 3) {
+                msg = 'Location request timed out. Please check your GPS signal and try again.';
+              }
+              reject(new Error(msg));
+            },
+            { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    });
+  };
+
   const handleCheckIn = async () => {
     if (!staffIdStr && !identity && !userProfile) {
       toast.error('Please login first');
@@ -782,85 +828,62 @@ export default function AttendanceModule({ userProfile }) {
     }
 
     setIsCheckingIn(true);
+    const loadingToastId = toast.loading('Verifying office proximity & GPS location...');
 
-    const doCheckIn = async (locationStr = '') => {
+    try {
+      // 1. Get real-time high-accuracy device coordinates
+      const coords = await getVerifiedEmployeeLocation();
+      const now = new Date();
+
+      // Evaluate if check-in is late compared to scheduled check-in time
+      let checkInStatus = 'present';
       try {
-        const now = new Date();
+        const [schedH, schedM] = (workSchedule.checkInTime || '09:30').split(':').map(Number);
+        const grace = Number(workSchedule.graceMinutes) || 0;
+        const scheduledMinutes = (isNaN(schedH) ? 9 : schedH) * 60 + (isNaN(schedM) ? 30 : schedM) + grace;
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-        // Evaluate if check-in is late compared to scheduled check-in time
-        let checkInStatus = 'present';
-        try {
-          const [schedH, schedM] = (workSchedule.checkInTime || '09:30').split(':').map(Number);
-          const grace = Number(workSchedule.graceMinutes) || 0;
-          const scheduledMinutes = (isNaN(schedH) ? 9 : schedH) * 60 + (isNaN(schedM) ? 30 : schedM) + grace;
-          const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-          if (currentMinutes > scheduledMinutes) {
-            checkInStatus = 'late';
-          }
-        } catch (e) {
-          console.warn('Failed to calculate late status:', e);
+        if (currentMinutes > scheduledMinutes) {
+          checkInStatus = 'late';
         }
-
-        const payload = {
-          id: safeRandomUUID(),
-          userId: staffIdStr,
-          companyId: userProfile?.companyId || userProfile?.tenantId || undefined,
-          date: todayStr,
-          checkIn: now.toISOString(),
-          status: checkInStatus,
-          workMode: 'office',
-          location: locationStr || 'Office Main',
-          notes: checkInStatus === 'late' ? `Late arrival (Shift start: ${workSchedule.checkInTime})` : ''
-        };
-
-        await recordAttendance.mutateAsync(payload);
-        if (checkInStatus === 'late') {
-          toast.warning(`Checked in as LATE at ${format(now, 'hh:mm a')} (Shift start: ${workSchedule.checkInTime})`);
-        } else {
-          toast.success('Check-in successful! Have a great day.');
-        }
-      } catch (error) {
-        console.error('Check-in failed:', error);
-        toast.error(`Check-in failed: ${error.message || 'Please try again.'}`);
-      } finally {
-        setIsCheckingIn(false);
+      } catch (e) {
+        console.warn('Failed to calculate late status:', e);
       }
-    };
 
-    let hasExecuted = false;
-    const executeCheckIn = (loc = '') => {
-      if (hasExecuted) return;
-      hasExecuted = true;
-      doCheckIn(loc);
-    };
+      const payload = {
+        id: safeRandomUUID(),
+        userId: staffIdStr,
+        companyId: userProfile?.companyId || userProfile?.tenantId || undefined,
+        date: todayStr,
+        checkIn: now.toISOString(),
+        status: checkInStatus,
+        workMode: 'office',
+        location: coords.locationStr || 'Main Office',
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        notes: checkInStatus === 'late' ? `Late arrival (Shift start: ${workSchedule.checkInTime})` : ''
+      };
 
-    // Quick 800ms fallback so UI is immediately responsive even if geolocation hangs or permissions are pending
-    const geoTimer = setTimeout(() => {
-      executeCheckIn('');
-    }, 800);
-
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      try {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            clearTimeout(geoTimer);
-            const { latitude, longitude } = position.coords;
-            executeCheckIn(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-          },
-          (error) => {
-            clearTimeout(geoTimer);
-            executeCheckIn('');
-          },
-          { timeout: 800, enableHighAccuracy: false, maximumAge: 60000 }
-        );
-      } catch {
-        clearTimeout(geoTimer);
-        executeCheckIn('');
+      await recordAttendance.mutateAsync(payload);
+      toast.dismiss(loadingToastId);
+      if (checkInStatus === 'late') {
+        toast.warning(`Checked in as LATE at ${format(now, 'hh:mm a')} (Shift start: ${workSchedule.checkInTime})`);
+      } else {
+        toast.success('Check-in successful! Within office geofence.');
       }
-    } else {
-      clearTimeout(geoTimer);
-      executeCheckIn('');
+    } catch (error) {
+      toast.dismiss(loadingToastId);
+      console.error('Check-in failed:', error);
+      const isGeofenceErr = String(error.message || '').includes('within 5 metres');
+      toast.error(error.message || 'Check-in failed. Please try again.', {
+        description: isGeofenceErr 
+          ? 'Please make sure your registered office in Company Settings matches your exact current location, or click Check In again to get a fresh GPS reading.'
+          : undefined,
+        duration: isGeofenceErr ? 8000 : 4000
+      });
+    } finally {
+      setIsCheckingIn(false);
     }
   };
 
@@ -872,19 +895,33 @@ export default function AttendanceModule({ userProfile }) {
     if (isCheckingOut || isCheckedOut) return;
 
     setIsCheckingOut(true);
-    const now = new Date();
+    const loadingToastId = toast.loading('Verifying office proximity for check-out...');
 
     try {
+      const coords = await getVerifiedEmployeeLocation();
+      const now = new Date();
+
       await updateAttendance.mutateAsync({
         ...todayRecord,
         id: todayRecord.id || todayRecord._id,
         userId: staffIdStr || toIdText(todayRecord.userId),
         checkOut: now.toISOString(),
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
       });
+      toast.dismiss(loadingToastId);
       toast.success('Check-out successful! Shift completed.');
     } catch (error) {
-      console.error("Check-out failed:", error);
-      toast.error('Check-out failed. Please try again.');
+      toast.dismiss(loadingToastId);
+      console.error('Check-out failed:', error);
+      const isGeofenceErr = String(error.message || '').includes('within 5 metres');
+      toast.error(error.message || 'Check-out failed. Please try again.', {
+        description: isGeofenceErr 
+          ? 'You must be within 5m of your registered office. Click Check Out again to retry GPS verification.'
+          : undefined,
+        duration: isGeofenceErr ? 8000 : 4000
+      });
     } finally {
       setIsCheckingOut(false);
     }
@@ -908,21 +945,30 @@ export default function AttendanceModule({ userProfile }) {
     if (isUpdatingBreak) return;
 
     setIsUpdatingBreak(true);
-    const now = new Date();
+    const loadingToastId = toast.loading('Verifying location for break start...');
+
     try {
+      const coords = await getVerifiedEmployeeLocation();
+      const now = new Date();
+
       const payload = {
         ...todayRecord,
         id: todayRecord.id || todayRecord._id,
         userId: staffIdStr || toIdText(todayRecord.userId),
         activeBreakType: type,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
         ...(type === 'official' 
           ? { breakStart: now.toISOString(), breakEnd: null } 
           : { casualBreakStart: now.toISOString(), casualBreakEnd: null })
       };
       await updateAttendance.mutateAsync(payload);
+      toast.dismiss(loadingToastId);
       const limit = type === 'official' ? (workSchedule.breakTime || 60) : (workSchedule.casualBreakTime || 15);
       toast.success(`${type === 'official' ? 'Official / Meal' : 'Casual / Tea'} Break started! Allowed limit: ${limit} mins.`);
     } catch (err) {
+      toast.dismiss(loadingToastId);
       toast.error(err.message || 'Failed to start break');
     } finally {
       setIsUpdatingBreak(false);
@@ -938,17 +984,25 @@ export default function AttendanceModule({ userProfile }) {
     if (isUpdatingBreak) return;
 
     setIsUpdatingBreak(true);
-    const now = new Date();
-    const type = todayRecord.activeBreakType;
+    const loadingToastId = toast.loading('Verifying location for break end...');
+
     try {
+      const coords = await getVerifiedEmployeeLocation();
+      const now = new Date();
+      const type = todayRecord.activeBreakType;
+
       const payload = {
         ...todayRecord,
         id: todayRecord.id || todayRecord._id,
         userId: staffIdStr || toIdText(todayRecord.userId),
         activeBreakType: 'none',
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
         ...(type === 'official' ? { breakEnd: now.toISOString() } : { casualBreakEnd: now.toISOString() })
       };
       const res = await updateAttendance.mutateAsync(payload);
+      toast.dismiss(loadingToastId);
       const delay = Number(res?.totalBreakDelayMinutes ?? ((res?.breakDelayMinutes || 0) + (res?.casualBreakDelayMinutes || 0)));
       const deduction = Number(res?.breakDeduction || 0);
       if (delay > 0) {
@@ -957,6 +1011,7 @@ export default function AttendanceModule({ userProfile }) {
         toast.success(`Break ended on time! Great job.`);
       }
     } catch (err) {
+      toast.dismiss(loadingToastId);
       toast.error(err.message || 'Failed to stop break');
     } finally {
       setIsUpdatingBreak(false);

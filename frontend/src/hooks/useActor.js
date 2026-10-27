@@ -799,7 +799,10 @@ export const createHttpActor = (identity) => {
             checkIn: attendance.checkIn || (attendance.checkInTime ? new Date(Number(attendance.checkInTime) / 1000000).toISOString() : new Date().toISOString()),
             location: attendance.location || '',
             workMode: attendance.workMode || 'office',
-            notes: Array.isArray(attendance.notes) ? attendance.notes.join(', ') : (attendance.notes || '')
+            notes: Array.isArray(attendance.notes) ? attendance.notes.join(', ') : (attendance.notes || ''),
+            latitude: attendance.latitude,
+            longitude: attendance.longitude,
+            accuracy: attendance.accuracy,
         };
         return handleResponse(await fetch(`${API_BASE}/attendance`, {
             method: 'POST',
@@ -885,6 +888,23 @@ export const createHttpActor = (identity) => {
             body: JSON.stringify(info)
         }));
     },
+    updateCompanyOfficeLocation: async (companyId, locationData) => {
+        const idStr = typeof companyId === 'string' ? companyId : (companyId?._id || companyId?.id || String(companyId || ''));
+        const res = await fetch(`${API_BASE}/company/${encodeURIComponent(idStr)}/office-location`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(locationData)
+        });
+        if (res.status === 404) {
+            // Dual compatibility fallback: route through company update endpoint
+            return handleResponse(await fetch(`${API_BASE}/company/${encodeURIComponent(idStr)}`, {
+                method: 'PUT',
+                headers,
+                body: JSON.stringify({ officeLocation: locationData })
+            }));
+        }
+        return handleResponse(res);
+    },
 
     // Notifications
     getUserNotifications: async (userId) => {
@@ -896,6 +916,14 @@ export const createHttpActor = (identity) => {
             method: 'POST',
             headers,
             body: JSON.stringify(notification)
+        }));
+    },
+    clearAllNotifications: async (userId) => {
+        const idStr = typeof userId === 'string' ? userId : (userId?.toText ? userId.toText() : String(userId || ''));
+        const url = idStr ? `${API_BASE}/notifications/user/${encodeURIComponent(idStr)}/clear-all` : `${API_BASE}/notifications/clear-all`;
+        return handleResponse(await fetch(url, {
+            method: 'DELETE',
+            headers
         }));
     },
     // Stubs for others

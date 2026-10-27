@@ -24,6 +24,8 @@ import {
   MapPin,
   Calendar,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -51,6 +53,7 @@ export default function CompanyProfileDialog({
   const [deptFilter, setDeptFilter] = useState('all');
   const [taskFilter, setTaskFilter] = useState('all');
   const [projectFilter, setProjectFilter] = useState('all');
+  const [expandedProjectId, setExpandedProjectId] = useState(null);
 
   if (!company) return null;
 
@@ -949,55 +952,95 @@ export default function CompanyProfileDialog({
                   <p className="text-[11px] mt-1 text-muted-foreground/80 dark:text-[#A8BAC3]/80">No projects recorded for this company yet.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-2.5">
                   {filteredProjects.map((project) => {
+                    const pId = project.id || project._id;
+                    const isExpanded = expandedProjectId === pId;
                     const metrics = project.taskMetrics || { total: 0, completed: 0, inProgress: 0 };
                     const progressPct = metrics.total > 0 ? Math.round((metrics.completed / metrics.total) * 100) : (project.status === 'completed' ? 100 : 0);
 
                     return (
-                      <Card key={project.id || project._id} className="p-5 rounded-xl border border-[#D5E5D7] dark:border-[#203A42] bg-card dark:bg-[#10252D] shadow-2xs space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                          <div>
-                            <div className="flex items-center gap-2.5 flex-wrap">
-                              <h5 className="font-bold text-base text-[#1F2937] dark:text-[#E8F0F4]">{project.name}</h5>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'text-[10px] px-2 py-0.5 rounded-full capitalize font-semibold',
-                                  project.status === 'completed'
-                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                    : project.status === 'active'
-                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
-                                    : 'bg-secondary text-muted-foreground border-border'
-                                )}
-                              >
-                                {project.status || 'Active'}
-                              </Badge>
+                      <Card key={pId} className="rounded-xl border border-[#D5E5D7] dark:border-[#203A42] bg-card dark:bg-[#10252D] shadow-2xs overflow-hidden transition-all">
+                        {/* Project Header / List Item (Click to expand/collapse) */}
+                        <div
+                          onClick={() => setExpandedProjectId(isExpanded ? null : pId)}
+                          className="p-3.5 sm:p-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-secondary/40 dark:hover:bg-[#15303A] transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="p-2 rounded-lg bg-primary/10 text-primary dark:text-[#45CFC0] shrink-0">
+                              <FolderKanban className="w-4 h-4" />
                             </div>
-                            {project.description && (
-                              <p className="text-xs text-muted-foreground dark:text-[#A8BAC3] mt-1">{project.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground dark:text-[#A8BAC3]">
-                              <span>Team: {project.assignedEmployees?.length || 0} Members</span>
-                              <span>•</span>
-                              <span>Start: {project.startDate ? format(new Date(project.startDate), 'dd MMM yyyy') : 'Recorded'}</span>
-                              <span>•</span>
-                              <span>Due: {project.dueDate ? format(new Date(project.dueDate), 'dd MMM yyyy') : 'No target date'}</span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h5 className="font-bold text-sm text-[#1F2937] dark:text-[#E8F0F4] truncate">
+                                  {project.name}
+                                </h5>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'text-[10px] px-2 py-0.2 rounded-full capitalize font-semibold',
+                                    project.status === 'completed'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                      : project.status === 'active'
+                                      ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
+                                      : 'bg-secondary text-muted-foreground border-border'
+                                  )}
+                                >
+                                  {project.status || 'Active'}
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground dark:text-[#A8BAC3] truncate mt-0.5">
+                                {project.assignedEmployees?.length || 0} Members · {metrics.completed}/{metrics.total} tasks finished
+                              </p>
                             </div>
                           </div>
 
-                          <div className="text-right shrink-0">
-                            <span className="text-sm font-bold text-primary dark:text-[#45CFC0]">{progressPct}% Completed</span>
-                            <span className="block text-[11px] text-muted-foreground dark:text-[#A8BAC3]">
-                              {metrics.completed} / {metrics.total} tasks finished
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="text-xs font-bold text-primary dark:text-[#45CFC0]">
+                              {progressPct}%
                             </span>
+                            <div className="p-1 rounded-md text-muted-foreground">
+                              {isExpanded ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Progress Bar */}
-                        <div className="w-full bg-secondary/80 dark:bg-[#0D2028] h-2 rounded-full overflow-hidden border border-border/40">
-                          <div className="bg-primary dark:bg-[#45CFC0] h-full transition-all duration-300 rounded-full" style={{ width: `${progressPct}%` }} />
-                        </div>
+                        {/* Collapsible Details */}
+                        {isExpanded && (
+                          <div className="p-4 pt-0 border-t border-border/50 dark:border-[#203A42] space-y-3 bg-secondary/15 dark:bg-[#0D2028]/40 animate-in fade-in-50 duration-150">
+                            {project.description && (
+                              <p className="text-xs text-muted-foreground dark:text-[#A8BAC3] leading-relaxed pt-3">
+                                {project.description}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground dark:text-[#A8BAC3] flex-wrap pt-1">
+                              <span><strong>Team:</strong> {project.assignedEmployees?.length || 0} Members</span>
+                              <span>•</span>
+                              <span><strong>Start:</strong> {project.startDate ? format(new Date(project.startDate), 'dd MMM yyyy') : 'Recorded'}</span>
+                              <span>•</span>
+                              <span><strong>Due:</strong> {project.dueDate ? format(new Date(project.dueDate), 'dd MMM yyyy') : 'No target date'}</span>
+                            </div>
+
+                            {/* Progress Bar & Tasks Metric */}
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex justify-between text-[11px] text-muted-foreground dark:text-[#A8BAC3]">
+                                <span>Progress</span>
+                                <span>{metrics.completed} / {metrics.total} tasks completed</span>
+                              </div>
+                              <div className="w-full bg-secondary/80 dark:bg-[#0D2028] h-2 rounded-full overflow-hidden border border-border/40">
+                                <div
+                                  className="bg-primary dark:bg-[#45CFC0] h-full transition-all duration-300 rounded-full"
+                                  style={{ width: `${progressPct}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </Card>
                     );
                   })}

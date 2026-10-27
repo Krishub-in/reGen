@@ -10,6 +10,7 @@ import {
   useGetUserNotifications, 
   useMarkNotificationRead, 
   useMarkAllNotificationsRead, 
+  useClearAllNotifications,
   useDeleteNotification 
 } from '../../hooks/useQueries';
 import { cn } from '../../lib/utils';
@@ -20,6 +21,7 @@ export default function NotificationsModule({ userProfile, onNavigate }) {
   const { data: notifications = [], isLoading } = useGetUserNotifications(myUserId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const clearAllNotifs = useClearAllNotifications();
   const deleteNotif = useDeleteNotification();
 
   const [filter, setFilter] = useState('all'); // 'all' | 'unread' | 'read'
@@ -213,18 +215,36 @@ export default function NotificationsModule({ userProfile, onNavigate }) {
         }
         subtitle="View and manage all your notifications, calls, alerts and updates."
         actions={
-          unreadCount > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => markAllRead.mutate(myUserId)}
-              disabled={markAllRead.isPending}
-              className="flex items-center gap-1.5 text-xs font-medium"
-            >
-              <CheckCheck className="h-4 w-4 text-[#15966A]" />
-              <span>Mark all read</span>
-            </Button>
-          )
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => markAllRead.mutate(myUserId)}
+                disabled={markAllRead.isPending}
+                className="flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+              >
+                <CheckCheck className="h-4 w-4 text-[#15966A]" />
+                <span>Mark all read</span>
+              </Button>
+            )}
+            {notifications.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to clear all your notifications?')) {
+                    clearAllNotifs.mutate(myUserId);
+                  }
+                }}
+                disabled={clearAllNotifs.isPending}
+                className="flex items-center gap-1.5 text-xs font-medium text-destructive hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Clear All</span>
+              </Button>
+            )}
+          </div>
         }
       />
 

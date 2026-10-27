@@ -249,6 +249,28 @@ export function useDeleteNotification() {
   });
 }
 
+export function useClearAllNotifications() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.clearAllNotifications(userId);
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['notifications'] });
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, () => []);
+    },
+    onSuccess: () => {
+      queryClient.setQueriesData({ queryKey: ['notifications'] }, () => []);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+
 
 // Task Progress Updates
 export function useGetTaskUpdatesForTask(taskId) {
@@ -965,6 +987,23 @@ export function useUpdateCompany() {
       queryClient.invalidateQueries({ queryKey: ['companyInfo'] });
       queryClient.invalidateQueries({ queryKey: ['companies'] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+    },
+  });
+}
+
+export function useUpdateCompanyOfficeLocation() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ companyId, ...data }) => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.updateCompanyOfficeLocation(companyId, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companyInfo'] });
+      queryClient.invalidateQueries({ queryKey: ['companies'] });
       queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
     },
   });
