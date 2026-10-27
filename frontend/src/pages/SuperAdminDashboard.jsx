@@ -688,12 +688,10 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                 {isDark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-primary" />}
                 <span className="hidden sm:inline">{isDark ? "Dark Mode" : "Light Mode"}</span>
               </button>
-              <div className="h-9 px-3 rounded-lg border border-border/80 bg-card flex items-center gap-2 hidden md:flex shadow-xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                </span>
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">System Live</span>
+              {/* Live Status Indicator */}
+              <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs select-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live</span>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1202,12 +1200,12 @@ function TabDashboard({
           </p>
         </div>
 
-        {/* Center / Right: Search bar, Year badge, and Live status badge */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 shrink-0">
+        {/* Center / Right: Enlarged Search Bar */}
+        <div className="flex items-center shrink-0 w-full lg:w-auto">
           {/* Search input container */}
-          <div ref={searchContainerRef} className="relative w-full sm:w-80 md:w-96 lg:w-[380px] xl:w-[420px]">
-            <div className="h-10 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
-              <Search className="w-4 h-4 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5" />
+          <div ref={searchContainerRef} className="relative w-full sm:w-[420px] md:w-[460px] lg:w-[500px] xl:w-[540px]">
+            <div className="h-11 sm:h-12 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
+              <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5 sm:ml-4" />
               <input
                 type="text"
                 value={searchQuery}
@@ -1218,7 +1216,7 @@ function TabDashboard({
                 onFocus={() => setSearchOpen(true)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search company or employee by name/ID..."
-                className="w-full bg-transparent px-2.5 text-xs text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium"
+                className="w-full bg-transparent px-3 text-xs sm:text-sm text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium h-full"
               />
               {searchQuery && (
                 <button
@@ -1228,17 +1226,17 @@ function TabDashboard({
                     setSearchOpen(false);
                     setHighlightedIndex(-1);
                   }}
-                  className="mr-2.5 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                  className="mr-3 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
                   title="Clear search"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               )}
             </div>
 
             {/* Search results dropdown */}
             {searchOpen && searchQuery.trim().length > 0 && (
-              <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[480px] md:w-[520px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150 max-h-[500px] overflow-y-auto">
+              <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[500px] md:w-[540px] lg:w-[580px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150 max-h-[500px] overflow-y-auto">
                 {/* 1. MATCHING COMPANIES SECTION */}
                 {matchingCompanies.length > 0 && (
                   <div>
@@ -1441,18 +1439,6 @@ function TabDashboard({
                 )}
               </div>
             )}
-          </div>
-
-          {/* Badges */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-2xs">
-              <Calendar className="w-3.5 h-3.5" />
-              Year: {currentYear}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live
-            </span>
           </div>
         </div>
       </div>

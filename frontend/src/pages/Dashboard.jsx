@@ -866,6 +866,12 @@ export default function Dashboard({ userProfile }) {
             {/* Theme Toggle (Sun/Moon Switcher) */}
             <ModeToggle />
 
+            {/* Live Status Indicator */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-[11px] sm:text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs select-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live</span>
+            </div>
+
             {/* User Profile Badge & Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
