@@ -1508,13 +1508,13 @@ export default function AttendanceModule({ userProfile }) {
 
       {/* Dialog for Work Schedule, Shift Timings, and Break Time Policy */}
       <Dialog open={isScheduleModalOpen} onOpenChange={setIsScheduleModalOpen}>
-        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogContent className="w-[95vw] max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-card text-[#1F2937] dark:text-slate-100 border-border">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-[#1F2937] dark:text-slate-100">
               <Timer className="h-5 w-5 text-teal-600 dark:text-teal-400" />
               Company Work Schedule & Break Policy
             </DialogTitle>
-            <DialogDescription className="text-xs">
+            <DialogDescription className="text-xs text-[#64748B] dark:text-slate-400">
               Configure standard work schedules, working hours, and official & casual break time limits. Exceeding break limits calculates salary deduction on a per-minute delay basis.
             </DialogDescription>
           </DialogHeader>
@@ -1522,33 +1522,33 @@ export default function AttendanceModule({ userProfile }) {
           <form onSubmit={handleSaveSchedule} className="space-y-4 pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Standard Check-In Time</label>
+                <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200">Standard Check-In Time</label>
                 <Input
                   type="time"
                   required
                   value={scheduleForm.checkInTime}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, checkInTime: e.target.value })}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border"
                 />
-                <p className="text-[10px] text-muted-foreground">Clock-in past this is marked Late</p>
+                <p className="text-[10px] text-[#64748B] dark:text-slate-400">Clock-in past this is marked Late</p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Standard Check-Out Time</label>
+                <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200">Standard Check-Out Time</label>
                 <Input
                   type="time"
                   required
                   value={scheduleForm.checkOutTime}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, checkOutTime: e.target.value })}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border"
                 />
-                <p className="text-[10px] text-muted-foreground">End of shift timing</p>
+                <p className="text-[10px] text-[#64748B] dark:text-slate-400">End of shift timing</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Working Hours / Day</label>
+                <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200">Working Hours / Day</label>
                 <Input
                   type="number"
                   min="1"
@@ -1557,41 +1557,41 @@ export default function AttendanceModule({ userProfile }) {
                   required
                   value={scheduleForm.workingHours}
                   onChange={(e) => setScheduleForm({ ...scheduleForm, workingHours: e.target.value })}
-                  className="font-mono text-xs"
+                  className="font-mono text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border"
                 />
-                <p className="text-[10px] text-muted-foreground">Standard daily requirement (e.g. 8h)</p>
+                <p className="text-[10px] text-[#64748B] dark:text-slate-400">Standard daily requirement (e.g. 8h)</p>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold">Working Days / Week</label>
+                <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200">Working Days / Week</label>
                 <Select
                   value={String(scheduleForm.daysPerWeek)}
                   onValueChange={(val) => setScheduleForm({ ...scheduleForm, daysPerWeek: val })}
                 >
-                  <SelectTrigger className="text-xs">
+                  <SelectTrigger className="text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="4">4 Days (Mon - Thu, Fri/Sat/Sun Off)</SelectItem>
-                    <SelectItem value="5">5 Days (Mon - Fri, Sat/Sun Off)</SelectItem>
-                    <SelectItem value="6">6 Days (Mon - Sat, Sun Off)</SelectItem>
-                    <SelectItem value="7">7 Days (Full Week)</SelectItem>
+                  <SelectContent className="bg-white dark:bg-slate-900 text-[#1F2937] dark:text-slate-100 border-border">
+                    <SelectItem value="4" className="text-[#1F2937] dark:text-slate-100">4 Days (Mon - Thu, Fri/Sat/Sun Off)</SelectItem>
+                    <SelectItem value="5" className="text-[#1F2937] dark:text-slate-100">5 Days (Mon - Fri, Sat/Sun Off)</SelectItem>
+                    <SelectItem value="6" className="text-[#1F2937] dark:text-slate-100">6 Days (Mon - Sat, Sun Off)</SelectItem>
+                    <SelectItem value="7" className="text-[#1F2937] dark:text-slate-100">7 Days (Full Week)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-muted-foreground">Normal working days schedule</p>
+                <p className="text-[10px] text-[#64748B] dark:text-slate-400">Normal working days schedule</p>
               </div>
             </div>
 
             {/* Break Time Limits Configuration */}
-            <div className="p-3 bg-muted/30 rounded-xl border border-border/80 space-y-3">
-              <span className="text-xs font-bold text-foreground block">
+            <div className="p-3 bg-slate-50 dark:bg-muted/30 rounded-xl border border-border/80 space-y-3">
+              <span className="text-xs font-bold text-[#1F2937] dark:text-slate-100 block">
                 Break Time Limits & Salary Delay Deductions
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200 flex items-center justify-between">
                     <span>Break Time (Official / Lunch)</span>
-                    <span className="text-teal-600 font-mono text-[11px]">{scheduleForm.breakTime || 60} mins</span>
+                    <span className="text-teal-600 dark:text-teal-400 font-mono text-[11px]">{scheduleForm.breakTime || 60} mins</span>
                   </label>
                   <Input
                     type="number"
@@ -1601,15 +1601,15 @@ export default function AttendanceModule({ userProfile }) {
                     required
                     value={scheduleForm.breakTime}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, breakTime: e.target.value })}
-                    className="font-mono text-xs"
+                    className="font-mono text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border"
                   />
-                  <p className="text-[10px] text-muted-foreground">Standard lunch/meal duration</p>
+                  <p className="text-[10px] text-[#64748B] dark:text-slate-400">Standard lunch/meal duration</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#1F2937] dark:text-slate-200 flex items-center justify-between">
                     <span>Casual Break Time (Tea / Coffee)</span>
-                    <span className="text-teal-600 font-mono text-[11px]">{scheduleForm.casualBreakTime || 15} mins</span>
+                    <span className="text-teal-600 dark:text-teal-400 font-mono text-[11px]">{scheduleForm.casualBreakTime || 15} mins</span>
                   </label>
                   <Input
                     type="number"
@@ -1619,18 +1619,18 @@ export default function AttendanceModule({ userProfile }) {
                     required
                     value={scheduleForm.casualBreakTime}
                     onChange={(e) => setScheduleForm({ ...scheduleForm, casualBreakTime: e.target.value })}
-                    className="font-mono text-xs"
+                    className="font-mono text-xs bg-white dark:bg-background text-[#1F2937] dark:text-slate-100 border-border"
                   />
-                  <p className="text-[10px] text-muted-foreground">Refreshment break limit</p>
+                  <p className="text-[10px] text-[#64748B] dark:text-slate-400">Refreshment break limit</p>
                 </div>
               </div>
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
                 Notice: If an employee exceeds either break limit, their salary is automatically reduced for every minute of delay based on their hourly salary rate.
               </p>
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsScheduleModalOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => setIsScheduleModalOpen(false)} className="text-[#1F2937] dark:text-slate-200 border-border hover:bg-slate-100 dark:hover:bg-slate-800">
                 Cancel
               </Button>
               <Button type="submit" className="bg-teal-600 hover:bg-teal-700 text-white font-semibold">

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, forwardRef } from 'react';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { authFetch, cn, hasUserRole, getUserRoleKey } from '@/lib/utils';
@@ -15,8 +15,10 @@ import {
   Building2, Users, CreditCard, TrendingUp, Settings, ShieldAlert, LogOut, 
   CheckCircle, XCircle, Search, Filter, ShieldCheck, Activity, Database, Plus,
   UserCog, Lock, Mail, User, Shield, Camera, MapPin, Pencil, Trash2, RefreshCw, Phone, Ban, Unlock, Copy, Download, Home, Eye, EyeOff, Sun, Moon,
-  ArrowLeft, ChevronRight, MoreVertical, ArrowLeftRight, AlertTriangle, Calendar
+  ArrowLeft, ChevronRight, MoreVertical, ArrowLeftRight, AlertTriangle, Calendar,
+  Menu, PanelLeftClose, PanelLeftOpen, X
 } from 'lucide-react';
+import { Tooltip as UITooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -49,8 +51,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import Footer from '../components/Footer';
 import CalendarModule from '../components/modules/CalendarModule';
-import { Menu } from 'lucide-react';
 import { SafeAvatar, SafeCompanyLogo } from '../components/SafeAvatar';
+import CompanyProfileDialog from '../components/modules/CompanyProfileDialog';
+import EmployeeProfileDialog from '../components/modules/EmployeeProfileDialog';
 
 // Real-time Calculation and Pricing Helpers
 export const toLocalDateStr = (d) => {
@@ -77,6 +80,9 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   const [loginForm, setLoginForm] = useState({ id: 'Vyshwa', password: 'admin123' });
   const [showSaPassword, setShowSaPassword] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const isSidebarExpanded = sidebarHovered || sidebarPinned;
   const [profileData, setProfileData] = useState({
     userId: '',
     name: '',
@@ -93,6 +99,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   const [dbAttendance, setDbAttendance] = useState([]);
   const [dbTasks, setDbTasks] = useState([]);
   const [dbMessages, setDbMessages] = useState([]);
+  const [dbProjects, setDbProjects] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Restore session on page load / refresh
@@ -143,12 +150,13 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   const fetchRealData = async () => {
     setIsLoading(true);
     try {
-      const [uResp, cResp, aResp, tResp, mResp] = await Promise.all([
+      const [uResp, cResp, aResp, tResp, mResp, pResp] = await Promise.all([
         authFetch('/api/users').catch(() => null),
         authFetch('/api/company').catch(() => null),
         authFetch('/api/attendance').catch(() => null),
         authFetch('/api/tasks').catch(() => null),
         authFetch('/api/messages').catch(() => null),
+        authFetch('/api/projects').catch(() => null),
       ]);
       if (uResp && uResp.ok) setDbUsers(await uResp.json());
       if (cResp && cResp.ok) {
@@ -167,6 +175,10 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
       if (mResp && mResp.ok) {
         const mData = await mResp.json();
         setDbMessages(Array.isArray(mData) ? mData : []);
+      }
+      if (pResp && pResp.ok) {
+        const pData = await pResp.json();
+        setDbProjects(pData.projects || pData.data || (Array.isArray(pData) ? pData : []));
       }
     } catch (e) {
       console.error("Failed to fetch dashboard data", e);
@@ -386,30 +398,81 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   }
 
   return (
-    <div className="super-admin-layout min-h-screen bg-background font-sans text-foreground flex overflow-hidden transition-colors duration-300">
-      {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex w-72 border-r border-border bg-card/95 backdrop-blur-md flex-col pt-7 shrink-0 transition-colors">
-        <div className="px-6 mb-7 flex items-center gap-3">
-          <div className="bg-primary/10 border border-primary/25 p-2 rounded-xl text-primary flex items-center justify-center shadow-xs">
-            <ShieldCheck className="w-5 h-5" />
+    <div className="super-admin-layout min-h-screen bg-background font-sans text-foreground flex overflow-x-hidden transition-colors duration-300">
+      {/* Sidebar - Desktop (Muted Teal Enterprise SaaS Design) */}
+      <aside
+        onMouseEnter={() => setSidebarHovered(true)}
+        onMouseLeave={() => setSidebarHovered(false)}
+        className={cn(
+          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-20 border-r",
+          "transition-[width] duration-300 ease-in-out overflow-x-hidden",
+          "bg-[#FFFFFF] dark:bg-[#0D2028] border-[#D5E5D7] dark:border-[#203A42]",
+          isSidebarExpanded
+            ? "w-[260px] shadow-sm"
+            : "w-20"
+        )}
+        aria-label="Super Admin sidebar navigation"
+      >
+        {/* Brand Logo & Header */}
+        <div className={cn(
+          "h-16 flex items-center border-b border-[#D5E5D7] dark:border-[#203A42] bg-[#F8FAF9] dark:bg-[#10252D] transition-all duration-300 px-3",
+          isSidebarExpanded ? "justify-between" : "justify-center"
+        )}>
+          <div
+            className={cn(
+              "flex items-center gap-2.5 cursor-pointer overflow-hidden transition-all duration-300",
+              isSidebarExpanded ? "px-1" : "justify-center"
+            )}
+            onClick={() => setActiveTab('dashboard')}
+            title="ReGen Central"
+          >
+            <div className="w-8 h-8 rounded-xl bg-teal-500/10 dark:bg-[#142E35] text-teal-600 dark:text-[#45CFC0] flex items-center justify-center font-bold text-sm shrink-0 border border-teal-500/30 dark:border-[#203A42] shadow-xs">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className={cn(
+              "flex flex-col transition-all duration-300 overflow-hidden whitespace-nowrap",
+              isSidebarExpanded ? "opacity-100 max-w-[150px]" : "opacity-0 max-w-0 pointer-events-none hidden"
+            )}>
+              <span className="text-base font-bold tracking-tight text-foreground dark:text-white truncate leading-none">
+                ReGen Central
+              </span>
+              <span className="text-[10px] text-muted-foreground/80 dark:text-[#A8BAC3]/80 uppercase tracking-widest font-semibold mt-1">
+                Platform Control
+              </span>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-base tracking-tight text-foreground leading-none">ReGen Central</h1>
-            <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
-          </div>
+
+          {/* Pin / Collapse Toggle button for touch/tablet & desktop convenience */}
+          {isSidebarExpanded && (
+            <button
+              type="button"
+              onClick={() => setSidebarPinned(prev => !prev)}
+              className={cn(
+                "p-1.5 rounded-lg text-muted-foreground hover:text-foreground dark:text-[#A8BAC3] dark:hover:text-[#45CFC0] hover:bg-secondary/80 dark:hover:bg-[#142E35] transition-colors cursor-pointer",
+                sidebarPinned && "text-teal-600 dark:text-[#45CFC0] bg-teal-500/10 dark:bg-[#123A3C]"
+              )}
+              title={sidebarPinned ? "Unpin sidebar (collapse on mouse leave)" : "Pin sidebar expanded"}
+              aria-label={sidebarPinned ? "Unpin sidebar" : "Pin sidebar expanded"}
+              aria-pressed={sidebarPinned}
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        <nav className="flex-1 px-4 space-y-1">
-          <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
-          <SidebarItem active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
-          <SidebarItem active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
-          <SidebarItem active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
-          <SidebarItem active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
-          <SidebarItem active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
-          <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
-          <div className="pt-3 mt-3 border-t border-border/80 space-y-1">
-            <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
-            <SidebarItem active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
+        {/* Sidebar Nav Items */}
+        <nav className="flex-1 px-2.5 py-4 space-y-1.5 overflow-y-auto overflow-x-hidden">
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'companies'} icon={Building2} label="Companies" onClick={() => setActiveTab('companies')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'users'} icon={Users} label="Global Users" onClick={() => setActiveTab('users')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'calendar'} icon={Calendar} label="Calendar" onClick={() => setActiveTab('calendar')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'payments'} icon={CreditCard} label="Payments" onClick={() => setActiveTab('payments')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'analytics'} icon={TrendingUp} label="Analytics" onClick={() => setActiveTab('analytics')} />
+          <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
+          
+          <div className="pt-3 mt-3 border-t border-[#D5E5D7] dark:border-[#203A42] space-y-1.5">
+            <SidebarItem isSidebarExpanded={isSidebarExpanded} active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
+            <SidebarItem isSidebarExpanded={isSidebarExpanded} active={false} icon={Home} label="Switch to EMS App" onClick={async () => {
               try {
                 const resp = await authFetch('/api/auth/switch-to-ems', { method: 'POST' });
                 if (resp.ok) {
@@ -430,6 +493,20 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
           </div>
         </nav>
 
+        {/* Collapsed bottom expand toggle for touch/tablet */}
+        {!isSidebarExpanded && (
+          <div className="p-2.5 border-t border-[#D5E5D7] dark:border-[#203A42] flex justify-center">
+            <button
+              type="button"
+              onClick={() => setSidebarPinned(true)}
+              className="w-10 h-9 flex items-center justify-center rounded-xl text-muted-foreground hover:text-foreground dark:text-[#A8BAC3] dark:hover:text-[#45CFC0] hover:bg-secondary/80 dark:hover:bg-[#142E35] transition-colors cursor-pointer"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+            >
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main Content Area */}
@@ -443,17 +520,17 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                     <Menu className="w-5 h-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-card border-r-border p-0 flex flex-col">
-                  <div className="px-6 py-6 mb-2 flex items-center gap-3 border-b border-border">
-                    <div className="bg-primary/10 border border-primary/25 p-2 rounded-xl text-primary">
+                <SheetContent side="left" className="w-[85vw] max-w-xs sm:w-72 bg-[#FFFFFF] dark:bg-[#0D2028] border-r-[#D5E5D7] dark:border-r-[#203A42] p-0 flex flex-col">
+                  <div className="px-6 py-5 mb-2 flex items-center gap-3 border-b border-[#D5E5D7] dark:border-[#203A42] bg-[#F8FAF9] dark:bg-[#10252D]">
+                    <div className="w-8 h-8 rounded-xl bg-teal-500/10 dark:bg-[#142E35] text-teal-600 dark:text-[#45CFC0] flex items-center justify-center font-bold text-sm shrink-0 border border-teal-500/30 dark:border-[#203A42] shadow-xs">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h1 className="font-bold text-base tracking-tight text-foreground leading-none">ReGen Central</h1>
-                      <p className="text-[10px] text-muted-foreground/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
+                      <h1 className="font-bold text-base tracking-tight text-foreground dark:text-white leading-none">ReGen Central</h1>
+                      <p className="text-[10px] text-muted-foreground/80 dark:text-[#A8BAC3]/80 uppercase tracking-widest font-semibold mt-1">Platform Control</p>
                     </div>
                   </div>
-                  <nav className="flex-1 px-4 space-y-1 pt-3">
+                  <nav className="flex-1 px-3 space-y-1.5 pt-3 overflow-y-auto">
                     <SheetClose asChild>
                       <SidebarItem active={activeTab === 'dashboard'} icon={Activity} label="Dashboard" onClick={() => setActiveTab('dashboard')} />
                     </SheetClose>
@@ -475,7 +552,7 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
                     <SheetClose asChild>
                       <SidebarItem active={activeTab === 'system'} icon={Settings} label="System Control" onClick={() => setActiveTab('system')} />
                     </SheetClose>
-                    <div className="pt-3 mt-3 border-t border-border space-y-1">
+                    <div className="pt-3 mt-3 border-t border-[#D5E5D7] dark:border-[#203A42] space-y-1.5">
                       <SheetClose asChild>
                         <SidebarItem active={activeTab === 'profile'} icon={UserCog} label="Account Profile" onClick={() => setActiveTab('profile')} />
                       </SheetClose>
@@ -649,6 +726,10 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
               dbAttendance={dbAttendance} 
               dbTasks={dbTasks} 
               dbMessages={dbMessages}
+              dbProjects={dbProjects}
+              profileData={profileData}
+              onNavigate={setActiveTab}
+              setGlobalSearchTerm={setSearchTerm}
             />
           )}
           {activeTab === 'companies' && <TabCompanies dbCompanies={dbCompanies} searchTerm={searchTerm} onRefresh={fetchRealData} />}
@@ -677,26 +758,263 @@ function SuperAdminContent({ isAuthenticated, setIsAuthenticated }) {
   );
 }
 
-function SidebarItem({ active, icon: Icon, label, onClick }) {
-  return (
+const SidebarItem = forwardRef(function SidebarItem({ active, icon: Icon, label, onClick, isSidebarExpanded = true, ...props }, ref) {
+  const button = (
     <button 
+      ref={ref}
+      type="button"
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 text-left select-none cursor-pointer ${
+      {...props}
+      className={cn(
+        "w-full h-11 flex items-center rounded-xl text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/40 select-none cursor-pointer border relative group",
+        isSidebarExpanded ? "px-3.5 gap-3.5" : "justify-center px-0",
         active 
-          ? 'bg-teal-500/10 text-teal-600 dark:text-teal-400 font-semibold border border-teal-500/25 shadow-2xs' 
-          : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground font-medium'
-      }`}
+          ? "bg-[#DDF1E2] dark:bg-[#123A3C] text-[#087A57] dark:text-[#45CFC0] font-semibold border-[rgba(8,122,87,0.35)] dark:border-[#176B68]" 
+          : "text-[#40574A] dark:text-[#B6C4CC] border-transparent hover:bg-[#E3F1E5] dark:hover:bg-[#142E35] hover:text-[#087A57] dark:hover:text-[#45CFC0]"
+      )}
+      aria-current={active ? 'page' : undefined}
     >
-      <Icon className={`w-4 h-4 shrink-0 transition-colors ${active ? 'text-teal-600 dark:text-teal-400' : 'text-muted-foreground'}`} />
-      <span className="truncate">{label}</span>
+      {/* Narrow Vertical Active Indicator */}
+      {active && (
+        <span className="absolute left-1 top-2.5 bottom-2.5 w-1 rounded-full bg-[#087A57] dark:bg-[#36BEB0]" />
+      )}
+
+      {/* Navigation Icon */}
+      <Icon 
+        className={cn(
+          "w-5 h-5 shrink-0 transition-colors duration-150",
+          active 
+            ? "text-[#087A57] dark:text-[#45CFC0]" 
+            : "text-[#40574A] dark:text-[#A8BAC3] group-hover:text-[#087A57] dark:group-hover:text-[#45CFC0]"
+        )} 
+      />
+
+      {/* Navigation Label */}
+      <span 
+        className={cn(
+          "truncate whitespace-nowrap transition-all duration-300",
+          isSidebarExpanded 
+            ? "opacity-100 max-w-[170px]" 
+            : "opacity-0 max-w-0 pointer-events-none hidden"
+        )}
+      >
+        {label}
+      </span>
     </button>
   );
-}
+
+  if (!isSidebarExpanded) {
+    return (
+      <UITooltip delayDuration={50}>
+        <TooltipTrigger asChild>
+          {button}
+        </TooltipTrigger>
+        <TooltipContent
+          side="right"
+          sideOffset={14}
+          className="bg-[#0D2028] dark:bg-[#0D2028] text-[#B6C4CC] border border-[#203A42] shadow-md text-xs font-medium px-2.5 py-1 rounded-md z-50"
+        >
+          {label}
+        </TooltipContent>
+      </UITooltip>
+    );
+  }
+
+  return button;
+});
 
 // --- TAB COMPONENTS ---
 
-function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTasks = [], dbMessages = [] }) {
+function TabDashboard({ 
+  dbUsers = [], 
+  dbCompanies = [], 
+  dbAttendance = [], 
+  dbTasks = [], 
+  dbMessages = [],
+  dbProjects = [],
+  profileData,
+  onNavigate,
+  setGlobalSearchTerm
+}) {
   const activeCount = dbUsers.filter(u => u.status === 'active').length;
+
+  // Selected entities for comprehensive detailed profiles
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+  // Compact welcome banner search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Helper to extract clean ID strings
+  const toCleanIdText = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val.toText) return val.toText();
+    if (val._id) return String(val._id);
+    if (val.id) return toCleanIdText(val.id);
+    return String(val);
+  };
+
+  const formatRoleText = (role) => {
+    if (!role) return 'User';
+    if (typeof role === 'string') return role;
+    if (typeof role === 'object') {
+      const keys = Object.keys(role);
+      return keys.length > 0 ? (keys[0].charAt(0).toUpperCase() + keys[0].slice(1)) : 'User';
+    }
+    return String(role);
+  };
+
+  const formatStatusText = (status) => {
+    if (!status) return 'Active';
+    if (typeof status === 'string') return status;
+    if (typeof status === 'object') {
+      const keys = Object.keys(status);
+      return keys.length > 0 ? (keys[0].charAt(0).toUpperCase() + keys[0].slice(1)) : 'Active';
+    }
+    return String(status);
+  };
+
+  // Helper to compute actual company metrics (total employees and department count)
+  const getCompanyMetrics = (company) => {
+    if (!company) return { totalEmployees: 0, departmentCount: 0 };
+    const cId = String(company.companyId || company._id || '').toLowerCase();
+    const cName = String(company.name || '').toLowerCase();
+    const companyEmployees = dbUsers.filter(u => {
+      const uCompId = String(u.companyId || '').toLowerCase();
+      const uCompName = String(u.company || u.companyName || '').toLowerCase();
+      return (cId && uCompId === cId) ||
+             (cName && uCompName === cName) ||
+             (cId && uCompName === cId);
+    });
+    const totalEmployees = companyEmployees.length;
+    const depts = new Set();
+    companyEmployees.forEach(u => {
+      if (u.department && typeof u.department === 'string' && u.department.trim()) {
+        depts.add(u.department.trim());
+      }
+    });
+    if (Array.isArray(company.departments)) {
+      company.departments.forEach(d => {
+        const dName = typeof d === 'string' ? d : d?.name;
+        if (dName && dName.trim()) depts.add(dName.trim());
+      });
+    }
+    const departmentCount = depts.size;
+    return { totalEmployees, departmentCount };
+  };
+
+  // Matching companies by name, company ID, industry, or owner
+  const matchingCompanies = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return dbCompanies.filter(c => {
+      const name = String(c.name || '').toLowerCase();
+      const cid = String(c.companyId || c._id || '').toLowerCase();
+      const ind = String(c.industry || '').toLowerCase();
+      const owner = String(c.ownerName || c.owner || '').toLowerCase();
+      return name.includes(q) || cid.includes(q) || ind.includes(q) || owner.includes(q);
+    }).slice(0, 5);
+  }, [dbCompanies, searchQuery]);
+
+  // Matching employees by full name, username, employee ID, user ID, email, department, designation, or company
+  const matchingUsers = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return dbUsers.filter(u => {
+      const name = String(u.name || '').toLowerCase();
+      const uname = String(u.username || '').toLowerCase();
+      const comp = String(u.companyName || u.company || u.companyId || '').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const uid = toCleanIdText(u.employeeId || u.userId || u._id || u.id || '').toLowerCase();
+      const dept = String(u.department || '').toLowerCase();
+      const desig = String(u.designation || '').toLowerCase();
+      return name.includes(q) || uname.includes(q) || comp.includes(q) || email.includes(q) || uid.includes(q) || dept.includes(q) || desig.includes(q);
+    }).slice(0, 6);
+  }, [dbUsers, searchQuery]);
+
+  // Quick navigation modules
+  const matchingModules = useMemo(() => {
+    const modules = [
+      { id: 'companies', label: 'Company Management', desc: 'Registered tenant organizations & plans', icon: Building2 },
+      { id: 'users', label: 'Employees & Users', desc: 'Global workforce, staff & system accounts', icon: Users },
+      { id: 'calendar', label: 'Attendance & Time Logs', desc: 'Master schedules, holidays & attendance logs', icon: Calendar },
+      { id: 'analytics', label: 'Analytics & Audit Reports', desc: 'Platform performance & growth insights', icon: TrendingUp },
+    ];
+    if (!searchQuery.trim()) return modules;
+    const q = searchQuery.trim().toLowerCase();
+    return modules.filter(m => m.label.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)).slice(0, 4);
+  }, [searchQuery]);
+
+  // Flattened array for unified keyboard navigation
+  const flattenedResults = useMemo(() => {
+    const list = [];
+    matchingCompanies.forEach(c => list.push({ type: 'company', data: c }));
+    matchingUsers.forEach(u => list.push({ type: 'employee', data: u }));
+    matchingModules.forEach(m => list.push({ type: 'module', data: m }));
+    return list;
+  }, [matchingCompanies, matchingUsers, matchingModules]);
+
+  // Reset highlighted index when query changes
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [searchQuery]);
+
+  const selectResult = (item) => {
+    if (!item) return;
+    if (item.type === 'company') {
+      setSelectedCompany(item.data);
+      setSearchOpen(false);
+    } else if (item.type === 'employee') {
+      setSelectedEmployee(item.data);
+      setSearchOpen(false);
+    } else if (item.type === 'module') {
+      if (onNavigate) onNavigate(item.data.id);
+      setSearchOpen(false);
+      setSearchQuery('');
+    }
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setSearchOpen(false);
+      setHighlightedIndex(-1);
+      return;
+    }
+    if (!searchOpen || flattenedResults.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev < flattenedResults.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev > 0 ? prev - 1 : flattenedResults.length - 1));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedIndex >= 0 && highlightedIndex < flattenedResults.length) {
+        selectResult(flattenedResults[highlightedIndex]);
+      } else if (flattenedResults.length > 0) {
+        selectResult(flattenedResults[0]);
+      }
+    }
+  };
+
+  const hasSearchResults = matchingCompanies.length > 0 || matchingUsers.length > 0 || matchingModules.length > 0;
+  const currentYear = new Date().getFullYear();
 
   // Dynamic Revenue Trends based on active user usage and company subscriptions over the past 6 months
   const revenueTrendsData = useMemo(() => {
@@ -835,7 +1153,273 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
   const trendSign = currentGrowth >= 0 ? '+' : '';
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Super Admin: Compact Welcome Box with Integrated Search Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] px-5 sm:px-6 py-4 rounded-2xl shadow-xs transition-all relative">
+        {/* Left: Welcome heading and description */}
+        <div className="min-w-0 pr-2">
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground leading-tight truncate">
+            Welcome back, Super Admin!
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1 font-normal leading-normal">
+            Platform operations and workforce analytics for year {currentYear}.
+          </p>
+        </div>
+
+        {/* Center / Right: Search bar, Year badge, and Live status badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Search input container */}
+          <div ref={searchContainerRef} className="relative w-full sm:w-80 md:w-96 lg:w-[380px] xl:w-[420px]">
+            <div className="h-10 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
+              <Search className="w-4 h-4 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={handleSearchKeyDown}
+                placeholder="Search company or employee by name/ID..."
+                className="w-full bg-transparent px-2.5 text-xs text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchOpen(false);
+                    setHighlightedIndex(-1);
+                  }}
+                  className="mr-2.5 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Search results dropdown */}
+            {searchOpen && searchQuery.trim().length > 0 && (
+              <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[480px] md:w-[520px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150 max-h-[500px] overflow-y-auto">
+                {/* 1. MATCHING COMPANIES SECTION */}
+                {matchingCompanies.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D] flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Building2 className="w-3.5 h-3.5 text-teal-600 dark:text-[#45CFC0]" />
+                        Companies ({matchingCompanies.length})
+                      </span>
+                      <span className="text-[10px] text-muted-foreground dark:text-[#688A84]">Select to view company 360° profile</span>
+                    </div>
+                    <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                      {matchingCompanies.map((c, idx) => {
+                        const globalIndex = idx;
+                        const isHighlighted = highlightedIndex === globalIndex;
+                        const cKey = toCleanIdText(c.companyId || c._id || c.name);
+                        const cStatus = formatStatusText(c.status);
+                        const metrics = getCompanyMetrics(c);
+                        return (
+                          <button
+                            key={cKey}
+                            type="button"
+                            onClick={() => selectResult({ type: 'company', data: c })}
+                            className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors group cursor-pointer ${
+                              isHighlighted 
+                                ? 'bg-teal-500/15 dark:bg-[#123A3C] border-l-2 border-teal-500 dark:border-[#36BEB0]' 
+                                : 'hover:bg-secondary/50 dark:hover:bg-[#142E35]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 pr-2">
+                              <SafeCompanyLogo 
+                                src={c.logo} 
+                                name={c.name} 
+                                className="w-9 h-9 rounded-xl shrink-0 border border-teal-500/20 bg-teal-500/10 text-teal-600 dark:text-[#45CFC0]" 
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs font-bold text-foreground dark:text-[#E8F0F4] group-hover:text-primary dark:group-hover:text-[#45CFC0] transition-colors truncate">
+                                    {c.name}
+                                  </p>
+                                  <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-secondary/80 dark:bg-[#10252D] text-muted-foreground dark:text-[#A8BAC3] border border-border/40">
+                                    ID: {toCleanIdText(c.companyId || c._id)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground dark:text-[#A8BAC3]/70">
+                                  <span className="truncate">{c.industry || 'Enterprise'}</span>
+                                  <span>•</span>
+                                  <span className="font-medium text-foreground/80 dark:text-[#C5D5DC]">
+                                    {metrics.totalEmployees} {metrics.totalEmployees === 1 ? 'employee' : 'employees'}
+                                  </span>
+                                  {metrics.departmentCount > 0 && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{metrics.departmentCount} depts</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 capitalize border ${
+                              cStatus.toLowerCase() === 'active'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                : 'bg-muted text-muted-foreground border-border'
+                            }`}>
+                              {cStatus}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. MATCHING EMPLOYEES SECTION */}
+                {matchingUsers.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D] flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-teal-600 dark:text-[#45CFC0]" />
+                        Employees ({matchingUsers.length})
+                      </span>
+                      <span className="text-[10px] text-muted-foreground dark:text-[#688A84]">Select to view employee 360° profile</span>
+                    </div>
+                    <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                      {matchingUsers.map((u, idx) => {
+                        const globalIndex = matchingCompanies.length + idx;
+                        const isHighlighted = highlightedIndex === globalIndex;
+                        const uKey = toCleanIdText(u.userId || u.employeeId || u._id || u.username);
+                        const uStatus = formatStatusText(u.status);
+                        const empId = toCleanIdText(u.employeeId || u.userId || u._id);
+                        return (
+                          <button
+                            key={uKey}
+                            type="button"
+                            onClick={() => selectResult({ type: 'employee', data: u })}
+                            className={`w-full px-4 py-3 flex items-center justify-between text-left transition-colors group cursor-pointer ${
+                              isHighlighted 
+                                ? 'bg-teal-500/15 dark:bg-[#123A3C] border-l-2 border-teal-500 dark:border-[#36BEB0]' 
+                                : 'hover:bg-secondary/50 dark:hover:bg-[#142E35]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 min-w-0 pr-2">
+                              <SafeAvatar 
+                                src={u.avatar} 
+                                name={u.name || u.username} 
+                                className="w-9 h-9 rounded-full shrink-0 border border-teal-500/20" 
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-xs font-bold text-foreground dark:text-[#E8F0F4] group-hover:text-primary dark:group-hover:text-[#45CFC0] transition-colors truncate">
+                                    {u.name || u.username}
+                                  </p>
+                                  {empId && (
+                                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-secondary/80 dark:bg-[#10252D] text-muted-foreground dark:text-[#A8BAC3] border border-border/40">
+                                      ID: {empId}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground dark:text-[#A8BAC3]/70 truncate">
+                                  <span>{u.designation || 'Staff Member'}</span>
+                                  <span>•</span>
+                                  <span className="font-medium text-foreground/80 dark:text-[#C5D5DC]">
+                                    {u.department || 'General'}
+                                  </span>
+                                  {(u.companyName || u.company) && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-teal-600 dark:text-[#45CFC0] truncate">
+                                        {u.companyName || u.company}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 capitalize border ${
+                              uStatus.toLowerCase() === 'active'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                : 'bg-muted text-muted-foreground border-border'
+                            }`}>
+                              {uStatus}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. QUICK NAVIGATION SECTION */}
+                {matchingModules.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D]">
+                      Quick Navigation
+                    </div>
+                    <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                      {matchingModules.map((m, idx) => {
+                        const globalIndex = matchingCompanies.length + matchingUsers.length + idx;
+                        const isHighlighted = highlightedIndex === globalIndex;
+                        const Icon = m.icon || ChevronRight;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => selectResult({ type: 'module', data: m })}
+                            className={`w-full px-4 py-2.5 flex items-center justify-between text-left transition-colors group cursor-pointer text-xs ${
+                              isHighlighted 
+                                ? 'bg-teal-500/15 dark:bg-[#123A3C] border-l-2 border-teal-500 dark:border-[#36BEB0]' 
+                                : 'hover:bg-secondary/50 dark:hover:bg-[#142E35]'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-6 h-6 rounded-lg bg-teal-500/10 text-teal-600 dark:text-[#45CFC0] flex items-center justify-center shrink-0">
+                                <Icon className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="font-semibold text-foreground dark:text-[#E8F0F4] group-hover:text-primary dark:group-hover:text-[#45CFC0] transition-colors truncate">
+                                {m.label}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground dark:text-[#A8BAC3] shrink-0 truncate ml-2">
+                              {m.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* EMPTY STATE */}
+                {!hasSearchResults && (
+                  <div className="p-6 text-center text-xs text-muted-foreground dark:text-[#A8BAC3]">
+                    <Search className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40 dark:text-[#688A84]" />
+                    <p className="font-semibold text-foreground dark:text-[#E8F0F4]">
+                      No matching companies or employees found for "{searchQuery}"
+                    </p>
+                    <p className="text-[11px] text-muted-foreground/70 dark:text-[#A8BAC3]/70 mt-1">
+                      Try searching by company name, company ID, employee name, or employee ID
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-2xs">
+              <Calendar className="w-3.5 h-3.5" />
+              Year: {currentYear}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Live
+            </span>
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard title="Total Companies" value={dbCompanies.length} icon={Building2} trend={`${dbCompanies.filter(c => c.status === 'active').length} Active`} color="emerald" />
         <StatCard title="Active Users" value={activeCount} icon={Users} trend={`Total ${dbUsers.length} Registered`} color="blue" />
@@ -951,6 +1535,35 @@ function TabDashboard({ dbUsers = [], dbCompanies = [], dbAttendance = [], dbTas
           </CardContent>
         </Card>
       </div>
+
+      {/* 360° Company Profile Modal */}
+      {selectedCompany && (
+        <CompanyProfileDialog
+          company={selectedCompany}
+          open={!!selectedCompany}
+          onClose={() => setSelectedCompany(null)}
+          allUsers={dbUsers}
+          allAttendance={dbAttendance}
+          allTasks={dbTasks}
+          allProjects={dbProjects}
+          onSelectEmployee={(emp) => {
+            setSelectedEmployee(emp);
+          }}
+        />
+      )}
+
+      {/* 360° Employee Profile Modal */}
+      {selectedEmployee && (
+        <EmployeeProfileDialog
+          employee={selectedEmployee}
+          open={!!selectedEmployee}
+          onClose={() => setSelectedEmployee(null)}
+          userProfile={profileData}
+          allAttendance={dbAttendance}
+          allTasks={dbTasks}
+          allProjects={dbProjects}
+        />
+      )}
     </div>
   );
 }

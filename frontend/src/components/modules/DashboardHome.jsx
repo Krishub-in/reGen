@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { useQueryClient } from '@tanstack/react-query';
 import { 
@@ -15,7 +15,7 @@ import {
 import { useCustomAuth } from '../../hooks/useCustomAuth';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 import { 
-  Users, Building2, UserCheck, Search, CheckCircle2, ArrowUpRight, Calendar,
+  Users, Building2, UserCheck, Search, X, CheckCircle2, ArrowUpRight, Calendar,
   Clock, DollarSign, CreditCard, TrendingUp, MoreVertical, FolderKanban, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip 
 } from 'recharts';
 import { SafeAvatar } from '../SafeAvatar';
+import EmployeeProfileDialog from './EmployeeProfileDialog';
 
 export const toLocalDateStr = (d) => {
   if (!d) return '';
@@ -74,6 +75,98 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
   const [empSearch, setEmpSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Compact welcome banner search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
+  const searchContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setSearchOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const toCleanId = (val) => {
+    if (!val) return '';
+    if (typeof val === 'string') return val;
+    if (val.toText) return val.toText();
+    if (val._id) return String(val._id);
+    if (val.id) return toCleanId(val.id);
+    return String(val);
+  };
+
+  const formatRoleText = (role) => {
+    if (!role) return '';
+    if (typeof role === 'string') return role;
+    if (typeof role === 'object') {
+      const keys = Object.keys(role);
+      return keys.length > 0 ? (keys[0].charAt(0).toUpperCase() + keys[0].slice(1)) : '';
+    }
+    return String(role);
+  };
+
+  const formatStatusText = (status, isSuspended) => {
+    if (isSuspended) return 'Inactive';
+    if (!status) return 'Active';
+    if (typeof status === 'string') return status.charAt(0).toUpperCase() + status.slice(1);
+    if (typeof status === 'object') {
+      const keys = Object.keys(status);
+      return keys.length > 0 ? (keys[0].charAt(0).toUpperCase() + keys[0].slice(1)) : 'Active';
+    }
+    return String(status);
+  };
+
+  const matchingEmployees = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    return (users || []).filter(u => {
+      const name = String(u.name || '').toLowerCase();
+      const uname = String(u.username || '').toLowerCase();
+      const staffId = toCleanId(u.StaffId || u.staffId || '').toLowerCase();
+      const userId = toCleanId(u.userId || u.id || '').toLowerCase();
+      const dept = String(u.department || '').toLowerCase();
+      const desig = String(u.designation || '').toLowerCase();
+      return name.includes(q) || uname.includes(q) || staffId.includes(q) || userId.includes(q) || dept.includes(q) || desig.includes(q);
+    }).slice(0, 8);
+  }, [users, searchQuery]);
+
+  const matchingDepartments = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    const allDepts = Array.from(new Set((users || []).map(u => u.department).filter(Boolean)));
+    return allDepts.filter(d => d.toLowerCase().includes(q)).slice(0, 3);
+  }, [users, searchQuery]);
+
+  const matchingModules = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.trim().toLowerCase();
+    const navItems = [
+      { id: 'users', label: 'Employees & Users', desc: 'Directory, roles & departments' },
+      { id: 'attendance', label: 'Attendance & Time Logs', desc: 'Clock-in, breaks & shifts' },
+      { id: 'schedules', label: 'Work Schedules & Tasks', desc: 'Task allocation & shifts' },
+      { id: 'calendar', label: 'Company Calendar & Leaves', desc: 'Holidays, leaves & events' },
+      { id: 'payments', label: 'Payroll & Transactions', desc: 'Salaries, bonuses & history' },
+      { id: 'reports', label: 'Analytics & Audit Reports', desc: 'Exportable logs & summaries' },
+      { id: 'company', label: 'Company Profile & Settings', desc: 'Organization details' },
+    ];
+    return navItems.filter(m => m.label.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q)).slice(0, 3);
+  }, [searchQuery]);
+
+  const hasSearchResults = matchingEmployees.length > 0 || matchingDepartments.length > 0 || matchingModules.length > 0;
 
   const isAdmin = userProfile?.role?.hasOwnProperty('admin') || userProfile?.role === 'admin';
   const isOwner = userProfile?.role?.hasOwnProperty('owner') || userProfile?.role?.hasOwnProperty('param') || userProfile?.role === 'owner' || userProfile?.role === 'param';
@@ -665,30 +758,245 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Welcome Greeting Banner with Year Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card border border-border p-5 sm:p-6 rounded-2xl shadow-xs">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-            Welcome back, {userProfile?.ownerName || userProfile?.name || 'User'}!
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            {isCompanyLogin
-              ? `Company operations and workforce analytics for year ${selectedYear}.`
-              : `Your personal attendance, leave, and payroll records for year ${selectedYear}.`}
-          </p>
+      {isCompanyLogin ? (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 sm:gap-4 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] px-5 sm:px-6 py-4 rounded-2xl shadow-xs transition-all relative">
+          {/* Left: Welcome heading and description */}
+          <div className="min-w-0 pr-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-foreground leading-tight truncate">
+              Welcome back, {companyInfo?.name || userProfile?.ownerName || userProfile?.name || 'User'}!
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1 font-normal leading-normal">
+              Company operations and workforce analytics for year {selectedYear}.
+            </p>
+          </div>
+
+          {/* Center / Right: Search bar, Year badge, and Live status badge */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 shrink-0">
+            {/* Search input container */}
+            <div ref={searchContainerRef} className="relative w-full sm:w-72 md:w-80 lg:w-[320px] xl:w-[360px]">
+              <div className="h-10 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
+                <Search className="w-4 h-4 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSearchOpen(true);
+                    setActiveSearchIndex(-1);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setSearchOpen(true);
+                      setActiveSearchIndex(prev => (prev < matchingEmployees.length - 1 ? prev + 1 : 0));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSearchOpen(true);
+                      setActiveSearchIndex(prev => (prev > 0 ? prev - 1 : matchingEmployees.length - 1));
+                    } else if (e.key === 'Enter') {
+                      if (activeSearchIndex >= 0 && matchingEmployees[activeSearchIndex]) {
+                        e.preventDefault();
+                        setSelectedEmployee(matchingEmployees[activeSearchIndex]);
+                        setSearchOpen(false);
+                        setSearchQuery('');
+                      }
+                    } else if (e.key === 'Escape') {
+                      setSearchOpen(false);
+                    }
+                  }}
+                  onFocus={() => setSearchOpen(true)}
+                  placeholder="Search by employee name, ID, department..."
+                  className="w-full bg-transparent px-2.5 text-xs text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchOpen(false);
+                      setActiveSearchIndex(-1);
+                    }}
+                    className="mr-2.5 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Search results dropdown */}
+              {searchOpen && searchQuery.trim().length > 0 && (
+                <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[420px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150">
+                  {matchingEmployees.length > 0 && (
+                    <div>
+                      <div className="px-3.5 py-1.5 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D] flex items-center justify-between">
+                        <span>Employees ({matchingEmployees.length})</span>
+                        <span className="text-[9px] font-normal lowercase opacity-70">Click to view 360° profile</span>
+                      </div>
+                      <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                        {matchingEmployees.map((emp, idx) => {
+                          const empId = toCleanId(emp.StaffId || emp.staffId || emp.userId || emp.id);
+                          const isHighlighted = activeSearchIndex === idx;
+                          const isSuspended = Boolean(emp.isSuspended || (typeof emp.status === 'string' && emp.status.toLowerCase() === 'inactive'));
+                          const statusLabel = formatStatusText(emp.status, isSuspended);
+                          const roleDisplay = emp.designation || formatRoleText(emp.role) || 'Staff';
+                          const empKey = toCleanId(emp.userId || emp.id || emp.username) || `emp-${idx}`;
+
+                          return (
+                            <button
+                              key={empKey}
+                              type="button"
+                              onClick={() => {
+                                setSelectedEmployee(emp);
+                                setSearchOpen(false);
+                                setSearchQuery('');
+                              }}
+                              className={cn(
+                                "w-full px-3.5 py-2.5 flex items-center justify-between text-left transition-colors group cursor-pointer",
+                                isHighlighted ? "bg-secondary/80 dark:bg-[#142E35]" : "hover:bg-secondary/50 dark:hover:bg-[#142E35]"
+                              )}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <SafeAvatar src={emp.avatar} name={emp.name} className="w-8 h-8 rounded-full shrink-0 border border-border/40" />
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-semibold text-foreground dark:text-[#E8F0F4] group-hover:text-primary dark:group-hover:text-[#45CFC0] transition-colors truncate">
+                                      {emp.name || emp.username}
+                                    </p>
+                                    {empId && (
+                                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-primary/10 text-primary dark:text-[#45CFC0] border border-primary/20 shrink-0">
+                                        ID: {empId}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-muted-foreground dark:text-[#A8BAC3]/70 truncate mt-0.5">
+                                    {roleDisplay} {emp.department ? `• ${emp.department}` : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <span
+                                className={cn(
+                                  "text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 capitalize",
+                                  isSuspended
+                                    ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                                )}
+                              >
+                                {statusLabel}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {matchingDepartments.length > 0 && (
+                    <div>
+                      <div className="px-3.5 py-1.5 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D]">
+                        Departments
+                      </div>
+                      <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                        {matchingDepartments.map((dept) => (
+                          <button
+                            key={dept}
+                            type="button"
+                            onClick={() => {
+                              onNavigate('users');
+                              setSearchOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className="w-full px-3.5 py-2 flex items-center justify-between text-left hover:bg-secondary/50 dark:hover:bg-[#142E35] transition-colors group cursor-pointer text-xs"
+                          >
+                            <div className="flex items-center gap-2 text-foreground dark:text-[#E8F0F4] font-medium">
+                              <Building2 className="w-3.5 h-3.5 text-primary dark:text-[#45CFC0]" />
+                              <span>{dept}</span>
+                            </div>
+                            <span className="text-[11px] text-muted-foreground dark:text-[#A8BAC3]">View Department →</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {matchingModules.length > 0 && (
+                    <div>
+                      <div className="px-3.5 py-1.5 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D]">
+                        Quick Navigation
+                      </div>
+                      <div className="divide-y divide-border/40 dark:divide-[#203A42]/40">
+                        {matchingModules.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => {
+                              onNavigate(m.id);
+                              setSearchOpen(false);
+                              setSearchQuery('');
+                            }}
+                            className="w-full px-3.5 py-2 flex items-center justify-between text-left hover:bg-secondary/50 dark:hover:bg-[#142E35] transition-colors group cursor-pointer text-xs"
+                          >
+                            <span className="font-semibold text-foreground dark:text-[#E8F0F4] group-hover:text-primary dark:group-hover:text-[#45CFC0] transition-colors">
+                              {m.label}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground dark:text-[#A8BAC3]">{m.desc}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {!hasSearchResults && (
+                    <div className="p-5 text-center text-xs text-muted-foreground dark:text-[#A8BAC3]">
+                      <Search className="w-5 h-5 mx-auto mb-2 text-muted-foreground/40 dark:text-[#688A84]" />
+                      <p>No results found for <span className="font-semibold text-foreground dark:text-[#E8F0F4]">"{searchQuery}"</span></p>
+                      <p className="text-[11px] text-muted-foreground/70 dark:text-[#A8BAC3]/70 mt-0.5">Try searching for an employee name, department, or module</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Badges */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-2xs">
+                <Calendar className="w-3.5 h-3.5" />
+                Year: {selectedYear}
+              </span>
+              {isCurrentYear && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-            <Calendar className="w-3.5 h-3.5" />
-            Year: {selectedYear}
-          </span>
-          {isCurrentYear && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live
+      ) : (
+        /* Employee/User Dashboard: Original Welcome Banner Unmodified */
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card border border-border p-5 sm:p-6 rounded-2xl shadow-xs">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
+              Welcome back, {userProfile?.ownerName || userProfile?.name || 'User'}!
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              Your personal attendance, leave, and payroll records for year {selectedYear}.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+              <Calendar className="w-3.5 h-3.5" />
+              Year: {selectedYear}
             </span>
-          )}
+            {isCurrentYear && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 2. Top Stats Cards Grid */}
       {isCompanyLogin ? (
@@ -1428,6 +1736,22 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
           </Card>
         </div>
       )}
+
+      {/* 360 Comprehensive Employee Profile Dialog for Company Admin */}
+      {selectedEmployee && (
+        <EmployeeProfileDialog
+          employee={selectedEmployee}
+          open={!!selectedEmployee}
+          onClose={() => setSelectedEmployee(null)}
+          userProfile={userProfile}
+          selectedYear={selectedYear}
+          allAttendance={allAttendance}
+          allTasks={allTasks}
+          allProjects={allProjects}
+          transactionsData={transactionsData}
+        />
+      )}
     </div>
   );
 }
+

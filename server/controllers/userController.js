@@ -310,6 +310,7 @@ export const getUser = async (req, res) => {
       $or: [
         { userId: targetId },
         { username: targetId },
+        { StaffId: targetId },
         ...(mongoose.isValidObjectId(targetId) ? [{ _id: targetId }] : [])
       ]
     };
