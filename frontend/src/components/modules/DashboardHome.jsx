@@ -770,12 +770,12 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
             </p>
           </div>
 
-          {/* Center / Right: Search bar, Year badge, and Live status badge */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3 shrink-0">
+          {/* Right: Enlarged Search Bar */}
+          <div className="flex items-center shrink-0 w-full lg:w-auto">
             {/* Search input container */}
-            <div ref={searchContainerRef} className="relative w-full sm:w-72 md:w-80 lg:w-[320px] xl:w-[360px]">
-              <div className="h-10 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
-                <Search className="w-4 h-4 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5" />
+            <div ref={searchContainerRef} className="relative w-full sm:w-[420px] md:w-[460px] lg:w-[500px] xl:w-[540px]">
+              <div className="h-11 sm:h-12 flex items-center bg-[#F8FAF9] dark:bg-[#091E24] border border-[#D5E5D7] dark:border-[#203A42] rounded-xl transition-all focus-within:border-[#15966A] dark:focus-within:border-[#36BEB0] focus-within:ring-1 focus-within:ring-[#15966A]/25 dark:focus-within:ring-[#36BEB0]/25 shadow-2xs">
+                <Search className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-muted-foreground dark:text-[#688A84] shrink-0 ml-3.5 sm:ml-4" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -806,7 +806,7 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                   }}
                   onFocus={() => setSearchOpen(true)}
                   placeholder="Search by employee name, ID, department..."
-                  className="w-full bg-transparent px-2.5 text-xs text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium"
+                  className="w-full bg-transparent px-3 text-xs sm:text-sm text-foreground dark:text-[#E8F0F4] placeholder:text-muted-foreground dark:placeholder:text-[#688A84] outline-none font-medium h-full"
                 />
                 {searchQuery && (
                   <button
@@ -816,17 +816,17 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                       setSearchOpen(false);
                       setActiveSearchIndex(-1);
                     }}
-                    className="mr-2.5 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
+                    className="mr-3 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors cursor-pointer"
                     title="Clear search"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-4 h-4" />
                   </button>
                 )}
               </div>
 
               {/* Search results dropdown */}
               {searchOpen && searchQuery.trim().length > 0 && (
-                <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[420px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150">
+                <div className="absolute left-0 right-0 sm:left-auto sm:right-0 sm:w-[480px] md:w-[520px] lg:w-[560px] top-full mt-2 z-50 bg-card dark:bg-[#0D2028] border border-border dark:border-[#203A42] rounded-2xl shadow-2xl overflow-hidden divide-y divide-border/60 dark:divide-[#203A42]/60 animate-in fade-in-0 zoom-in-95 duration-150">
                   {matchingEmployees.length > 0 && (
                     <div>
                       <div className="px-3.5 py-1.5 text-[10px] font-bold text-muted-foreground dark:text-[#A8BAC3] uppercase tracking-wider bg-secondary/30 dark:bg-[#10252D] flex items-center justify-between">
@@ -956,24 +956,10 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
                 </div>
               )}
             </div>
-
-            {/* Badges */}
-            <div className="flex items-center gap-2 shrink-0">
-              <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20 shrink-0 shadow-2xs">
-                <Calendar className="w-3.5 h-3.5" />
-                Year: {selectedYear}
-              </span>
-              {isCurrentYear && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0 shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live
-                </span>
-              )}
-            </div>
           </div>
         </div>
       ) : (
-        /* Employee/User Dashboard: Original Welcome Banner Unmodified */
+        /* Employee/User Dashboard: Clean Welcome Banner */
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-card border border-border p-5 sm:p-6 rounded-2xl shadow-xs">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
@@ -982,18 +968,6 @@ export default function DashboardHome({ userProfile, onNavigate, selectedYear = 
             <p className="text-xs sm:text-sm text-muted-foreground mt-1">
               Your personal attendance, leave, and payroll records for year {selectedYear}.
             </p>
-          </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-              <Calendar className="w-3.5 h-3.5" />
-              Year: {selectedYear}
-            </span>
-            {isCurrentYear && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live
-              </span>
-            )}
           </div>
         </div>
       )}
