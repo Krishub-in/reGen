@@ -263,6 +263,30 @@ export default function Dashboard({ userProfile }) {
             onClick: () => setActiveModule('payments'),
           },
         });
+      } else if (n.type === 'voice_call' || n.type === 'video_call') {
+        toast.info(n.title || 'Incoming Call', {
+          description: n.message,
+          duration: 20000,
+          action: {
+            label: 'Answer',
+            onClick: () => window.dispatchEvent(new CustomEvent('accept-incoming-call', { detail: n })),
+          },
+        });
+      } else if (n.type === 'team_meeting' || n.type?.includes('meeting')) {
+        toast.info(n.title || 'Team Meeting Started', {
+          description: n.message,
+          duration: 20000,
+          action: {
+            label: 'Join Meeting',
+            onClick: () => window.dispatchEvent(new CustomEvent('join-team-meeting', {
+              detail: {
+                meetingId: n.meetingId || n.metadata?.meetingId,
+                title: n.metadata?.title || n.message,
+                mediaType: n.metadata?.mediaType || 'video'
+              }
+            })),
+          },
+        });
       } else {
         toast.info(n.title || 'Notification', {
           description: n.message,

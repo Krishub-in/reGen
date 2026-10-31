@@ -105,6 +105,15 @@ function setupEventListeners(socket) {
     }
   });
 
+  socket.on('meeting:started', (data) => {
+    if (currentQueryClient) {
+      currentQueryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('meeting:started', { detail: data }));
+    }
+  });
+
   // Force logout when company is blocked by SuperAdmin
   socket.on('company:blocked', (payload) => {
     localStorage.removeItem('current_user');

@@ -1113,7 +1113,7 @@ export default function PrivateChatModule({ userProfile }) {
                   className="h-8.5 w-8.5 sm:h-10 sm:w-10 lg:h-11 lg:w-11 text-muted-foreground hover:text-emerald-500 rounded-xl"
                   title="Voice Call"
                   onClick={() => {
-                    const peerId = (peer?._id || peer?.id || peer?.userId || '')?.toString();
+                    const peerId = (peer?.userId || peer?.username || peer?.id || peer?._id || '')?.toString();
                     if (!peerId) return;
                     window.dispatchEvent(
                       new CustomEvent('start-direct-call', {
@@ -1134,7 +1134,7 @@ export default function PrivateChatModule({ userProfile }) {
                   className="h-8.5 w-8.5 sm:h-10 sm:w-10 lg:h-11 lg:w-11 text-muted-foreground hover:text-indigo-500 rounded-xl"
                   title="Video Call"
                   onClick={() => {
-                    const peerId = (peer?._id || peer?.id || peer?.userId || '')?.toString();
+                    const peerId = (peer?.userId || peer?.username || peer?.id || peer?._id || '')?.toString();
                     if (!peerId) return;
                     window.dispatchEvent(
                       new CustomEvent('start-direct-call', {

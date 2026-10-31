@@ -3,7 +3,7 @@ import { getSocket } from '../hooks/useSocket';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Phone, PhoneCall, PhoneOff, Video, VideoOff, Mic, MicOff, Volume2, Users, X, Minimize2, Maximize2, AlertCircle, RotateCw } from 'lucide-react';
+import { Phone, PhoneCall, PhoneOff, Video, VideoOff, Mic, MicOff, Users, AlertCircle, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useUpdateNotificationAction } from '../hooks/useQueries';
 import { getSafeMediaStream, stopMediaStream, parseMediaError } from '../lib/mediaUtils';
@@ -12,8 +12,62 @@ const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
   ],
 };
+
+/** Tile for a remote participant in a Team Meeting */
+function ParticipantTile({ participant }) {
+  const videoRef = useRef(null);
+  const audioRef = useRef(null);
+  const [hasVideoTrack, setHasVideoTrack] = useState(false);
+
+  useEffect(() => {
+    if (participant.stream) {
+      if (videoRef.current) {
+        videoRef.current.srcObject = participant.stream;
+      }
+      if (audioRef.current) {
+        audioRef.current.srcObject = participant.stream;
+      }
+      const vTrack = participant.stream.getVideoTracks()[0];
+      setHasVideoTrack(Boolean(vTrack && vTrack.enabled && vTrack.readyState === 'live'));
+
+      const checkTrack = () => {
+        const vt = participant.stream?.getVideoTracks()[0];
+        setHasVideoTrack(Boolean(vt && vt.enabled && vt.readyState === 'live'));
+      };
+      if (vTrack) {
+        vTrack.onended = checkTrack;
+        vTrack.onmute = checkTrack;
+        vTrack.onunmute = checkTrack;
+      }
+    }
+  }, [participant.stream]);
+
+  return (
+    <div className="relative aspect-video rounded-xl bg-zinc-900 border border-white/10 overflow-hidden flex items-center justify-center">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        className={`w-full h-full object-cover ${hasVideoTrack ? 'block' : 'hidden'}`}
+      />
+      <audio ref={audioRef} autoPlay playsInline />
+      {!hasVideoTrack && (
+        <Avatar className="h-20 w-20">
+          <AvatarFallback className="bg-indigo-600 text-xl font-bold text-white">
+            {(participant.username || 'TM').slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      )}
+      <span className="absolute bottom-3 left-3 text-xs bg-black/60 px-2 py-0.5 rounded font-medium text-white flex items-center gap-1.5 backdrop-blur-xs">
+        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        {participant.username}
+      </span>
+    </div>
+  );
+}
 
 export default function CallManager({ userProfile }) {
   const myId = userProfile?.userId || userProfile?.id || '';
@@ -22,7 +76,7 @@ export default function CallManager({ userProfile }) {
 
   // 1-to-1 Call States: 'idle' | 'incoming' | 'calling' | 'connected'
   const [callState, setCallState] = useState('idle');
-  const [callData, setCallData] = useState(null); // { callId, peerId, peerName, peerAvatar, mediaType, offer }
+  const [callData, setCallData] = useState(null); // { callId, peerId, peerName, peerAvatar, mediaType, offer, notifId }
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -37,18 +91,36 @@ export default function CallManager({ userProfile }) {
   const [meetingMuted, setMeetingMuted] = useState(false);
   const [meetingVideoOff, setMeetingVideoOff] = useState(false);
   const [meetingDuration, setMeetingDuration] = useState(0);
+  const [incomingMeeting, setIncomingMeeting] = useState(null); // { meetingId, title, hostName, mediaType }
 
   // Media & WebRTC Refs
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
   const peerConnectionRef = useRef(null);
-  const meetingPeersRef = useRef({}); // peerId -> RTCPeerConnection
-  const meetingStreamsRef = useRef({}); // peerId -> MediaStream
+  const pendingCandidatesRef = useRef([]);
 
+  // Meeting WebRTC Refs (Mesh Architecture)
+  const meetingPeersRef = useRef({}); // peerUserId -> RTCPeerConnection
+  const meetingStreamsRef = useRef({}); // peerUserId -> MediaStream
+  const pendingMeetingCandidatesRef = useRef({}); // peerUserId -> candidate[]
+
+  // DOM Video Refs
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const meetingLocalVideoRef = useRef(null);
 
-  // Ringtone / Audio cues via Web Audio API (no external sound files required)
+  // Synchronized State Refs to avoid stale closures in socket callbacks
+  const callStateRef = useRef(callState);
+  callStateRef.current = callState;
+  const callDataRef = useRef(callData);
+  callDataRef.current = callData;
+  const meetingStateRef = useRef(meetingState);
+  meetingStateRef.current = meetingState;
+  const meetingDataRef = useRef(meetingData);
+  meetingDataRef.current = meetingData;
+
+  // Ringtone / Audio cues via Web Audio API
   const ringtoneCtxRef = useRef(null);
   const ringtoneIntervalRef = useRef(null);
 
@@ -77,9 +149,7 @@ export default function CallManager({ userProfile }) {
 
       playBeep();
       ringtoneIntervalRef.current = setInterval(playBeep, 2000);
-    } catch {
-      // Audio context might be restricted before interaction
-    }
+    } catch {}
   }, []);
 
   const stopRingtone = useCallback(() => {
@@ -96,14 +166,17 @@ export default function CallManager({ userProfile }) {
   // Cleanup 1-to-1 Media & Peer
   const cleanupCall = useCallback(() => {
     stopRingtone();
-    if (localStreamRef.current) {
+    if (localStreamRef.current && meetingStateRef.current === 'idle') {
       stopMediaStream(localStreamRef.current);
       localStreamRef.current = null;
     }
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+      try {
+        peerConnectionRef.current.close();
+      } catch {}
       peerConnectionRef.current = null;
     }
+    pendingCandidatesRef.current = [];
     remoteStreamRef.current = null;
     setCallState('idle');
     setCallData(null);
@@ -168,6 +241,7 @@ export default function CallManager({ userProfile }) {
       const callId = `call-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnectionRef.current = pc;
+      pendingCandidatesRef.current = [];
 
       // Add local tracks to peer connection
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -177,6 +251,9 @@ export default function CallManager({ userProfile }) {
         remoteStreamRef.current = event.streams[0];
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = event.streams[0];
+        }
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = event.streams[0];
         }
       };
 
@@ -234,31 +311,58 @@ export default function CallManager({ userProfile }) {
   // User rejects an incoming call
   const rejectCall = useCallback(() => {
     const socket = getSocket();
-    if (socket && callData) {
+    const currentData = callDataRef.current;
+    if (socket && currentData) {
       socket.emit('call:reject', {
-        callId: callData.callId,
-        callerId: callData.peerId,
+        callId: currentData.callId,
+        callerId: currentData.peerId,
         reason: 'declined',
       });
-      if (callData.notifId) {
-        updateNotifAction.mutate({ id: callData.notifId, actionStatus: 'rejected' });
+      if (currentData.notifId) {
+        updateNotifAction.mutate({ id: currentData.notifId, actionStatus: 'rejected' });
       }
     }
     cleanupCall();
-  }, [callData, cleanupCall, updateNotifAction]);
+  }, [cleanupCall, updateNotifAction]);
 
   // User accepts an incoming call
-  const acceptCall = useCallback(async () => {
+  const acceptCall = useCallback(async (customCallData = null) => {
+    // If already connected, never re-accept or interrupt ongoing call
+    if (callStateRef.current === 'connected') {
+      return;
+    }
     const socket = getSocket();
-    if (!socket || !callData) return;
+    const dataToUse = customCallData || callDataRef.current;
+    if (!socket || !dataToUse) return;
 
     stopRingtone();
     setMediaError(null);
 
     try {
-      let effectiveMediaType = callData.mediaType;
+      let offer = dataToUse.offer;
+
+      // If offer missing (e.g. accepted via push notification), request active call offer from server
+      if (!offer && dataToUse.callId) {
+        const fetchedCall = await new Promise((resolve) => {
+          socket.emit('call:get-active', { callId: dataToUse.callId }, resolve);
+          setTimeout(() => resolve(null), 3500);
+        });
+        if (fetchedCall?.offer) {
+          offer = fetchedCall.offer;
+        }
+      }
+
+      if (!offer) {
+        // If already connected in the meantime, ignore
+        if (callStateRef.current === 'connected') return;
+        toast.error('Call invitation expired or unavailable');
+        cleanupCall();
+        return;
+      }
+
+      let effectiveMediaType = dataToUse.mediaType || 'voice';
       const { stream } = await getSafeMediaStream({
-        mediaType: callData.mediaType,
+        mediaType: effectiveMediaType,
         allowAudioFallback: true,
         onAudioFallback: () => {
           effectiveMediaType = 'voice';
@@ -269,6 +373,7 @@ export default function CallManager({ userProfile }) {
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
       peerConnectionRef.current = pc;
+      pendingCandidatesRef.current = [];
 
       // Add local tracks
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
@@ -279,49 +384,73 @@ export default function CallManager({ userProfile }) {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = event.streams[0];
         }
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = event.streams[0];
+        }
       };
 
       // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit('call:signal', {
-            targetUserId: callData.peerId,
+            targetUserId: dataToUse.peerId,
             signal: { candidate: event.candidate },
-            callId: callData.callId,
+            callId: dataToUse.callId,
           });
         }
       };
 
-      // Set remote offer & create answer
-      await pc.setRemoteDescription(new RTCSessionDescription(callData.offer));
+      // Set remote offer
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Flush any queued candidates
+      for (const cand of pendingCandidatesRef.current) {
+        await pc.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+      }
+      pendingCandidatesRef.current = [];
+
+      // Create & set local answer
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
       socket.emit('call:accept', {
-        callId: callData.callId,
-        callerId: callData.peerId,
+        callId: dataToUse.callId,
+        callerId: dataToUse.peerId,
         answer,
       });
 
       setCallState('connected');
+      try {
+        toast.dismiss();
+      } catch {}
 
-      // Update notification state in DB
-      if (callData.notifId) {
-        updateNotifAction.mutate({ id: callData.notifId, actionStatus: 'accepted' });
+      // Connection state monitor
+      pc.onconnectionstatechange = () => {
+        const state = pc.connectionState;
+        if (state === 'failed') {
+          console.warn('[WebRTC] 1-to-1 connection failed');
+          toast.error('Call connection lost');
+          cleanupCall();
+        }
+      };
+
+      // Update notification in DB
+      if (dataToUse.notifId) {
+        updateNotifAction.mutate({ id: dataToUse.notifId, actionStatus: 'accepted' });
       }
 
-      // If video, attach local stream to preview element
+      // Attach local stream to video element
       if (effectiveMediaType === 'video' && localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
     } catch (err) {
       console.error('[CallManager] acceptCall error:', err);
-      const parsed = parseMediaError(err, callData.mediaType);
+      const parsed = parseMediaError(err, dataToUse.mediaType);
       setMediaError({
         ...parsed,
         onRetry: () => {
           setMediaError(null);
-          acceptCall();
+          acceptCall(dataToUse);
         },
         onCancel: () => {
           setMediaError(null);
@@ -329,24 +458,25 @@ export default function CallManager({ userProfile }) {
         },
       });
     }
-  }, [callData, stopRingtone, updateNotifAction, rejectCall]);
+  }, [stopRingtone, updateNotifAction, rejectCall, cleanupCall]);
 
   // End an active call
   const endCall = useCallback(() => {
     const socket = getSocket();
-    if (socket && callData) {
+    const currentData = callDataRef.current;
+    if (socket && currentData) {
       socket.emit('call:end', {
-        callId: callData.callId,
-        targetUserId: callData.peerId,
+        callId: currentData.callId,
+        targetUserId: currentData.peerId,
       });
-      if (callData.notifId) {
-        updateNotifAction.mutate({ id: callData.notifId, actionStatus: 'ended' });
+      if (currentData.notifId) {
+        updateNotifAction.mutate({ id: currentData.notifId, actionStatus: 'ended' });
       }
     }
     cleanupCall();
-  }, [callData, cleanupCall, updateNotifAction]);
+  }, [cleanupCall, updateNotifAction]);
 
-  // Toggle microphone
+  // Toggle microphone in 1-to-1
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -357,7 +487,7 @@ export default function CallManager({ userProfile }) {
     }
   };
 
-  // Toggle video
+  // Toggle video in 1-to-1
   const toggleVideo = () => {
     if (localStreamRef.current) {
       const videoTrack = localStreamRef.current.getVideoTracks()[0];
@@ -370,43 +500,95 @@ export default function CallManager({ userProfile }) {
 
   // ─── Team Meeting Actions ─────────────────────────────────────────
 
-  const joinMeeting = useCallback(async ({ meetingId, title, mediaType = 'video' }) => {
-    const socket = getSocket();
-    if (!socket) {
-      toast.error('Network connection not ready');
-      return;
-    }
-
+  const joinMeeting = useCallback(({ meetingId, title, mediaType = 'video' }) => {
     setMeetingData({ meetingId, title, mediaType });
     setMeetingState('joining');
   }, []);
 
+  // Helper to create WebRTC Peer Connection for a specific meeting member
+  const createMeetingPeer = useCallback((peerUserId, peerUsername, isInitiator, socket, meetingId) => {
+    if (meetingPeersRef.current[peerUserId]) {
+      return meetingPeersRef.current[peerUserId];
+    }
+
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    meetingPeersRef.current[peerUserId] = pc;
+    pendingMeetingCandidatesRef.current[peerUserId] = [];
+
+    // Add local tracks to peer connection
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    // Handle remote track
+    pc.ontrack = (event) => {
+      const remoteStream = event.streams[0];
+      meetingStreamsRef.current[peerUserId] = remoteStream;
+      setMeetingParticipants((prev) => {
+        const filtered = prev.filter((p) => p.userId !== peerUserId);
+        return [...filtered, { userId: peerUserId, username: peerUsername, stream: remoteStream }];
+      });
+    };
+
+    // Send ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('meeting:signal', {
+          targetUserId: peerUserId,
+          signal: { type: 'candidate', candidate: event.candidate },
+          meetingId,
+        });
+      }
+    };
+
+    // If initiator, create and send offer
+    if (isInitiator) {
+      pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .then(() => {
+          socket.emit('meeting:signal', {
+            targetUserId: peerUserId,
+            signal: { type: 'offer', offer: pc.localDescription },
+            meetingId,
+          });
+        })
+        .catch((err) => console.error('[Meeting WebRTC] createOffer error:', err));
+    }
+
+    return pc;
+  }, []);
+
   const confirmJoinMeeting = useCallback(async () => {
     const socket = getSocket();
-    if (!socket || !meetingData) return;
+    const data = meetingDataRef.current;
+    if (!socket || !data) return;
 
     setMediaError(null);
 
     try {
+      let effectiveMediaType = data.mediaType || 'video';
       const { stream } = await getSafeMediaStream({
-        mediaType: meetingData.mediaType,
+        mediaType: effectiveMediaType,
         allowAudioFallback: true,
         onAudioFallback: () => {
+          effectiveMediaType = 'voice';
           toast.info('No camera detected. Joining meeting in audio mode.');
         },
       });
       localStreamRef.current = stream;
 
       socket.emit('meeting:join', {
-        meetingId: meetingData.meetingId,
+        meetingId: data.meetingId,
         userInfo: { userId: myId, username: myName },
       });
 
       setMeetingState('in_meeting');
-      toast.success(`Joined ${meetingData.title || 'Team Meeting'}`);
+      toast.success(`Joined ${data.title || 'Team Meeting'}`);
     } catch (err) {
       console.error('[CallManager] confirmJoinMeeting error:', err);
-      const parsed = parseMediaError(err, meetingData.mediaType);
+      const parsed = parseMediaError(err, data?.mediaType);
       setMediaError({
         ...parsed,
         onRetry: () => {
@@ -422,31 +604,44 @@ export default function CallManager({ userProfile }) {
       setMeetingState('idle');
       setMeetingData(null);
     }
-  }, [meetingData, myId, myName]);
+  }, [myId, myName]);
 
   const leaveMeeting = useCallback(() => {
     const socket = getSocket();
-    if (socket && meetingData) {
-      socket.emit('meeting:leave', { meetingId: meetingData.meetingId });
+    const data = meetingDataRef.current;
+    if (socket && data) {
+      socket.emit('meeting:leave', { meetingId: data.meetingId });
     }
     if (localStreamRef.current) {
       stopMediaStream(localStreamRef.current);
       localStreamRef.current = null;
     }
-    Object.values(meetingPeersRef.current).forEach((pc) => pc.close());
+    Object.values(meetingPeersRef.current).forEach((pc) => {
+      try {
+        pc.close();
+      } catch {}
+    });
     meetingPeersRef.current = {};
     meetingStreamsRef.current = {};
+    pendingMeetingCandidatesRef.current = {};
     setMeetingParticipants([]);
     setMeetingState('idle');
     setMeetingData(null);
-  }, [meetingData]);
+    setMeetingMuted(false);
+    setMeetingVideoOff(false);
+  }, []);
 
-  // ─── Socket Event Listeners ───────────────────────────────────────
+  // ─── Socket Event Handlers ────────────────────────────────────────
 
   useEffect(() => {
     const handleIncomingCall = (data) => {
-      // If already in a call, send busy rejection
-      if (callState !== 'idle') {
+      // 1. Ignore duplicate incoming call events for the current call
+      if (callDataRef.current?.callId === data.callId) {
+        return;
+      }
+
+      // 2. If already in another active 1-to-1 call or team meeting, respond with busy
+      if (callStateRef.current !== 'idle' || meetingStateRef.current !== 'idle') {
         const socket = getSocket();
         socket?.emit('call:reject', {
           callId: data.callId,
@@ -473,6 +668,11 @@ export default function CallManager({ userProfile }) {
       if (peerConnectionRef.current && data.answer) {
         try {
           await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
+          // Flush any pending candidates
+          for (const cand of pendingCandidatesRef.current) {
+            await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(cand)).catch(() => {});
+          }
+          pendingCandidatesRef.current = [];
           setCallState('connected');
         } catch (err) {
           console.error('[WebRTC] Error setting remote answer:', err);
@@ -481,17 +681,26 @@ export default function CallManager({ userProfile }) {
     };
 
     const handleCallRejected = (data) => {
+      // If call is already connected, ignore rogue reject packets from race conditions
+      if (callStateRef.current === 'connected') {
+        return;
+      }
       stopRingtone();
       toast.info(`Call ${data.reason === 'busy' ? 'busy' : 'declined'}`);
       cleanupCall();
     };
 
     const handleCallSignal = async (data) => {
-      if (peerConnectionRef.current && data.signal?.candidate) {
-        try {
-          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
-        } catch (err) {
-          console.error('[WebRTC] Error adding ICE candidate:', err);
+      if (data.signal?.candidate) {
+        const pc = peerConnectionRef.current;
+        if (pc && pc.remoteDescription) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(data.signal.candidate));
+          } catch (err) {
+            console.error('[WebRTC] Error adding ICE candidate:', err);
+          }
+        } else {
+          pendingCandidatesRef.current.push(data.signal.candidate);
         }
       }
     };
@@ -501,21 +710,159 @@ export default function CallManager({ userProfile }) {
       cleanupCall();
     };
 
-    // Attach listeners to active socket
-    const interval = setInterval(() => {
+    // Team Meeting Handlers
+    const handleMeetingStarted = (data) => {
+      if (data.hostId !== myId && meetingStateRef.current === 'idle' && callStateRef.current === 'idle') {
+        setIncomingMeeting(data);
+      }
+    };
+
+    const handleMeetingUserJoined = (data) => {
       const socket = getSocket();
-      if (socket && !socket._callListenersRegistered) {
-        socket._callListenersRegistered = true;
+      const currentMeeting = meetingDataRef.current;
+      if (!socket || !currentMeeting || data.userId === myId) return;
+
+      toast.info(`${data.userInfo?.username || 'Team member'} joined the meeting`);
+      // Create initiator peer connection to the newly joined user
+      createMeetingPeer(data.userId, data.userInfo?.username || 'Colleague', true, socket, currentMeeting.meetingId);
+    };
+
+    const handleMeetingExistingUsers = (data) => {
+      const socket = getSocket();
+      const currentMeeting = meetingDataRef.current;
+      if (!socket || !currentMeeting || !Array.isArray(data.users)) return;
+
+      // New joiner connects to existing participants
+      data.users.forEach((user) => {
+        if (user.userId !== myId) {
+          createMeetingPeer(user.userId, user.username, true, socket, currentMeeting.meetingId);
+        }
+      });
+    };
+
+    const handleMeetingSignal = async (data) => {
+      const socket = getSocket();
+      const currentMeeting = meetingDataRef.current;
+      if (!socket || !currentMeeting || data.fromUserId === myId) return;
+
+      const { fromUserId, fromUsername, signal } = data;
+      let pc = meetingPeersRef.current[fromUserId];
+
+      if (signal.type === 'offer') {
+        if (!pc) {
+          pc = createMeetingPeer(fromUserId, fromUsername || 'Colleague', false, socket, currentMeeting.meetingId);
+        }
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(signal.offer));
+          // Flush pending candidates
+          const queued = pendingMeetingCandidatesRef.current[fromUserId] || [];
+          for (const c of queued) {
+            await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+          }
+          pendingMeetingCandidatesRef.current[fromUserId] = [];
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          socket.emit('meeting:signal', {
+            targetUserId: fromUserId,
+            signal: { type: 'answer', answer },
+            meetingId: currentMeeting.meetingId,
+          });
+        } catch (err) {
+          console.error('[Meeting WebRTC] Error answering offer:', err);
+        }
+      } else if (signal.type === 'answer') {
+        if (pc) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal.answer));
+            const queued = pendingMeetingCandidatesRef.current[fromUserId] || [];
+            for (const c of queued) {
+              await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {});
+            }
+            pendingMeetingCandidatesRef.current[fromUserId] = [];
+          } catch (err) {
+            console.error('[Meeting WebRTC] Error setting answer:', err);
+          }
+        }
+      } else if (signal.type === 'candidate' && signal.candidate) {
+        if (pc && pc.remoteDescription) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          } catch (err) {
+            console.error('[Meeting WebRTC] Error adding ICE candidate:', err);
+          }
+        } else {
+          if (!pendingMeetingCandidatesRef.current[fromUserId]) {
+            pendingMeetingCandidatesRef.current[fromUserId] = [];
+          }
+          pendingMeetingCandidatesRef.current[fromUserId].push(signal.candidate);
+        }
+      }
+    };
+
+    const handleMeetingUserLeft = (data) => {
+      if (meetingPeersRef.current[data.userId]) {
+        try {
+          meetingPeersRef.current[data.userId].close();
+        } catch {}
+        delete meetingPeersRef.current[data.userId];
+      }
+      delete meetingStreamsRef.current[data.userId];
+      delete pendingMeetingCandidatesRef.current[data.userId];
+      setMeetingParticipants((prev) => prev.filter((p) => p.userId !== data.userId));
+    };
+
+    // Attach listeners
+    let attachedSocket = null;
+    const checkAndAttach = () => {
+      const socket = getSocket();
+      if (socket && socket !== attachedSocket) {
+        if (attachedSocket) {
+          attachedSocket.off('call:incoming', handleIncomingCall);
+          attachedSocket.off('call:accepted', handleCallAccepted);
+          attachedSocket.off('call:rejected', handleCallRejected);
+          attachedSocket.off('call:signal', handleCallSignal);
+          attachedSocket.off('call:ended', handleCallEnded);
+          attachedSocket.off('meeting:started', handleMeetingStarted);
+          attachedSocket.off('meeting:user-joined', handleMeetingUserJoined);
+          attachedSocket.off('meeting:existing-users', handleMeetingExistingUsers);
+          attachedSocket.off('meeting:signal', handleMeetingSignal);
+          attachedSocket.off('meeting:user-left', handleMeetingUserLeft);
+        }
+        attachedSocket = socket;
         socket.on('call:incoming', handleIncomingCall);
         socket.on('call:accepted', handleCallAccepted);
         socket.on('call:rejected', handleCallRejected);
         socket.on('call:signal', handleCallSignal);
         socket.on('call:ended', handleCallEnded);
+        socket.on('meeting:started', handleMeetingStarted);
+        socket.on('meeting:user-joined', handleMeetingUserJoined);
+        socket.on('meeting:existing-users', handleMeetingExistingUsers);
+        socket.on('meeting:signal', handleMeetingSignal);
+        socket.on('meeting:user-left', handleMeetingUserLeft);
       }
-    }, 1000);
+    };
 
-    return () => clearInterval(interval);
-  }, [callState, cleanupCall, startRingtone, stopRingtone]);
+    checkAndAttach();
+    const interval = setInterval(checkAndAttach, 1000);
+
+    return () => {
+      clearInterval(interval);
+      if (attachedSocket) {
+        attachedSocket.off('call:incoming', handleIncomingCall);
+        attachedSocket.off('call:accepted', handleCallAccepted);
+        attachedSocket.off('call:rejected', handleCallRejected);
+        attachedSocket.off('call:signal', handleCallSignal);
+        attachedSocket.off('call:ended', handleCallEnded);
+        attachedSocket.off('meeting:started', handleMeetingStarted);
+        attachedSocket.off('meeting:user-joined', handleMeetingUserJoined);
+        attachedSocket.off('meeting:existing-users', handleMeetingExistingUsers);
+        attachedSocket.off('meeting:signal', handleMeetingSignal);
+        attachedSocket.off('meeting:user-left', handleMeetingUserLeft);
+      }
+    };
+  }, [cleanupCall, createMeetingPeer, myId, startRingtone, stopRingtone]);
 
   // Window events for opening calls & meetings from buttons or notifications
   useEffect(() => {
@@ -527,15 +874,25 @@ export default function CallManager({ userProfile }) {
 
     const onAcceptIncomingCall = (e) => {
       if (e.detail) {
-        setCallData({
+        // If already connected or answering this exact call, ignore
+        if (callStateRef.current === 'connected') {
+          return;
+        }
+        if (callDataRef.current?.callId === e.detail.callId && callStateRef.current !== 'idle') {
+          return;
+        }
+        const callerName = e.detail.senderName || e.detail.metadata?.callerName || 'Colleague';
+        const callerId = e.detail.senderId || e.detail.metadata?.callerId;
+        const callObj = {
           callId: e.detail.callId,
-          peerId: e.detail.senderId,
-          peerName: e.detail.senderName || 'Colleague',
-          mediaType: e.detail.mediaType || 'voice',
+          peerId: callerId,
+          peerName: callerName,
+          mediaType: e.detail.metadata?.mediaType || 'voice',
           offer: e.detail.offer || null,
           notifId: e.detail.id,
-        });
-        setCallState('incoming');
+        };
+        setCallData(callObj);
+        acceptCall(callObj);
       }
     };
 
@@ -545,23 +902,48 @@ export default function CallManager({ userProfile }) {
       }
     };
 
+    const onMeetingStartedEvent = (e) => {
+      if (e.detail && e.detail.hostId !== myId && meetingStateRef.current === 'idle') {
+        setIncomingMeeting(e.detail);
+      }
+    };
+
     window.addEventListener('start-direct-call', onStartDirectCall);
     window.addEventListener('accept-incoming-call', onAcceptIncomingCall);
     window.addEventListener('join-team-meeting', onJoinMeeting);
+    window.addEventListener('meeting:started', onMeetingStartedEvent);
 
     return () => {
       window.removeEventListener('start-direct-call', onStartDirectCall);
       window.removeEventListener('accept-incoming-call', onAcceptIncomingCall);
       window.removeEventListener('join-team-meeting', onJoinMeeting);
+      window.removeEventListener('meeting:started', onMeetingStartedEvent);
     };
-  }, [joinMeeting, startCall]);
+  }, [acceptCall, joinMeeting, myId, startCall]);
 
-  // Attach local video stream when element mounts
+  // Attach local and remote streams when elements mount
   useEffect(() => {
-    if (callState === 'connected' && localStreamRef.current && localVideoRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
+    if (callState === 'connected') {
+      if (localStreamRef.current && localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      if (remoteStreamRef.current) {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        }
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        }
+      }
     }
   }, [callState]);
+
+  // Attach local stream for team meeting
+  useEffect(() => {
+    if (meetingState === 'in_meeting' && localStreamRef.current && meetingLocalVideoRef.current) {
+      meetingLocalVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [meetingState]);
 
   return (
     <>
@@ -603,7 +985,7 @@ export default function CallManager({ userProfile }) {
               variant="default"
               size="lg"
               className="rounded-full h-14 w-14 p-0 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg transition-transform active:scale-95"
-              onClick={acceptCall}
+              onClick={() => acceptCall()}
               title="Accept Call"
             >
               <PhoneCall className="h-6 w-6" />
@@ -649,7 +1031,7 @@ export default function CallManager({ userProfile }) {
 
       {/* ─── Connected 1-to-1 Call Screen / Overlay ──────────────────── */}
       {callState === 'connected' && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex flex-col justify-between p-4 sm:p-6 text-white animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between p-4 sm:p-6 text-white animate-in fade-in duration-300">
           {/* Top Bar */}
           <div className="flex items-center justify-between z-10">
             <div className="flex items-center gap-3 bg-black/40 backdrop-blur px-4 py-2 rounded-full border border-white/10">
@@ -669,6 +1051,8 @@ export default function CallManager({ userProfile }) {
                   playsInline
                   className="w-full h-full object-cover rounded-2xl"
                 />
+                {/* Audio track play */}
+                <audio ref={remoteAudioRef} autoPlay playsInline />
                 {/* Local PiP Video */}
                 <div className="absolute bottom-4 right-4 w-28 h-36 sm:w-40 sm:h-52 md:w-48 md:h-64 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 bg-black z-20">
                   <video
@@ -696,8 +1080,8 @@ export default function CallManager({ userProfile }) {
                   <h3 className="text-2xl font-bold text-white">{callData?.peerName}</h3>
                   <p className="text-sm text-emerald-400 mt-1">Audio Connected</p>
                 </div>
-                {/* Audio element for remote sound */}
-                <audio ref={remoteVideoRef} autoPlay playsInline />
+                {/* Dedicated Audio Element */}
+                <audio ref={remoteAudioRef} autoPlay playsInline />
               </div>
             )}
           </div>
@@ -743,6 +1127,45 @@ export default function CallManager({ userProfile }) {
         </div>
       )}
 
+      {/* ─── Incoming Team Meeting Announcement Dialog ────────────────── */}
+      <Dialog open={Boolean(incomingMeeting)} onOpenChange={(open) => !open && setIncomingMeeting(null)}>
+        <DialogContent className="sm:max-w-md text-center p-6 bg-card border border-amber-500/30 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-center font-bold text-lg flex items-center justify-center gap-2 text-amber-500">
+              <Users className="h-5 w-5" />
+              Team Meeting in Progress
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center my-5 space-y-3">
+            <div className="h-16 w-16 rounded-full bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center text-amber-500 animate-pulse">
+              <Video className="h-8 w-8" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-foreground">{incomingMeeting?.title || 'Team Meeting'}</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Started by <span className="font-semibold text-foreground">{incomingMeeting?.hostName || 'Team Lead'}</span>
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex flex-row justify-center gap-4 sm:justify-center">
+            <Button variant="outline" onClick={() => setIncomingMeeting(null)}>
+              Dismiss
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-2"
+              onClick={() => {
+                const meeting = incomingMeeting;
+                setIncomingMeeting(null);
+                joinMeeting(meeting);
+              }}
+            >
+              <Video className="h-4 w-4" />
+              Join Meeting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ─── Team Meeting Join Consent Dialog ─────────────────────────── */}
       <Dialog open={meetingState === 'joining'} onOpenChange={(open) => !open && setMeetingState('idle')}>
         <DialogContent className="sm:max-w-md text-center p-6 bg-card border-border shadow-2xl">
@@ -756,7 +1179,7 @@ export default function CallManager({ userProfile }) {
             <div>
               <h3 className="text-xl font-bold">{meetingData?.title || 'General Team Meeting'}</h3>
               <p className="text-sm text-muted-foreground mt-1">
-                You will join this session with your microphone and camera.
+                You will connect to this session with your microphone and camera.
               </p>
             </div>
           </div>
@@ -803,12 +1226,21 @@ export default function CallManager({ userProfile }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 w-full max-w-5xl my-auto">
               {/* Local Tile */}
               <div className="relative aspect-video rounded-xl bg-zinc-900 border border-white/10 overflow-hidden flex flex-col items-center justify-center">
-                <Avatar className="h-20 w-20">
-                  <AvatarFallback className="bg-primary/20 text-xl font-bold">
-                    {myName.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="absolute bottom-3 left-3 text-xs bg-black/60 px-2 py-0.5 rounded font-medium">
+                <video
+                  ref={meetingLocalVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${!meetingVideoOff && localStreamRef.current?.getVideoTracks().length ? 'block' : 'hidden'}`}
+                />
+                {(meetingVideoOff || !localStreamRef.current?.getVideoTracks().length) && (
+                  <Avatar className="h-20 w-20">
+                    <AvatarFallback className="bg-primary/20 text-xl font-bold">
+                      {myName.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+                <span className="absolute bottom-3 left-3 text-xs bg-black/60 px-2 py-0.5 rounded font-medium text-white backdrop-blur-xs">
                   {myName} (You)
                 </span>
                 {meetingMuted && (
@@ -818,7 +1250,7 @@ export default function CallManager({ userProfile }) {
                 )}
               </div>
 
-              {/* Other Active Members */}
+              {/* Other Active Members with Live Streams */}
               {meetingParticipants.length === 0 ? (
                 <div className="aspect-video rounded-xl border border-dashed border-white/20 flex flex-col items-center justify-center text-white/60 p-4 text-center">
                   <Users className="h-8 w-8 mb-2 opacity-50" />
@@ -826,19 +1258,7 @@ export default function CallManager({ userProfile }) {
                 </div>
               ) : (
                 meetingParticipants.map((p) => (
-                  <div
-                    key={p.userId}
-                    className="relative aspect-video rounded-xl bg-zinc-900 border border-white/10 overflow-hidden flex items-center justify-center"
-                  >
-                    <Avatar className="h-20 w-20">
-                      <AvatarFallback className="bg-indigo-600 text-xl font-bold">
-                        {(p.username || 'TM').slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="absolute bottom-3 left-3 text-xs bg-black/60 px-2 py-0.5 rounded font-medium">
-                      {p.username}
-                    </span>
-                  </div>
+                  <ParticipantTile key={p.userId} participant={p} />
                 ))
               )}
             </div>
@@ -864,6 +1284,25 @@ export default function CallManager({ userProfile }) {
               title={meetingMuted ? 'Unmute' : 'Mute'}
             >
               {meetingMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
+              className={`rounded-full h-12 w-12 p-0 border-white/20 ${
+                meetingVideoOff ? 'bg-red-600 text-white' : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+              onClick={() => {
+                if (localStreamRef.current) {
+                  const track = localStreamRef.current.getVideoTracks()[0];
+                  if (track) {
+                    track.enabled = !track.enabled;
+                    setMeetingVideoOff(!track.enabled);
+                  }
+                }
+              }}
+              title={meetingVideoOff ? 'Camera On' : 'Camera Off'}
+            >
+              {meetingVideoOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
             </Button>
             <Button
               variant="destructive"
