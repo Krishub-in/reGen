@@ -179,7 +179,7 @@ export default function CompanyModule({ userProfile }) {
        setFormData({
         logo: '', name: '', ownerName: '', address: '', city: '', state: '', zip: '',
         category: '', about: '', contactEmail: '', contactPhone: '',
-        gst: '', taxDetails: '', policies: DEFAULT_TERMS,
+        gst: '', taxDetails: '', establishmentYear: '', policies: DEFAULT_TERMS,
       });
     }
   }, [currentCompany, initialInfo]);
@@ -1249,7 +1249,7 @@ export default function CompanyModule({ userProfile }) {
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>
-                <div className="space-y-1.5 md:col-span-2">
+                <div className="space-y-1.5">
                     <Label htmlFor="about" className="text-xs font-semibold text-foreground">About / Category</Label>
                     <Input
                         id="about"
@@ -1257,6 +1257,20 @@ export default function CompanyModule({ userProfile }) {
                         onChange={(e) => setFormData({ ...formData, about: e.target.value })}
                         placeholder="IT Solutions, Manufacturing, etc."
                         className="rounded-xl border border-border bg-background text-foreground"
+                        disabled={!isAdmin && !isOwner}
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor="establishmentYear" className="text-xs font-semibold text-foreground">Company Started / Establishment Year</Label>
+                    <Input
+                        id="establishmentYear"
+                        type="number"
+                        min="1970"
+                        max={new Date().getFullYear()}
+                        value={formData.establishmentYear}
+                        onChange={(e) => setFormData({ ...formData, establishmentYear: e.target.value })}
+                        placeholder="e.g. 2008"
+                        className="rounded-xl border border-border bg-background text-foreground font-semibold"
                         disabled={!isAdmin && !isOwner}
                     />
                 </div>

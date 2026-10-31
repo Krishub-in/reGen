@@ -57,7 +57,7 @@ import {
 import { toast } from 'sonner';
 import { useScrollPagination } from '../../hooks/useScrollPagination';
 
-export default function PaymentsModule({ userProfile }) {
+export default function PaymentsModule({ userProfile, selectedYear }) {
   const queryClient = useQueryClient();
   const { identity } = useCustomAuth();
 
@@ -67,8 +67,19 @@ export default function PaymentsModule({ userProfile }) {
   // Month navigation (Format: 'YYYY-MM')
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const y = selectedYear || d.getFullYear();
+    return `${y}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  useEffect(() => {
+    if (selectedYear) {
+      setSelectedMonth(prev => {
+        const parts = (prev || '').split('-');
+        const m = parts[1] || String(new Date().getMonth() + 1).padStart(2, '0');
+        return `${selectedYear}-${m}`;
+      });
+    }
+  }, [selectedYear]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState('all');
@@ -106,7 +117,7 @@ export default function PaymentsModule({ userProfile }) {
   });
 
   // Settings form state
-  const { data: payrollSettings, isLoading: isSettingsLoading } = useGetPayrollSettings();
+  const { data: payrollSettings, isLoading: isSettingsLoading } = useGetPayrollSettings({ enabled: !!isAdmin });
   const updateSettingsMutation = useUpdatePayrollSettings();
   const [settingsForm, setSettingsForm] = useState({
     checkInTime: '09:30',
@@ -142,7 +153,7 @@ export default function PaymentsModule({ userProfile }) {
     }
   }, [payrollSettings]);
 
-  // Main Queries
+  // Main Queries - Scoped to admin/owner
   const {
     data: summaryData,
     isLoading: isSummaryLoading,
@@ -151,13 +162,13 @@ export default function PaymentsModule({ userProfile }) {
     search: searchQuery,
     department: deptFilter,
     statusTab: activeTab === 'transactions' ? 'all' : activeTab,
-  });
+  }, { enabled: !!isAdmin });
 
   const {
     data: previewData,
     isLoading: isPreviewLoading,
     refetch: refetchPreview,
-  } = useGetEmployeePayrollPreview(selectedPreviewUser, selectedMonth);
+  } = useGetEmployeePayrollPreview(selectedPreviewUser, selectedMonth, { enabled: !!isAdmin && !!selectedPreviewUser });
 
   const {
     data: transactionsData,
@@ -168,7 +179,7 @@ export default function PaymentsModule({ userProfile }) {
     search: searchQuery,
     page,
     limit: 15,
-  });
+  }, { enabled: !!isAdmin });
 
   // Employee-side data (when not admin/owner or in employee view)
   const { data: myPayrollData, isLoading: isMyPayrollLoading, refetch: refetchMyPayroll } = useGetEmployeeMyPayroll(selectedMonth);

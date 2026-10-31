@@ -535,10 +535,12 @@ export const createHttpActor = (identity) => {
 
   return {
     getCallerUserProfile: async () => {
+      const token = getAuthToken();
+      if (!token) return null;
       try {
         const res = await fetch(`${API_BASE}/users/me`, { headers: getHeaders() });
         if (res.status === 401 || res.status === 403) {
-          throw new Error('Invalid session. Please login again.');
+          return null;
         }
         const me = await handleResponse(res);
         if (!me) return null;

@@ -14,6 +14,10 @@ const companySchema = new mongoose.Schema({
   zip: { type: String },
   taxDetails: { type: String },
   policies: { type: String },
+  establishmentYear: { type: Number },
+  establishedYear: { type: Number },
+  startedYear: { type: Number },
+  startDate: { type: String },
   companyPolicies: [{
     title: { type: String, required: true },
     content: { type: String, required: true },

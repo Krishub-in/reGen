@@ -100,6 +100,7 @@ export const superAdminCreateCompany = async (req, res) => {
       ownerName: String(ownerName).trim(),
       gst, phoneNumber, email, category, about, address, city, state, zip,
       logo: logo || '',
+      establishmentYear: req.body.establishmentYear || req.body.startedYear || req.body.establishedYear || undefined,
       ownerId: userId,
     });
     await company.save();

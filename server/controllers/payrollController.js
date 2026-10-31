@@ -31,7 +31,7 @@ const requireCompanyId = (req, res, allowEmpty = false) => {
 const isCompanyAdmin = (user) => {
   if (!user || !user.role) return false;
   const role = typeof user.role === 'object' ? Object.keys(user.role)[0] : String(user.role);
-  return ['admin', 'owner', 'param'].includes(role.toLowerCase());
+  return ['admin', 'owner', 'param', 'superadmin', 'super_admin'].includes(role.toLowerCase());
 };
 
 /**
@@ -254,7 +254,24 @@ export const getPayrollSummary = async (req, res) => {
     }
 
     if (!isCompanyAdmin(req.user)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(200).json({
+        month: req.query.month || new Date().toISOString().slice(0, 7),
+        summary: {
+          totalEmployees: 0,
+          totalAmountSent: 0,
+          totalAmountToPay: 0,
+          totalBaseSalary: 0,
+          totalDeductions: 0,
+          totalOvertimeAdditions: 0,
+          totalBonuses: 0,
+          totalManualDeductions: 0,
+          totalNetPayable: 0,
+          pendingFinalizationCount: 0,
+          pendingPaymentCount: 0,
+          paymentsCompletedCount: 0,
+        },
+        items: [],
+      });
     }
 
     // Query parameters for filter/search

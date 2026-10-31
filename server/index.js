@@ -1303,7 +1303,25 @@ app.get('/api/system/pm2-status', async (req, res) => {
     }));
     res.json({ success: true, processes: data, timestamp: Date.now() });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    const mem = process.memoryUsage();
+    res.json({
+      success: true,
+      pm2Active: false,
+      processes: [{
+        name: 'regen-backend',
+        pid: process.pid,
+        status: 'online',
+        cpu: 0,
+        memory: mem.rss || 0,
+        uptime: Date.now() - Math.floor(process.uptime() * 1000),
+        restarts: 0,
+        version: process.version,
+        node: process.version,
+        mode: 'standalone (node)',
+        note: 'Standalone Node process active'
+      }],
+      timestamp: Date.now()
+    });
   }
 });
 

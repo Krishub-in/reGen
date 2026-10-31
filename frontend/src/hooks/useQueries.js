@@ -1040,7 +1040,7 @@ export function useIsCallerAdmin() {
 // Dynamic Payroll & Payment Management Queries
 // ==========================================
 
-export function useGetPayrollSettings() {
+export function useGetPayrollSettings(options = {}) {
   return useQuery({
     queryKey: ['payroll', 'settings'],
     queryFn: async () => {
@@ -1055,6 +1055,8 @@ export function useGetPayrollSettings() {
       }
       return res.json();
     },
+    retry: false,
+    ...options,
   });
 }
 
@@ -1079,7 +1081,7 @@ export function useUpdatePayrollSettings() {
   });
 }
 
-export function useGetPayrollSummary(month, filters = {}) {
+export function useGetPayrollSummary(month, filters = {}, options = {}) {
   const params = new URLSearchParams();
   if (month) params.set('month', month);
   if (filters.search) params.set('search', filters.search);
@@ -1093,11 +1095,13 @@ export function useGetPayrollSummary(month, filters = {}) {
       if (!res.ok) return { summary: [], totalGross: 0, totalNet: 0, count: 0 };
       return res.json();
     },
-    enabled: !!month,
+    enabled: !!month && (options.enabled !== undefined ? !!options.enabled : true),
+    retry: false,
+    ...options,
   });
 }
 
-export function useGetEmployeePayrollPreview(userId, month) {
+export function useGetEmployeePayrollPreview(userId, month, options = {}) {
   return useQuery({
     queryKey: ['payroll', 'preview', userId, month],
     queryFn: async () => {
@@ -1105,7 +1109,9 @@ export function useGetEmployeePayrollPreview(userId, month) {
       if (!res.ok) throw new Error('Failed to fetch payroll preview');
       return res.json();
     },
-    enabled: !!userId && !!month,
+    enabled: !!userId && !!month && (options.enabled !== undefined ? !!options.enabled : true),
+    retry: false,
+    ...options,
   });
 }
 
@@ -1153,7 +1159,7 @@ export function useProcessPayment() {
   });
 }
 
-export function useGetRecentTransactions(filters = {}) {
+export function useGetRecentTransactions(filters = {}, options = {}) {
   const params = new URLSearchParams();
   if (filters.month) params.set('month', filters.month);
   if (filters.year) params.set('year', filters.year);
@@ -1168,6 +1174,9 @@ export function useGetRecentTransactions(filters = {}) {
       if (!res.ok) return { transactions: [], total: 0 };
       return res.json();
     },
+    enabled: options.enabled !== undefined ? !!options.enabled : true,
+    retry: false,
+    ...options,
   });
 }
 

@@ -27,7 +27,8 @@ import {
   useMarkAllNotificationsRead, 
   useClearAllNotifications,
   useUpdateNotificationAction,
-  useGetCompanyInfo
+  useGetCompanyInfo,
+  useGetAllUsers
 } from '../hooks/useQueries';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -100,25 +101,53 @@ export default function Dashboard({ userProfile }) {
     userProfile?.role?.param
   );
 
+  const { data: allUsers = [] } = useGetAllUsers();
+
   const availableYears = useMemo(() => {
-    let startYear = currentYear;
+    let minYear = currentYear;
     if (isCompanyLogin) {
+      // Company Login:
+      // Year starts from the company started year
       const estYear = companyInfo?.establishmentYear ||
+        companyInfo?.establishedYear ||
+        companyInfo?.startedYear ||
+        companyInfo?.startYear ||
         (companyInfo?.establishmentDate ? new Date(companyInfo.establishmentDate).getFullYear() : null) ||
+        (companyInfo?.startDate ? new Date(companyInfo.startDate).getFullYear() : null) ||
         (companyInfo?.createdAt ? new Date(companyInfo.createdAt).getFullYear() : null);
-      startYear = estYear && !isNaN(estYear) ? Math.min(Number(estYear), currentYear) : 2025;
+      if (estYear && !isNaN(estYear) && Number(estYear) >= 1970 && Number(estYear) <= currentYear + 1) {
+        minYear = Math.min(minYear, Number(estYear));
+      }
+
+      // Check if any employee in the company has an earlier joining date
+      (allUsers || []).forEach(u => {
+        if (u.joiningDate) {
+          const y = new Date(u.joiningDate).getFullYear();
+          if (y && !isNaN(y) && y >= 1970 && y <= currentYear + 1) minYear = Math.min(minYear, y);
+        }
+        if (u.createdAt) {
+          const y = new Date(u.createdAt).getFullYear();
+          if (y && !isNaN(y) && y >= 1970 && y <= currentYear + 1) minYear = Math.min(minYear, y);
+        }
+      });
     } else {
+      // Employee Login (Staff, Intern, Freelance):
+      // Year starts strictly from when he joined the company!
       const joinYear = (userProfile?.joiningDate ? new Date(userProfile.joiningDate).getFullYear() : null) ||
         (userProfile?.createdAt ? new Date(userProfile.createdAt).getFullYear() : null);
-      startYear = joinYear && !isNaN(joinYear) ? Math.min(Number(joinYear), currentYear) : currentYear;
+      if (joinYear && !isNaN(joinYear) && Number(joinYear) >= 1970 && Number(joinYear) <= currentYear + 1) {
+        minYear = Number(joinYear);
+      } else {
+        minYear = currentYear;
+      }
     }
 
     const years = [];
-    for (let y = startYear; y <= currentYear; y++) {
+    for (let y = minYear; y <= currentYear; y++) {
       years.push(y);
     }
     return years.length > 0 ? years : [currentYear];
-  }, [isCompanyLogin, companyInfo, userProfile, currentYear]);
+  }, [isCompanyLogin, companyInfo, userProfile, allUsers, currentYear]);
 
   const [selectedYear, setSelectedYear] = useState(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('regen_selected_year') : null;
@@ -449,9 +478,9 @@ export default function Dashboard({ userProfile }) {
       case 'home':
         return <DashboardHome userProfile={userProfile} onNavigate={navigateToModule} selectedYear={selectedYear} setSelectedYear={setSelectedYear} />;
       case 'users':
-        return <UsersModule userProfile={userProfile} />;
+        return <UsersModule userProfile={userProfile} selectedYear={selectedYear} onYearChange={setSelectedYear} />;
       case 'attendance':
-        return <AttendanceModule userProfile={userProfile} />;
+        return <AttendanceModule userProfile={userProfile} selectedYear={selectedYear} />;
       case 'schedules':
         return <SchedulesModule userProfile={userProfile} />;
       case 'messenger':
@@ -459,11 +488,11 @@ export default function Dashboard({ userProfile }) {
       case 'scrum':
         return <ScrumModule userProfile={userProfile} />;
       case 'calendar':
-        return <CalendarModule userProfile={userProfile} />;
+        return <CalendarModule userProfile={userProfile} selectedYear={selectedYear} />;
       case 'payments':
-        return <PaymentsModule userProfile={userProfile} />;
+        return <PaymentsModule userProfile={userProfile} selectedYear={selectedYear} />;
       case 'reports':
-        return <ReportsModule userProfile={userProfile} />;
+        return <ReportsModule userProfile={userProfile} selectedYear={selectedYear} />;
       case 'company':
         return <CompanyModule userProfile={userProfile} />;
       case 'profile':

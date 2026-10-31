@@ -265,7 +265,10 @@ export const getCurrentUser = async (req, res) => {
       filter.companyId = req.companyId;
     }
 
-    const user = await User.findOne(filter).populate('companyId', 'name');
+    let user = await User.findOne(filter).populate('companyId', 'name');
+    if (!user && req.companyId) {
+      user = await User.findOne({ userId: currentUserId }).populate('companyId', 'name');
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
     const obj = sanitizeUser(user);
     if (user.companyId && typeof user.companyId === 'object' && user.companyId.name) {
